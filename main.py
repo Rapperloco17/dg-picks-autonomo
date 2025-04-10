@@ -1,5 +1,6 @@
 
 import requests
+import time
 
 TOKEN = "7520899056:AAHaS2Id5BGa9HlrX6YWJFX6hCnZsADTOFA"
 CHANNEL_USERNAME = "@dgpicksvippro"
@@ -17,5 +18,9 @@ def send_message(text):
 if __name__ == "__main__":
     result = send_message("🚀 *DG Picks Autónomo activado con éxito!*
 
-Prueba enviada desde Railway.")
+Mensaje de prueba desde Railway.")
     print(result)
+
+    # Mantener el proceso activo para evitar que Railway lo apague
+    while True:
+        time.sleep(60)
