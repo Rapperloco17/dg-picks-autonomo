@@ -16,11 +16,10 @@ def send_message(text):
     return response.json()
 
 if __name__ == "__main__":
-    result = send_message("🚀 *DG Picks Autónomo activado con éxito!*
-
-Mensaje de prueba desde Railway.")
+    mensaje = "🚀 *DG Picks Autónomo activado con éxito!*\n\nMensaje de prueba desde Railway."
+    result = send_message(mensaje)
     print(result)
 
-    # Mantener el proceso activo para evitar que Railway lo apague
+    # Mantener el proceso activo
     while True:
         time.sleep(60)
