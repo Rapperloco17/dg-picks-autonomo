@@ -1,0 +1,1 @@
+# Lógica para formatear y enviar picks a Telegram

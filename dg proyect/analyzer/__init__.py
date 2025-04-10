@@ -1,0 +1,1 @@
+# Lógica de análisis de partidos y detección de valor

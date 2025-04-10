@@ -1,0 +1,1 @@
+# Base de datos o archivo de registro de resultados
