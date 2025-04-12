@@ -1,7 +1,7 @@
 import schedule
 import time
 
-# Importar funciones de generación por deporte
+# 📦 Importar funciones de generación por deporte
 from generador_tenis import enviar_picks_tenis
 from generador_mlb import enviar_picks_mlb
 from generador_nba import enviar_picks_nba
@@ -10,7 +10,7 @@ from generador_parlay import enviar_parlay_diario
 from generador_reto import enviar_pick_reto_escalera
 from generador_mini_reto import enviar_mini_reto_free
 
-# Importar utilidades
+# ⚙️ Importar utilidades
 from utils.telegram import log_envio
 from utils.horarios import (
     obtener_hora_mlb,
@@ -20,6 +20,8 @@ from utils.horarios import (
     cada_dos_semanas
 )
 
+from utils.cuotas import obtener_cuota_bet365
+
 from utils.valor_cuota import (
     detectar_valor_tenis,
     detectar_valor_mlb,
@@ -27,16 +29,16 @@ from utils.valor_cuota import (
     detectar_valor_futbol
 )
 
-# 🕐 Envíos automáticos por deporte
+# 📅 Envíos automáticos por deporte
 schedule.every().day.at("22:00").do(enviar_picks_tenis)
 schedule.every().day.at(obtener_hora_mlb()).do(enviar_picks_mlb)
 schedule.every().day.at(obtener_hora_nba()).do(enviar_picks_nba)
 schedule.every().day.at(obtener_hora_futbol()).do(enviar_picks_futbol)
 
-# 🎯 Parlay diario combinado
+# 📦 Parlay diario combinado
 schedule.every().day.at("22:30").do(enviar_parlay_diario)
 
-# 🔒 Reto Escalera (enviar pick 5 hrs antes del juego)
+# 🔐 Reto Escalera (enviar pick 5 hrs antes del juego)
 schedule.every().day.at("12:00").do(enviar_pick_reto_escalera)
 
 # 🪜 Mini Reto Escalera Free (cada 2 semanas)
@@ -51,7 +53,7 @@ def intento_bomba_findes():
 
 schedule.every().day.at("13:00").do(intento_bomba_findes)
 
-# 🔁 Loop que ejecuta todo el sistema
+# ♻️ Loop que ejecuta todo el sistema
 while True:
     schedule.run_pending()
     time.sleep(30)
