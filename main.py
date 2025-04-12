@@ -11,7 +11,7 @@ from generador_reto import enviar_pick_reto_escalera
 from generador_mini_reto import enviar_mini_reto_free
 
 # 🧰 Importar utilidades
-from utils.telegram import log_envío
+from utils.telegram import log_envio
 from utils.horarios import (
     obtener_hora_mlb,
     obtener_hora_nba,
