@@ -1,10 +1,10 @@
 # generador_nba.py
 
-from utils.nba_stats import obtener_partidos_nba, analizar_nba
+from utils.nba_stats import obtener_partidos_nba, analizar_forma_nba
 from utils.formato import formatear_pick
 from utils.telegram import enviar_mensaje
 from utils.cuotas_cache import get_cuota_cached
-from utils.cuotas import validar_valor_cuota
+from utils.valor_cuota import validar_valor_cuota
 
 def enviar_picks_nba():
     partidos = obtener_partidos_nba()
@@ -17,10 +17,10 @@ def enviar_picks_nba():
 
         cuota = get_cuota_cached(enfrentamiento, "h2h", "nba")
         if not validar_valor_cuota(cuota):
-            continue  # Saltar pick si la cuota no tiene valor
+            continue  # Saltar si no hay valor
 
-        analisis = analizar_nba(partido)
-        analisis["descripcion"] += f" Cuota: @{cuota}"
+        analisis = analizar_forma_nba(partido)
+        analisis["descripcion"] += f" 🏀 Cuota: @{cuota}"
 
         texto = formatear_pick(partido, analisis, deporte="NBA")
         picks_validados.append(texto)
