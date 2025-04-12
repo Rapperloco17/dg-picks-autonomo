@@ -1,1 +1,0 @@
-# Lógica de scraping para Sofascore, Bet365, etc.

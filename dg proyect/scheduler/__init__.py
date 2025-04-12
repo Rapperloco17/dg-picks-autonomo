@@ -1,1 +1,0 @@
-# Tareas automáticas y horarios programados
