@@ -1,3 +1,7 @@
+import sys
+import os
 
-from utils.cuotas import obtener_cuota_bet365
-from utils.cuotas_cache import get_cuota_cached
+sys.path.append(os.path.join(os.path.dirname(__file__), "utils"))
+
+from cuotas import obtener_cuota_bet365
+from cuotas_cache import get_cuota_cached
