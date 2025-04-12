@@ -1,24 +1,31 @@
-
 # generador_nba.py
 
-from utils.telegram import enviar_mensaje
-from utils.nba_stats import obtener_partidos_nba, analizar_informacion_jugadores
-from utils.valor import detectar_valor_nba
+from utils.nba_stats import obtener_partidos_nba, analizar_nba
 from utils.formato import formatear_pick
+from utils.telegram import enviar_mensaje
+from utils.cuotas_cache import get_cuota_cached
+from utils.cuotas import validar_valor_cuota
 
 def enviar_picks_nba():
     partidos = obtener_partidos_nba()
+    picks_validados = []
 
-    picks = []
     for partido in partidos:
-        analisis = analizar_informacion_jugadores(partido)
-        if detectar_valor_nba(partido, analisis):
-            pick_formateado = formatear_pick(partido, analisis, deporte="nba")
-            picks.append(pick_formateado)
+        equipo1 = partido["equipo1"]
+        equipo2 = partido["equipo2"]
+        enfrentamiento = f"{equipo1} vs {equipo2}"
 
-    if picks:
-        for pick in picks:
-            enviar_mensaje("vip", pick)
-        enviar_mensaje("vip", f"✅ {len(picks)} picks de NBA enviados con valor detectado.")
-    else:
-        enviar_mensaje("vip", "🚫 No se encontraron picks de NBA con valor hoy.")
+        cuota = get_cuota_cached(enfrentamiento, "h2h", "nba")
+        if not validar_valor_cuota(cuota):
+            continue  # Saltar pick si la cuota no tiene valor
+
+        analisis = analizar_nba(partido)
+        analisis["descripcion"] += f" Cuota: @{cuota}"
+
+        texto = formatear_pick(partido, analisis, deporte="NBA")
+        picks_validados.append(texto)
+
+    if picks_validados:
+        parlay_texto = "\n\n".join(picks_validados)
+        parlay_texto = f"🔥 PARLAY NBA DEL DÍA 🔥\n\n{parlay_texto}"
+        enviar_mensaje("VIP", parlay_texto)
