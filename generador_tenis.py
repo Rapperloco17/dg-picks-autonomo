@@ -1,5 +1,5 @@
 from utils.sofascore import obtener_partidos_tenis, analizar_rompimientos
-from utils.telegram import log_envío
+from utils.telegram import log_envio
 from utils.valor_cuota import (
     detectar_valor_tenis,
     detectar_valor_mlb,
