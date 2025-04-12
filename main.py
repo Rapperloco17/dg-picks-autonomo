@@ -1,7 +1,3 @@
-print("✅ Inicio del sistema DG Picks")
-import sys
-print(f"📦 Python version: {sys.version}")
-
 import schedule
 import time
 
@@ -22,6 +18,13 @@ from utils.horarios import (
     obtener_hora_futbol,
     dia_es_finde,
     cada_dos_semanas
+)
+
+from utils.valor_cuota import (
+    detectar_valor_tenis,
+    detectar_valor_mlb,
+    detectar_valor_nba,
+    detectar_valor_futbol
 )
 
 # 🕐 Envíos automáticos por deporte
