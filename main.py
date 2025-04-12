@@ -1,11 +1,13 @@
-
 import requests
+import schedule
 import time
 from datetime import datetime
 
-TOKEN = "7520899056:AAHaS2Id5BGa9HlrX6YWJFX6hCnZsADTOFA"
+# Token y canal de Telegram
+TOKEN = "7520899056:AAHaSZ1d5G8a9HlYzX6NYJ6fCnZsADTOFA"
 CHANNEL_USERNAME = "@dgpicksvippro"
 
+# Función para enviar mensaje al canal
 def send_message(text):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {
@@ -16,17 +18,16 @@ def send_message(text):
     response = requests.post(url, data=payload)
     return response.json()
 
-if __name__ == "__main__":
-    # Simulamos un mensaje con fecha (en producción, esto viene de tu generador de picks)
-    mensaje = "🧩 PARLAY MLB DEL DÍA – 10/04/2025\n1. NY Yankees\n2. SD Padres\n3. BAL Orioles\n💰 Cuota: 6.39\n🔥 Stake: 2/10"
+# Función programada que contiene los picks
+def enviar_picks_tenis():
+    mensaje = "🎾 *PICKS DE TENIS DEL DÍA*\n\n1. Taberner gana\n2. Martineau rompe 1er set\n3. Moro Cañas gana al menos 1 set\n\n✅ Valor detectado en cada pick."
+    send_message(mensaje)
+    print("✅ Picks enviados automáticamente a las 22:00.")
 
-    hoy = datetime.now().strftime("%d/%m/%Y")
+# Programación diaria a las 22:00 (hora de México)
+schedule.every().day.at("22:00").do(enviar_picks_tenis)
 
-    if hoy in mensaje:
-        send_message(mensaje)
-        print("✅ Pick enviado.")
-    else:
-        print("⏳ Pick no enviado: no es del día.")
-
-    while True:
-        time.sleep(60)
+# Bucle para que corra siempre
+while True:
+    schedule.run_pending()
+    time.sleep(1)
