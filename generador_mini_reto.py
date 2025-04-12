@@ -4,7 +4,7 @@ from utils.reto_stats import obtener_picks_reto, seleccionar_paso_reto
 from utils.formato import formatear_pick
 from utils.telegram import enviar_mensaje_free
 from utils.cuotas_cache import get_cuota_cached
-from utils.cuotas import validar_valor_cuota
+from utils.valor_cuota import validar_valor_cuota
 
 def enviar_mini_reto_free():
     pasos = []
@@ -23,7 +23,7 @@ def enviar_mini_reto_free():
         jugador2 = pick.get("jugador2", "Jugador B")
         enfrentamiento = f"{jugador1} vs {jugador2}"
 
-        cuota = get_cuota_cached(enfrentamiento, "h2h", "tenis")
+        cuota = get_cuota_cached(enfrentamiento, "h2h", pick.get("deporte", "tenis"))
         if not validar_valor_cuota(cuota, min_valor=1.50, max_valor=3.50):
             continue
 
