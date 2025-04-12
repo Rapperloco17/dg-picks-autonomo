@@ -1,33 +1,39 @@
-import requests
 import schedule
 import time
-from datetime import datetime
+from generadores.generador_tenis import enviar_picks_tenis
+from generadores.generador_mlb import enviar_picks_mlb
+from generadores.generador_nba import enviar_picks_nba
+from generadores.generador_futbol import enviar_picks_futbol
+from generadores.generador_parlay import enviar_parlay_diario
+from generadores.generador_reto import enviar_pick_reto_escalera
+from generadores.generador_mini_reto import enviar_mini_reto_free
+from utils.telegram import log_envio
+from utils.horarios import obtener_hora_mlb, obtener_hora_nba, obtener_hora_futbol, dia_es_finde, cada_dos_semanas
 
-# Token y canal de Telegram
-TOKEN = "7520899056:AAHaSZ1d5G8a9HlYzX6NYJ6fCnZsADTOFA"
-CHANNEL_USERNAME = "@dgpicksvippro"
-
-# Función para enviar mensaje al canal
-def send_message(text):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {
-        "chat_id": CHANNEL_USERNAME,
-        "text": text,
-        "parse_mode": "Markdown"
-    }
-    response = requests.post(url, data=payload)
-    return response.json()
-
-# Función programada que contiene los picks
-def enviar_picks_tenis():
-    mensaje = "🎾 *PICKS DE TENIS DEL DÍA*\n\n1. Taberner gana\n2. Martineau rompe 1er set\n3. Moro Cañas gana al menos 1 set\n\n✅ Valor detectado en cada pick."
-    send_message(mensaje)
-    print("✅ Picks enviados automáticamente a las 22:00.")
-
-# Programación diaria a las 22:00 (hora de México)
+# 🕒 Programar envíos automáticos por deporte
 schedule.every().day.at("22:00").do(enviar_picks_tenis)
+schedule.every().day.at(obtener_hora_mlb()).do(enviar_picks_mlb)
+schedule.every().day.at(obtener_hora_nba()).do(enviar_picks_nba)
+schedule.every().day.at(obtener_hora_futbol()).do(enviar_picks_futbol)
 
-# Bucle para que corra siempre
+# 🌟 Parlay diario (puede ser combinado)
+schedule.every().day.at("22:30").do(enviar_parlay_diario)
+
+# 🔐 Reto Escalera: pick diario automático 5h antes del juego
+schedule.every().day.at("12:00").do(enviar_pick_reto_escalera)  # Nota: ajustar en función del primer juego
+
+# 🌱 Mini Reto Escalera en canal Free cada 2 semanas (4 pasos)
+schedule.every().monday.at("11:00").do(lambda: enviar_mini_reto_free() if cada_dos_semanas() else None)
+
+# 🚀 Bomba Legendaria fin de semana (cuota @150+)
+def intento_bomba_findes():
+    if dia_es_finde():
+        enviar_parlay_diario(es_bomba=True)
+
+schedule.every().day.at("13:00").do(intento_bomba_findes)
+
+# ♻️ Loop que ejecuta el sistema
 while True:
     schedule.run_pending()
-    time.sleep(1)
+    time.sleep(30)
+
