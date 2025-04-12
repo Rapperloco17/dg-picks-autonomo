@@ -20,4 +20,15 @@ def enviar_pick_reto_escalera():
 
     jugador1 = pick.get("jugador1", "Jugador A")
     jugador2 = pick.get("jugador2", "Jugador B")
-    enfrentamiento = f"{jugador1} vs {
+    enfrentamiento = f"{jugador1} vs {jugador2}"
+
+    cuota = get_cuota_cached(enfrentamiento, "h2h", pick.get("deporte", "tenis"))
+    if not validar_valor_cuota(cuota, min_valor=1.50, max_valor=3.50):
+        enviar_mensaje_reto("🚫 El pick más seguro no tiene cuota válida para el Reto Escalera.")
+        return
+
+    pick["analisis"]["descripcion"] += f" Cuota: @{cuota}"
+    pick_formateado = formatear_pick(pick, pick["analisis"], reto_escalera=True)
+
+    enviar_mensaje_reto("🔒 *Reto Escalera – Pick del Día* 🔒")
+    enviar_mensaje_reto(pick_formateado)
