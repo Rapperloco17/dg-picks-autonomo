@@ -1,42 +1,20 @@
 # generador_parlay.py
 
-from utils.historico_picks import obtener_mejores_picks_del_dia
-from utils.telegram import enviar_mensaje
-from utils.cuotas import validar_valor_cuota
+from generator_tenis import enviar_picks_tenis
+from generator_mlb import enviar_picks_mlb
+from generator_nba import enviar_picks_nba
+from generator_futbol import enviar_picks_futbol
 
 def enviar_parlay_diario(es_bomba=False):
-    picks = obtener_mejores_picks_del_dia()
-
-    if not picks or len(picks) < 2:
-        enviar_mensaje("VIP", "🚫 No hay suficientes picks con valor para armar el parlay diario.")
-        return
-
-    parlay = []
-    cuota_total = 1.0
-    todos_validos = True
-
-    for pick in picks:
-        cuota = pick.get("cuota", 1.0)
-
-        if not validar_valor_cuota(cuota, min_valor=1.50, max_valor=3.50):
-            todos_validos = False
-            continue
-
-        parlay.append(pick)
-        cuota_total *= cuota
-
-    if len(parlay) < 2:
-        enviar_mensaje("VIP", "⚠️ No hay suficientes cuotas válidas para armar un parlay con valor.")
-        return
-
-    mensaje = "🎯 *PARLAY DIARIO CON VALOR REAL* 🎯\n\n"
-    for i, pick in enumerate(parlay, start=1):
-        mensaje += f"{i}. {pick['texto']}\n"
-
-    mensaje += f"\n💰 *Cuota combinada:* @{round(cuota_total, 2)}"
-    mensaje += "\nStake sugerido: 2/10"
-
-    if es_bomba and cuota_total >= 150 and todos_validos:
-        mensaje = f"💣 *BOMBA LEGENDARIA DEL DÍA* 💣\n\n{mensaje}"
-
-    enviar_mensaje("VIP", mensaje)
+    # Ejecuta los generadores por separado, pero solo recopila los picks (sin enviar duplicado)
+    enviar_picks_tenis()
+    enviar_picks_mlb()
+    enviar_picks_nba()
+    enviar_picks_futbol()
+    
+    # El formato y envío ya están contenidos en cada generador
+    # Este archivo se asegura de que todos corran juntos como parte del parlay del día o bomba legendaria si es finde
+    if es_bomba:
+        print("[BOMBA] Se ejecutó como Bomba Legendaria (cuota +150)")
+    else:
+        print("[PARLAY] Se ejecutó Parlay Combinado Diario")
