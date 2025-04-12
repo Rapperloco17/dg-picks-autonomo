@@ -21,3 +21,10 @@ def obtener_partidos_futbol():
         {"cuota": 1.95, "equipo_local": "Real Madrid", "equipo_visitante": "Barcelona"},
         {"cuota": 2.30, "equipo_local": "Arsenal", "equipo_visitante": "Liverpool"}
     ]
+
+def analizar_rompimientos(partido):
+    return {
+        "jugador1_rompe": True,
+        "jugador2_rompe": False,
+        "descripcion": f"{partido['jugador_1']} tiene buen desempeño al resto. {partido['jugador_2']} vulnerable en su primer servicio."
+    }
