@@ -1,13 +1,20 @@
-
 # utils/mlb_stats.py
 
-def obtener_partidos_mlb():
-    return [
-        {"equipo1": "Yankees", "equipo2": "Red Sox", "pitcher1": "Cole", "pitcher2": "Sale"},
-        {"equipo1": "Dodgers", "equipo2": "Giants", "pitcher1": "Kershaw", "pitcher2": "Webb"}
-    ]
+def analizar_mlb(partido):
+    # Análisis simulado para MLB
+    equipo_local = partido['equipo_local']
+    equipo_visitante = partido['equipo_visitante']
+    cuota = partido['cuota']
 
-def analizar_pitchers(partido):
+    if "Yankees" in equipo_local or "Dodgers" in equipo_local:
+        valor = True
+        descripcion = f"{equipo_local} está en buena racha y tiene valor ante {equipo_visitante}."
+    else:
+        valor = False
+        descripcion = f"No se detecta valor suficiente en el enfrentamiento {equipo_local} vs {equipo_visitante}."
+
     return {
-        "descripcion": f"{partido['pitcher1']} tiene mejor ERA y más ponches que {partido['pitcher2']}."
+        "valor": valor,
+        "descripcion": descripcion,
+        "cuota": cuota
     }
