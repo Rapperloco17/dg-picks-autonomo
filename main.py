@@ -18,19 +18,19 @@ from utils.horarios import (
     cada_dos_semanas,
 )
 
-# 📊 Envio por deporte
+# ⭐️ Envío por deporte
 schedule.every().day.at("22:00").do(enviar_picks_tenis)
 schedule.every().day.at(obtener_hora_mlb()).do(enviar_picks_mlb)
 schedule.every().day.at(obtener_hora_nba()).do(enviar_picks_nba)
 schedule.every().day.at(obtener_hora_futbol()).do(enviar_picks_futbol)
 
-# 🎯 Parlay diario combinado
+# 🌟 Parlay diario combinado
 schedule.every().day.at("22:30").do(enviar_parlay_diario)
 
-# 🔹 Reto Escalera
+# ⛹️‍♂️ Reto Escalera
 schedule.every().day.at("12:00").do(enviar_pick_reto_escalera)
 
-# 🌟 Mini reto escalera free (cada 2 semanas)
+# 📆 Mini Reto escalera Free (cada 2 semanas)
 schedule.every().monday.at("11:00").do(
     lambda: enviar_mini_reto_free() if cada_dos_semanas() else None
 )
@@ -42,7 +42,7 @@ def intento_bomba_findes():
 
 schedule.every().day.at("13:00").do(intento_bomba_findes)
 
-# ⏱ Loop que ejecuta el sistema
+# ⏳ Loop que ejecuta el sistema
 while True:
     schedule.run_pending()
     time.sleep(30)
