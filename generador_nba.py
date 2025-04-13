@@ -1,5 +1,5 @@
 from utils.sofascore import obtener_partidos_nba
-from utils.telegram import log_envío
+from utils.telegram import log_envio
 from utils.valor_cuota import detectar_valor_nba
 
 def enviar_picks_nba():
