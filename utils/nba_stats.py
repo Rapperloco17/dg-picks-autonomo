@@ -1,13 +1,19 @@
-
 # utils/nba_stats.py
 
-def obtener_partidos_nba():
-    return [
-        {"equipo1": "Lakers", "equipo2": "Warriors"},
-        {"equipo1": "Bucks", "equipo2": "Celtics"}
-    ]
+def analizar_forma_nba(partido):
+    equipo_local = partido['equipo_local']
+    equipo_visitante = partido['equipo_visitante']
+    cuota = partido['cuota']
 
-def analizar_informacion_jugadores(partido):
+    if "Lakers" in equipo_local or "Celtics" in equipo_local:
+        valor = True
+        descripcion = f"{equipo_local} está en buena forma y puede cubrir la línea contra {equipo_visitante}."
+    else:
+        valor = False
+        descripcion = f"Partido parejo entre {equipo_local} y {equipo_visitante}, sin valor detectado."
+
     return {
-        "descripcion": f"{partido['equipo1']} llega más descansado, con ventaja estadística en rebotes y defensa."
+        "valor": valor,
+        "descripcion": descripcion,
+        "cuota": cuota
     }
