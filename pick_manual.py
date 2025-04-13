@@ -1,6 +1,18 @@
 from utils.telegram import log_envío
 
-def enviar_pick_manual():
-    mensaje = "📢 PICK MANUAL DG PICKS 💣\n\n🧠 Volkanovski gana por KO/TKO a López (UFC)\n🔥 Stake: 2/10\n\n📢 ¡Solo para valientes, esto se va a cobrar!"
-    
-    log_envío('vip', mensaje)
+mensaje = """
+💥 PICK ESPECIAL UFC 💥
+
+🔥 Volkanovski gana por KO/TKO a López
+
+📊 Análisis: Volkanovski llega con ventaja táctica y poder de definición. Todo indica que buscará el final antes del último asalto.
+
+💣 Cuota: 2.80  
+💼 Stake: 2/10
+
+¿Te atreves a seguirla? 😤💥
+"""
+
+log_envío('vip', mensaje)
+log_envío('free', mensaje)
+log_envío('reto', mensaje)
