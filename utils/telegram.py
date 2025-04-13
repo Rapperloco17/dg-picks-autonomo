@@ -1,14 +1,12 @@
 import requests
 import os
 
-# IDs de los canales de Telegram
+# IDs de los canales de Telegram actualizados
 CHANNELS = {
-    'vip': '-1002606411968',           # Canal VIP+
-    'reto': '-1002453760512',          # Canal Reto Escalera
-    'free': '@dgpickspro17'            # Canal Free (ahora público, se usa @username)
+    'vip': '-1001285733813',      # Canal VIP+ (antes era el canal FREE)
+    'reto': '-1002453760512',     # Canal Reto Escalera
+    'free': '@dgpickspro17'       # Canal FREE (ahora público con username)
 }
-
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 def log_envio(canal: str, mensaje: str):
     """
@@ -19,13 +17,17 @@ def log_envio(canal: str, mensaje: str):
         mensaje (str): Texto del mensaje que se enviará.
 
     Ejemplo de uso:
-        log_envio('vip', '¡Este es un mensaje para el canal VIP!')
+    log_envio('vip', '¡Este es un mensaje para el canal VIP!')
     """
     if canal not in CHANNELS:
         raise ValueError(f"❌ Canal '{canal}' no está configurado en CHANNELS.")
 
     chat_id = CHANNELS[canal]
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    bot_token = os.environ.get('TELEGRAM_BOT_TOKEN')
+    if not bot_token:
+        raise ValueError("❌ No se encontró el token del bot. Asegúrate de configurar TELEGRAM_BOT_TOKEN en Railway.")
+
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
 
     payload = {
         'chat_id': chat_id,
