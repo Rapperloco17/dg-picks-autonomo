@@ -1,5 +1,5 @@
 from utils.sofascore import obtener_partidos_futbol
-from utils.telegram import log_envío
+from utils.telegram import log_envio
 from utils.valor_cuota import detectar_valor_futbol
 
 def enviar_picks_futbol():
