@@ -1,13 +1,19 @@
-
 # utils/soccer_stats.py
 
-def obtener_partidos_futbol():
-    return [
-        {"equipo1": "Barcelona", "equipo2": "Real Madrid"},
-        {"equipo1": "Tigres", "equipo2": "América"}
-    ]
+def analizar_forma_futbol(partido):
+    equipo_local = partido['equipo_local']
+    equipo_visitante = partido['equipo_visitante']
+    cuota = partido['cuota']
 
-def analizar_equipo_futbol(partido):
+    if "Real Madrid" in equipo_local or "Arsenal" in equipo_local:
+        valor = True
+        descripcion = f"{equipo_local} ha mostrado solidez en casa. Buena opción frente a {equipo_visitante}."
+    else:
+        valor = False
+        descripcion = f"Partido equilibrado entre {equipo_local} y {equipo_visitante}. No se detecta valor claro."
+
     return {
-        "descripcion": f"{partido['equipo1']} tiene mejor forma reciente y estadísticas ofensivas superiores."
+        "valor": valor,
+        "descripcion": descripcion,
+        "cuota": cuota
     }
