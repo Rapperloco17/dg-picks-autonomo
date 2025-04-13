@@ -11,6 +11,6 @@ def enviar_picks_tenis():
         if detectar_valor_tenis(partido["cuota"]):
             analisis = analizar_rompimientos(partido)
             mensaje = f"🎾 Pick Tenis\n{analisis}\nCuota: {partido['cuota']}"
-            log_envío("vip", mensaje)
+            log_envio("vip", mensaje)
 
     print("✅ Picks de tenis enviados.")
