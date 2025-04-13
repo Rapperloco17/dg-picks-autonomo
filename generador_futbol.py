@@ -3,7 +3,7 @@ from utils.telegram import log_envio
 from utils.valor_cuota import detectar_valor_futbol
 
 def enviar_picks_futbol():
-    print("📊 Inicio de analisis de Fútbol...")
+    print("⚽ Inicio de análisis de fútbol...")
     partidos = obtener_partidos_futbol()
 
     for partido in partidos:
@@ -11,5 +11,4 @@ def enviar_picks_futbol():
             mensaje = f"⚽ Pick Fútbol\n{partido['equipo_local']} vs {partido['equipo_visitante']}\nCuota: {partido['cuota']}"
             log_envio(mensaje)
 
-    print("✅ Picks de Fútbol enviados.")
-
+    print("✅ Picks de fútbol enviados.")
