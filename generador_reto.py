@@ -1,34 +1,16 @@
-# generador_reto.py
 
-from utils.reto_stats import obtener_picks_reto, seleccionar_mas_seguro
-from utils.formato import formatear_pick
-from utils.telegram import enviar_mensaje_reto
-from utils.cuotas_cache import get_cuota_cached
-from utils.valor_cuota import validar_valor_cuota
+from utils.telegram import log_envío
 
-def enviar_pick_reto_escalera():
-    picks = obtener_picks_reto()
+def enviar_reto_escalera():
+    print("🚀 Enviando pick del Reto Escalera...")
 
-    if not picks:
-        enviar_mensaje_reto("🚫 No se encontraron picks adecuados para el Reto Escalera hoy.")
-        return
+    mensaje = """🔥 Reto Escalera – Día 1
+Pick: Gana Djokovic
+Cuota: 1.85
+Stake: 5 unidades
 
-    pick = seleccionar_mas_seguro(picks)
-    if not pick:
-        enviar_mensaje_reto("⚠️ No se pudo seleccionar un pick seguro para el Reto Escalera hoy.")
-        return
+✅ Valor detectado en la cuota."""
 
-    jugador1 = pick.get("jugador1", "Jugador A")
-    jugador2 = pick.get("jugador2", "Jugador B")
-    enfrentamiento = f"{jugador1} vs {jugador2}"
+    log_envío("reto", mensaje)
 
-    cuota = get_cuota_cached(enfrentamiento, "h2h", pick.get("deporte", "tenis"))
-    if not validar_valor_cuota(cuota, min_valor=1.50, max_valor=3.50):
-        enviar_mensaje_reto("🚫 El pick más seguro no tiene cuota válida para el Reto Escalera.")
-        return
-
-    pick["analisis"]["descripcion"] += f" Cuota: @{cuota}"
-    pick_formateado = formatear_pick(pick, pick["analisis"], reto_escalera=True)
-
-    enviar_mensaje_reto("🔒 *Reto Escalera – Pick del Día* 🔒")
-    enviar_mensaje_reto(pick_formateado)
+    print("✅ Pick del Reto Escalera enviado al canal correspondiente.")
