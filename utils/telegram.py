@@ -1,3 +1,4 @@
+
 # utils/telegram.py
 
 import requests
@@ -41,3 +42,18 @@ def enviar_mensaje(canal: str, mensaje: str):
         print(f"✅ Mensaje enviado correctamente al canal '{canal}'.")
     else:
         print(f"❌ Error al enviar el mensaje al canal '{canal}': {response.text}")
+
+
+def log_envío(mensaje: str, destino: str = 'vip'):
+    """
+    Envía un mensaje al canal correspondiente según el tipo:
+    'vip', 'reto', 'free'.
+
+    Parámetros:
+        mensaje (str): El mensaje con picks.
+        destino (str): Canal de destino ('vip', 'reto', 'free').
+    """
+    try:
+        enviar_mensaje(destino, mensaje)
+    except Exception as e:
+        print(f"❌ Error en log_envío: {e}")
