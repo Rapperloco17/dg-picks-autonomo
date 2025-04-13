@@ -9,6 +9,6 @@ def enviar_picks_nba():
     for partido in partidos:
         if detectar_valor_nba(partido["cuota"]):
             mensaje = f"🏀 Pick NBA\n{partido['equipo_local']} vs {partido['equipo_visitante']}\nCuota: {partido['cuota']}"
-            log_envío(mensaje)
+            log_envio(mensaje)
 
     print("✅ Picks de NBA enviados.")
