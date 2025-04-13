@@ -1,5 +1,5 @@
 
-from utils.telegram import log_envío
+from utils.telegram import log_envio
 
 def enviar_mini_reto():
     print("🎯 Enviando Día 1 del Mini Reto Free...")
@@ -11,6 +11,6 @@ Stake: 2 unidades
 
 ✅ Comenzamos el mini reto gratuito. ¡Vamos con todo!"""
 
-    log_envío("free", mensaje)
+    log_envio("free", mensaje)
 
     print("✅ Mini Reto enviado al canal FREE.")
