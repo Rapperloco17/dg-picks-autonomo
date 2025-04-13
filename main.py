@@ -1,12 +1,21 @@
-import schedule
-import time
-from generador_tenis import generar_picks_tenis
-from generador_futbol import generar_picks_futbol
-from generador_mlb import generar_picks_mlb
-from generador_nba import generar_picks_nba
-from generador_parlay import generar_parlay_diario
-from generador_reto import generar_reto_escalera
-from generador_mini_reto import generar_mini_reto_free
+from generador_tenis import enviar_picks_tenis
+from generador_futbol import enviar_picks_futbol
+from generador_mlb import enviar_picks_mlb
+from generador_nba import enviar_picks_nba
+from generador_parlay import enviar_parlay_diario
+from generador_reto import enviar_reto_escalera
+from generador_mini_reto import enviar_mini_reto_escalera
+
+# Aquí se ejecutan todos los generadores automáticamente
+
+enviar_picks_tenis()
+enviar_picks_futbol()
+enviar_picks_mlb()
+enviar_picks_nba()
+enviar_parlay_diario()
+enviar_reto_escalera()
+enviar_mini_reto_escalera()
+
 
 # Horarios programados (hora del servidor Railway -6 GMT México)
 
