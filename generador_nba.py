@@ -1,31 +1,14 @@
-# generador_nba.py
-
-from utils.nba_stats import obtener_partidos_nba, analizar_forma_nba
-from utils.formato import formatear_pick
-from utils.telegram import enviar_mensaje
-from utils.cuotas_cache import get_cuota_cached
-from utils.valor_cuota import validar_valor_cuota
+from utils.sofascore import obtener_partidos_nba
+from utils.telegram import log_envio
+from utils.valor_cuota import detectar_valor_nba
 
 def enviar_picks_nba():
+    print("\n🧠 Inicio de análisis de NBA...")
     partidos = obtener_partidos_nba()
-    picks_validados = []
 
     for partido in partidos:
-        equipo1 = partido["equipo1"]
-        equipo2 = partido["equipo2"]
-        enfrentamiento = f"{equipo1} vs {equipo2}"
+        if detectar_valor_nba(partido["cuota"]):
+            mensaje = f"🏀 Pick NBA\n{partido['equipo_local']} vs {partido['equipo_visitante']}\nCuota: {partido['cuota']}"
+            log_envio(mensaje)
 
-        cuota = get_cuota_cached(enfrentamiento, "h2h", "nba")
-        if not validar_valor_cuota(cuota):
-            continue  # Saltar si no hay valor
-
-        analisis = analizar_forma_nba(partido)
-        analisis["descripcion"] += f" 🏀 Cuota: @{cuota}"
-
-        texto = formatear_pick(partido, analisis, deporte="NBA")
-        picks_validados.append(texto)
-
-    if picks_validados:
-        parlay_texto = "\n\n".join(picks_validados)
-        parlay_texto = f"🔥 PARLAY NBA DEL DÍA 🔥\n\n{parlay_texto}"
-        enviar_mensaje("VIP", parlay_texto)
+    print("✅ Picks de NBA enviados.")
