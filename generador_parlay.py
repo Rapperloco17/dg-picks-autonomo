@@ -1,5 +1,5 @@
 
-from utils.telegram import log_envío
+from utils.telegram import log_envio
 
 def enviar_parlay_diario():
     print("💥 Generando Parlay Diario...")
@@ -19,7 +19,7 @@ def enviar_parlay_diario():
 💰 Cuota: 2.50
 🎁 ¿Quieres el parlay completo? Únete al canal VIP."""
 
-    log_envío("vip", mensaje_vip)
-    log_envío("free", mensaje_free)
+    log_envio("vip", mensaje_vip)
+    log_envio("free", mensaje_free)
 
     print("✅ Parlay enviado a VIP y FREE.")
