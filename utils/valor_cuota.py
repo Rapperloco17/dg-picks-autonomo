@@ -1,13 +1,11 @@
 # utils/valor_cuota.py
 
-def detectar_valor_tenis(cuota, min_valor=1.50, max_valor=3.50):
-    return min_valor <= cuota <= max_valor
-
-def detectar_valor_mlb(cuota, min_valor=1.50, max_valor=3.50):
-    return min_valor <= cuota <= max_valor
-
-def detectar_valor_nba(cuota, min_valor=1.50, max_valor=3.50):
-    return min_valor <= cuota <= max_valor
-
-def detectar_valor_futbol(cuota, min_valor=1.50, max_valor=3.50):
-    return min_valor <= cuota <= max_valor
+def validar_valor_cuota(cuota):
+    """
+    Retorna True si la cuota tiene valor (entre 1.50 y 3.50), False si no.
+    """
+    try:
+        cuota_float = float(cuota)
+        return 1.50 <= cuota_float <= 3.50
+    except ValueError:
+        return False
