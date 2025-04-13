@@ -1,17 +1,25 @@
-from generador_tenis import enviar_picks_tenis
-from generador_mlb import enviar_picks_mlb
-from generador_nba import enviar_picks_nba
-from generador_futbol import enviar_picks_futbol
 
-def enviar_parlay_diario(es_bomba=False):
+from utils.telegram import log_envío
+
+def enviar_parlay_diario():
     print("💥 Generando Parlay Diario...")
 
-    enviar_picks_tenis()
-    enviar_picks_mlb()
-    enviar_picks_nba()
-    enviar_picks_futbol()
+    mensaje_vip = """💎 Parlay VIP del Día
+1. Djokovic gana un set
+2. Dodgers ML
+3. Over 2.5 goles en Real Madrid vs Barcelona
 
-    if es_bomba:
-        print("🚀 Este parlay se marcará como BOMBA por su cuota alta.")
+💰 Cuota total: 4.25
+✅ Valor detectado en la cuota."""
 
-    print("✅ Parlay diario generado.")
+    mensaje_free = """🔥 Parlay FREE del Día
+1. Djokovic gana un set
+2. Dodgers ML
+
+💰 Cuota: 2.50
+🎁 ¿Quieres el parlay completo? Únete al canal VIP."""
+
+    log_envío("vip", mensaje_vip)
+    log_envío("free", mensaje_free)
+
+    print("✅ Parlay enviado a VIP y FREE.")
