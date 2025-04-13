@@ -1,4 +1,4 @@
-from utils.telegram import log_envío
+from utils.telegram import log_envio
 
 mensaje = """
 💥 PICK ESPECIAL UFC 💥
@@ -13,6 +13,6 @@ mensaje = """
 ¿Te atreves a seguirla? 😤💥
 """
 
-log_envío('vip', mensaje)
-log_envío('free', mensaje)
-log_envío('reto', mensaje)
+log_envio('vip', mensaje)
+log_envio('free', mensaje)
+log_envio('reto', mensaje)
