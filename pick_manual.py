@@ -1,36 +1,30 @@
 
-from utils.telegram import enviar_mensaje
+from utils.telegram import log_envío
 
-def enviar_pick_manual():
-    print("🎯 Envío manual de pick personalizado")
-    print("Selecciona el canal:")
-    print("1. VIP")
-    print("2. Reto Escalera")
-    print("3. Free")
+mensaje = (
+    "🥋 *PICK UFC – MODO BESTIA ACTIVADO*
 
-    canal_opcion = input("Opción de canal (1-3): ").strip()
-    if canal_opcion == '1':
-        canal = 'vip'
-    elif canal_opcion == '2':
-        canal = 'reto'
-    elif canal_opcion == '3':
-        canal = 'free'
-    else:
-        print("❌ Opción inválida.")
-        return
+"
+    "*Volkanovski vs López*
+"
+    "💣 _Volkanovski gana por KO/TKO_
 
-    stake = input("Stake (ej. 2/10): ").strip()
-    promocion = input("¿Es promocional? (s/n): ").strip().lower() == 's'
+"
+    "📊 *Análisis:* El campeón viene con hambre. Superioridad total en striking, agresividad y volumen. "
+    "López no tiene con qué sostener el castigo por 5 rounds. Si Volka conecta limpio, esto se acaba.
 
-    mensaje = input("Escribe el mensaje completo del pick:
-")
+"
+    "🔥 *Cuota con valor* + *Lectura de pelea clara*
+"
+    "💥 *Stake:* 2/10
 
-    final = f"{mensaje}\n🔥 Stake: {stake}"
-    if promocion:
-        final += "\n🎯 Pick promocional – DG Picks"
+"
+    "✅ _¡Valor detectado!_
+"
+    "🔒 Este pick es digno de confianza… ¿vas con nosotros o lo ves desde la banca?"
+)
 
-    enviar_mensaje(canal, final)
-    print("✅ Pick enviado correctamente.")
-
-if __name__ == '__main__':
-    enviar_pick_manual()
+# Enviar a los tres canales
+log_envío('vip', mensaje)
+log_envío('free', mensaje)
+log_envío('reto', mensaje)
