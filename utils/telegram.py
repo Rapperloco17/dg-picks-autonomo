@@ -1,5 +1,4 @@
-
-# utils/telegram.py
+# telegram.py
 
 import requests
 
@@ -8,12 +7,12 @@ TELEGRAM_BOT_TOKEN = '7520899056:AAHaS2Id5BGa9HlrX6YWJFX6hCnZsADTOFA'
 
 # IDs de los canales de Telegram
 CHANNELS = {
-    'vip': '@dgpicksvippro',       # Canal VIP
-    'reto': '@f2dqWWjYggJmM2Jh',    # Canal Reto Escalera
-    'free': '@dgpicks17'           # Canal Free
+    'vip': '-1002606411968',     # Canal VIP
+    'reto': '-1002453760512',    # Canal Reto Escalera
+    'free': '-1001285733813'     # Canal Free
 }
 
-def enviar_mensaje(canal: str, mensaje: str):
+def log_envío(canal: str, mensaje: str):
     """
     Envía un mensaje a un canal de Telegram según el nombre del canal.
 
@@ -22,10 +21,10 @@ def enviar_mensaje(canal: str, mensaje: str):
         mensaje (str): Texto del mensaje que se enviará.
 
     Ejemplo de uso:
-        enviar_mensaje('vip', '📢 ¡Este es un mensaje para el canal VIP!')
+        log_envio('vip', '🔥 ¡Este es un mensaje para el canal VIP!')
     """
     if canal not in CHANNELS:
-        raise ValueError(f"⚠️ Canal '{canal}' no está configurado en CHANNELS.")
+        raise ValueError(f"❌ Canal '{canal}' no está configurado en CHANNELS.")
 
     chat_id = CHANNELS[canal]
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -42,18 +41,3 @@ def enviar_mensaje(canal: str, mensaje: str):
         print(f"✅ Mensaje enviado correctamente al canal '{canal}'.")
     else:
         print(f"❌ Error al enviar el mensaje al canal '{canal}': {response.text}")
-
-
-def log_envío(mensaje: str, destino: str = 'vip'):
-    """
-    Envía un mensaje al canal correspondiente según el tipo:
-    'vip', 'reto', 'free'.
-
-    Parámetros:
-        mensaje (str): El mensaje con picks.
-        destino (str): Canal de destino ('vip', 'reto', 'free').
-    """
-    try:
-        enviar_mensaje(destino, mensaje)
-    except Exception as e:
-        print(f"❌ Error en log_envío: {e}")
