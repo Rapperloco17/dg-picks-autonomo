@@ -7,10 +7,9 @@ def enviar_picks_tenis():
     for pick in picks:
         mensaje = (
             f"🎾 Pick Tenis\n"
-            f"🔥 Pick: {pick['pick']}\n"
+            f"📌 Análisis: {pick['descripcion']}\n"
             f"📊 Cuota: {pick['cuota']}\n"
             f"💰 Stake: {pick['stake']}\n"
-            f"📌 Análisis: {pick['descripcion']}\n"
             f"✅ Valor detectado en la cuota."
         )
         log_envio(pick["canal"], mensaje)
