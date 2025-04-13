@@ -3,7 +3,7 @@ from utils.telegram import log_envio
 from utils.valor_cuota import detectar_valor_nba
 
 def enviar_picks_nba():
-    print("📊 Inicio de análisis de NBA...")
+    print("🏀 Inicio de análisis de NBA...")
     partidos = obtener_partidos_nba()
 
     for partido in partidos:
