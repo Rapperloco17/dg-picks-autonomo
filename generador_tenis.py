@@ -1,4 +1,4 @@
-from telegram import log_envio
+from utils.telegram import log_envio
 from tenis import obtener_picks_tenis
 
 
