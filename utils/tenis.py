@@ -1,29 +1,32 @@
 def obtener_picks_tenis():
-    # Esta función simula picks diarios con enfoque en rompimiento de servicio en el primer set
+    # Picks simulados con análisis de rompimientos en el primer set
     picks = []
 
-    # Simulación 1
     picks.append({
-        'descripcion': 'Djokovic tiene buen desempeño al resto. Alcaraz vulnerable en su primer servicio.',
+        'partido': 'Djokovic vs Alcaraz',
+        'pick': 'Djokovic rompe servicio en el 1er set',
         'cuota': 1.75,
         'stake': '2/10',
-        'canal': 'vip'
+        'canal': 'vip',
+        'analisis': 'Djokovic tiene buen desempeño al resto. Alcaraz vulnerable en su primer servicio.'
     })
 
-    # Simulación 2
     picks.append({
-        'descripcion': 'Medvedev ha generado múltiples oportunidades de quiebre en primeros sets.',
+        'partido': 'Medvedev vs Zverev',
+        'pick': 'Medvedev rompe servicio en el 1er set',
         'cuota': 2.10,
         'stake': '2/10',
-        'canal': 'free'
+        'canal': 'free',
+        'analisis': 'Medvedev ha generado múltiples oportunidades de quiebre en primeros sets.'
     })
 
-    # Simulación 3
     picks.append({
-        'descripcion': 'Ruud ha concedido más de 4 break points en promedio en primeros sets.',
+        'partido': 'Ruud vs Sinner',
+        'pick': 'Ruud NO rompe servicio en el 1er set',
         'cuota': 1.85,
         'stake': '1/10',
-        'canal': 'reto'
+        'canal': 'reto',
+        'analisis': 'Ruud ha concedido más de 4 break points en promedio en primeros sets.'
     })
 
     return picks
