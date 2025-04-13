@@ -1,11 +1,16 @@
+import requests
+import os
+
 # IDs de los canales de Telegram
 CHANNELS = {
-    'vip': -1002606141968,        # Canal VIP+
-    'reto': -1002453760512,      # Canal Reto Escalera
-    'free': '@dgpickspro17'      # Canal Free (ahora público, se usa @username)
+    'vip': '-1002606411968',           # Canal VIP+
+    'reto': '-1002453760512',          # Canal Reto Escalera
+    'free': '@dgpickspro17'            # Canal Free (ahora público, se usa @username)
 }
 
-def log_envío(canal: str, mensaje: str):
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+def log_envio(canal: str, mensaje: str):
     """
     Envía un mensaje a un canal de Telegram según el nombre del canal.
 
