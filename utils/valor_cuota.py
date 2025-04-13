@@ -1,11 +1,29 @@
 # utils/valor_cuota.py
 
-def validar_valor_cuota(cuota):
-    """
-    Retorna True si la cuota tiene valor (entre 1.50 y 3.50), False si no.
-    """
+def detectar_valor_tenis(cuota):
     try:
-        cuota_float = float(cuota)
-        return 1.50 <= cuota_float <= 3.50
-    except ValueError:
+        cuota = float(cuota)
+        return 1.70 <= cuota <= 3.50
+    except:
+        return False
+
+def detectar_valor_mlb(cuota):
+    try:
+        cuota = float(cuota)
+        return 1.60 <= cuota <= 3.50
+    except:
+        return False
+
+def detectar_valor_nba(cuota):
+    try:
+        cuota = float(cuota)
+        return 1.60 <= cuota <= 3.50
+    except:
+        return False
+
+def detectar_valor_futbol(cuota):
+    try:
+        cuota = float(cuota)
+        return 1.50 <= cuota <= 3.50
+    except:
         return False
