@@ -1,38 +1,25 @@
+
 import schedule
 import time
 
-# 📦 Generadores
 from generador_tenis import enviar_picks_tenis
 from generador_mlb import enviar_picks_mlb
 from generador_nba import enviar_picks_nba
 from generador_futbol import enviar_picks_futbol
 from generador_parlay import enviar_parlay_diario
+from generador_reto import enviar_reto_escalera
+from generador_mini_reto import enviar_mini_reto
 
-# 🔧 Utilidades
-from utils.telegram import log_envío
-from utils.horarios import (
-    obtener_hora_mlb,
-    obtener_hora_nba,
-    obtener_hora_futbol,
-    dia_es_finde,
-    cada_dos_semanas
-)
+# Horarios programados (ajustables)
+schedule.every().day.at("10:00").do(enviar_picks_tenis)
+schedule.every().day.at("14:00").do(enviar_picks_mlb)
+schedule.every().day.at("14:00").do(enviar_picks_nba)
+schedule.every().day.at("11:00").do(enviar_picks_futbol)
+schedule.every().day.at("12:00").do(enviar_parlay_diario)
+schedule.every().day.at("13:00").do(enviar_reto_escalera)
+schedule.every().day.at("16:00").do(enviar_mini_reto)
 
-# 🕒 Programación diaria
-schedule.every().day.at("22:00").do(enviar_picks_tenis)
-schedule.every().day.at(obtener_hora_mlb()).do(enviar_picks_mlb)
-schedule.every().day.at(obtener_hora_nba()).do(enviar_picks_nba)
-schedule.every().day.at(obtener_hora_futbol()).do(enviar_picks_futbol)
-schedule.every().day.at("22:30").do(enviar_parlay_diario)
-
-# 💣 Bomba de fin de semana
-def intento_bomba_findes():
-    if dia_es_finde():
-        enviar_parlay_diario(es_bomba=True)
-
-schedule.every().day.at("13:00").do(intento_bomba_findes)
-
-# ♻️ Loop infinito del sistema
+# Bucle continuo del sistema
 while True:
     schedule.run_pending()
     time.sleep(30)
