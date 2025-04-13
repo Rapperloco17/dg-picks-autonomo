@@ -1,16 +1,18 @@
+# Archivo: generador_mini_reto.py
 
 from utils.telegram import log_envio
 
-def enviar_mini_reto():
-    print("🎯 Enviando Día 1 del Mini Reto Free...")
+def enviar_mini_reto_escalera():
+    mensaje = """
+🔥 MINI RETO ESCALERA – Día 1 🔥
 
-    mensaje = """🔥 Mini Reto Escalera – Día 1 (Versión FREE)
-Pick: Gana Alcaraz
-Cuota: 1.80
-Stake: 2 unidades
+🧠 Pick: Ejemplo de apuesta segura
+💵 Cuota: 1.85
+📊 Stake: 1/10
 
-✅ Comenzamos el mini reto gratuito. ¡Vamos con todo!"""
+🎯 Objetivo: convertir 1 unidad en 10 en pocos días.
+⚠️ Apuesta responsable.
 
-    log_envio("free", mensaje)
-
-    print("✅ Mini Reto enviado al canal FREE.")
+¿Te unes al reto? 🚀
+    """
+    log_envio('free', mensaje)
