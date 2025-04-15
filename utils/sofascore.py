@@ -1,30 +1,57 @@
-def obtener_partidos_tenis():
-    return [
-        {"cuota": 1.75, "jugador_1": "Djokovic", "jugador_2": "Alcaraz"},
-        {"cuota": 2.10, "jugador_1": "Medvedev", "jugador_2": "Tsitsipas"}
-    ]
+import requests
+from bs4 import BeautifulSoup
+import time
+import random
 
-def obtener_partidos_mlb():
-    return [
-        {"cuota": 1.85, "equipo_local": "Yankees", "equipo_visitante": "Red Sox"},
-        {"cuota": 2.05, "equipo_local": "Dodgers", "equipo_visitante": "Giants"}
-    ]
+HEADERS = {
+    "User-Agent": random.choice([
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+        "Mozilla/5.0 (Linux; Android 11; SM-G991B)"
+    ])
+}
 
-def obtener_partidos_nba():
-    return [
-        {"cuota": 1.90, "equipo_local": "Lakers", "equipo_visitante": "Warriors"},
-        {"cuota": 2.20, "equipo_local": "Celtics", "equipo_visitante": "Heat"}
-    ]
+BASE_URL = "https://www.sofascore.com"
 
-def obtener_partidos_futbol():
-    return [
-        {"cuota": 1.95, "equipo_local": "Real Madrid", "equipo_visitante": "Barcelona"},
-        {"cuota": 2.30, "equipo_local": "Arsenal", "equipo_visitante": "Liverpool"}
-    ]
+# Simulador de jugador para ejemplo
+EXAMPLE_PLAYERS = [
+    "player/novak-djokovic/13415",
+    "player/daniil-medvedev/68719",
+    "player/carlos-alcaraz/102186"
+]
 
-def analizar_rompimientos(partido):
-    return {
-        "jugador1_rompe": True,
-        "jugador2_rompe": False,
-        "descripcion": f"{partido['jugador_1']} tiene buen desempeño al resto. {partido['jugador_2']} vulnerable en su primer servicio."
-    }
+def get_player_stats(player_slug):
+    url = f"{BASE_URL}/{player_slug}"
+    try:
+        response = requests.get(url, headers=HEADERS)
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        # Simulador de análisis (aquí se personaliza en función del HTML real)
+        rompimientos = random.randint(2, 5)
+        total_partidos = 5
+
+        time.sleep(random.uniform(1.5, 3.0))  # Delay anti-baneo
+
+        return {
+            "slug": player_slug,
+            "rompimientos_1er_set": rompimientos,
+            "partidos_analizados": total_partidos,
+            "ratio": rompimientos / total_partidos
+        }
+
+    except Exception as e:
+        print(f"❌ Error con {player_slug}: {e}")
+        return None
+
+def analizar_jugadores():
+    resultados = []
+    for jugador in EXAMPLE_PLAYERS:
+        stats = get_player_stats(jugador)
+        if stats:
+            resultados.append(stats)
+    return resultados
+
+if __name__ == "__main__":
+    analisis = analizar_jugadores()
+    for dato in analisis:
+        print(f"📊 {dato['slug']} - Rompe en 1er set: {dato['rompimientos_1er_set']} de {dato['partidos_analizados']} | Ratio: {dato['ratio']:.2f}")
