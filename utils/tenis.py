@@ -1,33 +1,30 @@
+from utils.sofascore import analizar_rompimientos_1set
+
 def obtener_picks_tenis():
-    # Picks simulados con análisis de rompimientos en el primer set
+    """
+    Obtiene picks diarios reales con enfoque en rompimientos y no rompimientos
+    en el primer set, utilizando análisis de Sofascore.
+    """
     picks = []
 
-    picks.append({
-        'partido': 'Djokovic vs Alcaraz',
-        'pick': 'Djokovic rompe servicio en el 1er set',
-        'cuota': 1.75,
-        'stake': '2/10',
-        'canal': 'vip',
-        'analisis': 'Djokovic tiene buen desempeño al resto. Alcaraz vulnerable en su primer servicio.'
-    })
+    resultados = analizar_rompimientos_1set()
 
-    picks.append({
-        'partido': 'Medvedev vs Zverev',
-        'pick': 'Medvedev rompe servicio en el 1er set',
-        'cuota': 2.10,
-        'stake': '2/10',
-        'canal': 'free',
-        'analisis': 'Medvedev ha generado múltiples oportunidades de quiebre en primeros sets.'
-    })
+    for r in resultados:
+        # Si no hay análisis, lo ignoramos
+        if not r.get("analisis"):
+            continue
 
-    picks.append({
-        'partido': 'Ruud vs Sinner',
-        'pick': 'Ruud NO rompe servicio en el 1er set',
-        'cuota': 1.85,
-        'stake': '1/10',
-        'canal': 'reto',
-        'analisis': 'Ruud ha concedido más de 4 break points en promedio en primeros sets.'
-    })
+        pick = {
+            "partido": r["partido"],
+            "pick": r["pick"],
+            "cuota": r.get("cuota", "1.80"),  # Puedes ajustar esto manualmente después
+            "stake": "2/10",
+            "canal": r["canal"],
+            "analisis": r["analisis"]
+        }
+
+        picks.append(pick)
 
     return picks
+
 
