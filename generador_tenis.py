@@ -11,15 +11,15 @@ def enviar_picks_tenis():
 
         mensaje = (
             f"🎾 Pick Tenis\n"
-            f"📌 Partido: {pick['partido']}\n"
+            f"📌 {pick['partido']}\n"
             f"🧠 Análisis: {pick['analisis']}\n"
-            f"💵 Cuota: {pick['cuota']}\n"
-            f"🎯 Stake: {pick['stake']}\n"
+            f"💸 Cuota: {pick['cuota']}\n"
+            f"📊 Stake: {pick['stake']}\n"
             f"✅ Valor detectado en la cuota."
         )
 
-        # Si es rompimiento / no rompimiento, mándalo a tu Telegram personal
-        if pick['canal'] == 'privado':
+        # Si el pick es de rompimiento, mandarlo directo al admin
+        if any(kw in pick['pick'].lower() for kw in ["rompe", "no rompe", "ambos rompen", "solo uno rompe"]):
             enviar_mensaje_privado(7450739156, mensaje)
         else:
             log_envio(pick["canal"], mensaje)
