@@ -11,10 +11,10 @@ def enviar_picks_tenis():
 
         mensaje = (
             f"🎾 Pick Tenis\n"
-            f"📌 {pick['partido']}\n"
+            f"📌 Partido: {pick['partido']}\n"
             f"📊 Análisis: {pick['analisis']}\n"
-            f"💰 Cuota: {pick['cuota']}\n"
-            f"🎯 Stake: {pick['stake']}\n"
+            f"💸 Cuota: {pick['cuota']}\n"
+            f"📈 Stake: {pick['stake']}/10\n"
             f"✅ Valor detectado en la cuota."
         )
 
