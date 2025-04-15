@@ -1,43 +1,39 @@
-import requests
+from telegram import Bot
 import os
 
-# IDs de los canales de Telegram actualizados
-CHANNELS = {
-    'vip': '-1001285733813',      # Canal VIP+ (antes era el canal FREE)
-    'reto': '-1002453760512',     # Canal Reto Escalera
-    'free': '@dgpickspro17'       # Canal FREE (ahora público con username)
-}
+# ✅ TOKEN de tu bot (ya lo tienes configurado en Railway)
+TOKEN = os.getenv("TELEGRAM_TOKEN", "TU_TOKEN_AQUI")  # reemplaza si no usas variables de entorno
 
-def log_envio(canal: str, mensaje: str):
-    """
-    Envía un mensaje a un canal de Telegram según el nombre del canal.
+# ✅ ID de tus canales oficiales (puedes ponerlos directamente aquí o desde otras funciones)
+CANAL_VIP = -1001285733813
+CANAL_RETO = -1002453760512
+CANAL_FREE = "@dgpickspro17"
+USER_ID_DAVID = 7450739156  # Tu user_id personal para los rompimientos
 
-    Parámetros:
-        canal (str): Puede ser 'vip', 'reto' o 'free'.
-        mensaje (str): Texto del mensaje que se enviará.
+bot = Bot(token=TOKEN)
 
-    Ejemplo de uso:
-    log_envio('vip', '¡Este es un mensaje para el canal VIP!')
-    """
-    if canal not in CHANNELS:
-        raise ValueError(f"❌ Canal '{canal}' no está configurado en CHANNELS.")
+# ✅ Enviar mensaje a cualquier canal
+def log_envio(canal, mensaje):
+    try:
+        if canal == "vip":
+            chat_id = CANAL_VIP
+        elif canal == "reto":
+            chat_id = CANAL_RETO
+        elif canal == "free":
+            chat_id = CANAL_FREE
+        else:
+            print(f"❌ Canal desconocido: {canal}")
+            return
 
-    chat_id = CHANNELS[canal]
-    bot_token = os.environ.get('TELEGRAM_BOT_TOKEN')
-    if not bot_token:
-        raise ValueError("❌ No se encontró el token del bot. Asegúrate de configurar TELEGRAM_BOT_TOKEN en Railway.")
-
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-
-    payload = {
-        'chat_id': chat_id,
-        'text': mensaje,
-        'parse_mode': 'HTML'
-    }
-
-    response = requests.post(url, data=payload)
-
-    if response.status_code != 200:
-        print(f"❌ Error al enviar el mensaje al canal '{canal}': {response.text}")
-    else:
+        bot.send_message(chat_id=chat_id, text=mensaje)
         print(f"✅ Mensaje enviado al canal '{canal}' correctamente.")
+    except Exception as e:
+        print(f"❌ Error al enviar mensaje al canal '{canal}': {e}")
+
+# ✅ Enviar mensaje privado directo a ti
+def enviar_mensaje_privado(user_id, mensaje):
+    try:
+        bot.send_message(chat_id=user_id, text=mensaje)
+        print(f"✅ Mensaje privado enviado a {user_id}")
+    except Exception as e:
+        print(f"❌ Error al enviar mensaje privado a {user_id}': {e}")
