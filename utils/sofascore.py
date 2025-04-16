@@ -1,118 +1,81 @@
 import requests
 from bs4 import BeautifulSoup
+import re
+import random
 import time
-import json
-import os
-from datetime import datetime
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-}
-
-BASE_URL = "https://www.sofascore.com"
-
-# Obtener partidos del día (ATP y Challenger)
-def obtener_partidos_reales():
-    url = f"{BASE_URL}/tennis"
-    res = requests.get(url, headers=HEADERS)
-    soup = BeautifulSoup(res.text, "html.parser")
-    partidos = []
-
-    for link in soup.find_all("a", href=True):
-        href = link["href"]
-        if "/tennis/" in href and "-vs-" in href and not any(t in href for t in ["doubles", "itf"]):
-            slug = href.strip("/")
-            jugadores = slug.split("/")[-1].split("-vs-")
-            if len(jugadores) == 2:
-                partidos.append({
-                    "partido": slug,
-                    "player_a": jugadores[0],
-                    "player_b": jugadores[1]
-                })
-    return partidos[:6]  # Máximo 6 partidos para evitar sobrecarga
-
-# Simular estadísticas de jugador
-# (Esto se reemplazará más adelante por scraping real por jugador)
-def get_stats_jugador(nombre):
-    time.sleep(2)  # Delay para no ser detectado
-    return {
-        "rompimientos_1er_set": 4,
-        "partidos_analizados": 5,
-        "ratio": 0.72,
-        "bp_creados": 3.5,
-        "bp_concedidos": 2.1,
-        "retorno": 43,
-        "superficie": "arcilla"
+# Esta función es la principal para obtener picks de tenis desde Sofascore
+def obtener_picks_tenis():
+    url = "https://www.sofascore.com/es/tenis"
+    headers = {
+        "User-Agent": "Mozilla/5.0"
     }
 
-def guardar_analisis(resultados):
-    fecha = datetime.now().strftime("%Y-%m-%d")
-    os.makedirs("data", exist_ok=True)
-    with open(f"data/rompimientos_{fecha}.json", "w", encoding="utf-8") as f:
-        json.dump(resultados, f, indent=4, ensure_ascii=False)
+    response = requests.get(url, headers=headers)
+    soup = BeautifulSoup(response.text, 'html.parser')
 
-def obtener_picks_tenis():
-    partidos = obtener_partidos_reales()
-    if not partidos:
-        return []
+    partidos = soup.find_all("a", href=re.compile("tenis/"))
+    urls_jugadores = []
+    
+    for link in partidos:
+        href = link.get("href")
+        if href and href.startswith("/jugador") and href.count("-") > 1:
+            nombre_url = href.strip("/").split("/")[-1]
+            if nombre_url not in urls_jugadores:
+                urls_jugadores.append(nombre_url)
 
-    stats_por_jugador = {}
+    urls_jugadores = list(set(urls_jugadores))[:6]  # Limitar a 6 jugadores para scraping controlado
     picks = []
 
-    for match in partidos:
-        a = match["player_a"]
-        b = match["player_b"]
+    for jugador in urls_jugadores:
+        stats = obtener_estadisticas_jugador(jugador)
+        if not stats:
+            continue
 
-        if a not in stats_por_jugador:
-            stats_por_jugador[a] = get_stats_jugador(a)
-        if b not in stats_por_jugador:
-            stats_por_jugador[b] = get_stats_jugador(b)
+        nombre = stats["nombre"]
+        ratio = stats["ratio_rompimientos"]
+        superficie = stats["superficie"]
 
-        stats_a = stats_por_jugador[a]
-        stats_b = stats_por_jugador[b]
+        analisis = []
 
-        partido = f"{a.title()} vs {b.title()}"
-
-        for stats, nombre in [(stats_a, a), (stats_b, b)]:
-            ratio = stats["ratio"]
-            analisis = (
-                f"{nombre.title()} ha roto en el 1er set en {int(ratio * 100)}% de sus 
-                últimos {stats['partidos_analizados']} partidos en {stats['superficie']}. 
-                Genera {stats['bp_creados']} BP, gana {stats['retorno']}% al resto.",
-                concede {stats['bp_concedidos']} BP por set."
+        if ratio >= 0.6:
+            analisis.append(
+                f"{nombre.title()} ha roto en el 1er set en {int(ratio * 100)}% de sus partidos recientes."
             )
-            if ratio > 0.7:
-                picks.append({
-                    "partido": partido,
-                    "pick": f"{nombre.title()} rompe en el primer set",
-                    "analisis": analisis,
-                    "cuota": "1.82",
-                    "canal": "privado",
-                    "stake": "2/10"
-                })
-            elif ratio < 0.3:
-                picks.append({
-                    "partido": partido,
-                    "pick": f"{nombre.title()} NO rompe en el primer set",
-                    "analisis": analisis,
-                    "cuota": "1.95",
-                    "canal": "privado",
-                    "stake": "2/10"
-                })
+        elif 0.4 <= ratio < 0.6:
+            analisis.append(
+                f"{nombre.title()} tiene un ratio medio de rompimientos en el primer set: {int(ratio * 100)}%."
+            )
+        else:
+            analisis.append(
+                f"{nombre.title()} rara vez rompe en el primer set ({int(ratio * 100)}%)."
+            )
 
-        if stats_a["ratio"] > 0.7 and stats_b["ratio"] > 0.7:
-            picks.append({
-                "partido": partido,
-                "pick": "Ambos rompen en el primer set",
-                "analisis": (
-                    f"{a.title()} y {b.title()} tienen alta tasa de rompimiento: 
-                    {int(stats_a['ratio']*100)}% y {int(stats_b['ratio']*100)}%. 
-                    Ambos generan +2.5 BP por set y juegan en {stats_a['superficie']}."
-                ),
-                "cuota": "2.10",
-                "canal": "privado",
-                "stake": "1/10"
-            })
+        analisis.append(f"⭐ Datos basados en sus últimos partidos sobre {superficie}.")
 
-    guardar_analisis(stats_por_jugador)
+        cuota = round(random.uniform(1.70, 2.20), 2)
+        stake = random.choice(["1/10", "2/10", "3/10"])
+
+        canal = random.choice(["vip", "free", "reto"])
+
+        picks.append({
+            "partido": f"{nombre} vs Rival",  # Esto se reemplazará cuando conectemos nombre real
+            "pick": f"{nombre} rompe servicio en el 1er set",
+            "cuota": cuota,
+            "stake": stake,
+            "canal": canal,
+            "analisis": " ".join(analisis),
+        })
+
+        time.sleep(3)  # Delay para evitar detección de scraping
+
     return picks
+
+# Esta es una función simulada que devuelve estadísticas de ejemplo para un jugador
+def obtener_estadisticas_jugador(nombre_url):
+    # Aquí se simulará temporalmente la obtención de estadísticas
+    return {
+        "nombre": nombre_url.replace("-", " ").title(),
+        "ratio_rompimientos": round(random.uniform(0.3, 0.8), 2),
+        "superficie": random.choice(["arcilla", "dura", "hierba"]),
+    }
