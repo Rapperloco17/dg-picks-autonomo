@@ -78,7 +78,7 @@ def obtener_picks_tenis():
             analisis = (
                 f"{nombre.title()} ha roto en el 1er set en {int(ratio * 100)}% de sus 
                 últimos {stats['partidos_analizados']} partidos en {stats['superficie']}. 
-                Genera {stats['bp_creados']} BP, gana {stats['retorno']}% al resto y 
+                Genera {stats['bp_creados']} BP, gana {stats['retorno']}% al resto.",
                 concede {stats['bp_concedidos']} BP por set."
             )
             if ratio > 0.7:
