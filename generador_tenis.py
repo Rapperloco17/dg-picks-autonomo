@@ -5,7 +5,7 @@ def enviar_picks_tenis():
     picks = obtener_picks_tenis()
     total_picks = len(picks)
 
-    # 📨 Mensaje resumen para ti cada noche
+    # 📢 Resumen para control
     resumen = f"📋 DG Picks Tenis ejecutado.\n"
     resumen += f"📆 Picks generados: {total_picks}\n"
 
@@ -16,18 +16,21 @@ def enviar_picks_tenis():
 
     enviar_mensaje_privado(resumen)
 
-    # 📤 Enviar cada pick
     for pick in picks:
+        if "canal" not in pick:
+            print("❌ Pick sin canal definido:", pick)
+            continue
+
         mensaje = (
-            f"🎾 {pick['pick']}\n"
+            f"🏁 {pick['pick']}\n"
             f"📅 Partido: {pick['partido']}\n"
-            f"🧠 Análisis: {pick['analisis']}\n"
-            f"💵 Cuota: {pick['cuota']}\n"
+            f"🔢 Análisis: {pick['analisis']}\n"
+            f"💲 Cuota: {pick['cuota']}\n"
             f"⚖️ Stake: {pick['stake']}\n"
             f"✅ Valor detectado en la cuota."
         )
 
-        if pick["canal"] == "privado":
+        if pick['canal'] == "privado":
             enviar_mensaje_privado(mensaje)
         else:
-            log_envio(pick["canal"], mensaje)
+            log_envio(pick['canal'], mensaje)
