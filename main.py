@@ -1,23 +1,35 @@
-from generador_tenis import enviar_picks_tenis
-from generador_reto import enviar_reto_escalera
-from generador_mini_reto import enviar_mini_reto_escalera
+from utils.sofascore import obtener_picks_tenis
+from utils.telegram import enviar_mensaje_privado, log_envio
 
-import schedule
-import time
 
-# 🕒 Horarios programados (hora del servidor Railway -6 GMT México)
+def enviar_picks_tenis():
+    picks = obtener_picks_tenis()
+    total_picks = len(picks)
 
-# 🎾 Tenis a las 22:00
-schedule.every().day.at("22:00").do(enviar_picks_tenis)
+    # ✉️ Mensaje de resumen para administrador
+    resumen = f"📋 DG Picks Tenis ejecutado.\n"
+    resumen += f"📆 Picks generados: {total_picks}\n"
 
-# 🏆 Reto Escalera - 5 horas antes del mejor pick
-schedule.every().day.at("06:00").do(enviar_reto_escalera)
+    if total_picks == 0:
+        resumen += "❌ No se encontraron picks de valor para hoy.\n"
+    else:
+        resumen += "✅ Se enviarán los picks generados.\n"
 
-# 🏅 Mini Reto Free (cada 2 semanas)
-schedule.every().day.at("09:10").do(enviar_mini_reto_escalera)
+    # Enviar mensaje de control al administrador
+    enviar_mensaje_privado(7450739156, resumen)
 
-print("✅ Sistema DG Picks Automático Iniciado")
+    # Enviar picks si hay
+    for pick in picks:
+        if "canal" not in pick:
+            print("❌ No se especificó el canal para este pick:", pick)
+            continue
 
-while True:
-    schedule.run_pending()
-    time.sleep(30)
+        mensaje = (
+            f"🏁 Pick Tenis\n"
+            f"📅 Partido: {pick['partido']}\n"
+            f"🔢 Análisis: {pick['analisis']}\n"
+            f"💲 Cuota: {pick['cuota']}\n"
+            f"⚖️ Stake: {pick['stake']}\n"
+            f"✅ Valor detectado en la cuota."
+        )
+        log_envio(pick["canal"], mensaje)
