@@ -1,39 +1,22 @@
-# ✅ Test manual de generación y envío de picks de tenis reales desde Sofascore
-
 from utils.sofascore import obtener_picks_tenis
-from utils.telegram import log_envio, enviar_mensaje_privado
 
 def test_tenis():
+    print("✅ Test DG Picks Tenis iniciado...\n")
+    
     picks = obtener_picks_tenis()
-    total = len(picks)
 
-    # Mensaje resumen para administrador
-    resumen = f"📊 Test Picks Tenis\n"
-    resumen += f"🎾 Picks generados: {total}\n"
-
-    if total == 0:
-        resumen += "❌ No se encontraron picks para hoy.\n"
+    if not picks:
+        print("⚠️ No se generaron picks de tenis en esta ejecución.")
     else:
-        resumen += "✅ Se generaron picks correctamente.\n"
-
-    enviar_mensaje_privado(7450739156, resumen)
-
-    for pick in picks:
-        if "canal" not in pick:
-            print("❌ No se especificó canal para el pick:", pick)
-            continue
-
-        mensaje = (
-            f"🎾 Pick Tenis\n"
-            f"📅 Partido: {pick['partido']}\n"
-            f"🧠 Análisis: {pick['analisis']}\n"
-            f"💸 Cuota: {pick['cuota']}\n"
-            f"⚖️ Stake: {pick['stake']}\n"
-            f"✅ Valor detectado en la cuota."
-        )
-
-        log_envio(pick["canal"], mensaje)
+        print(f"🎾 Total de picks generados: {len(picks)}\n")
+        for i, pick in enumerate(picks, 1):
+            print(f"--- Pick #{i} ---")
+            print(f"📅 Partido: {pick['partido']}")
+            print(f"📊 Análisis: {pick['analisis']}")
+            print(f"💸 Cuota: {pick['cuota']}")
+            print(f"⚖️ Stake: {pick['stake']}")
+            print(f"📢 Canal: {pick['canal']}")
+            print("✅ --------------------------\n")
 
 if __name__ == "__main__":
     test_tenis()
-
