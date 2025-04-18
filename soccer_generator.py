@@ -41,34 +41,41 @@ def generate_soccer_picks():
         if not stats:
             continue
 
-        prob_over25 = stats.get("over_2_5", 0)
         btts = stats.get("btts", 0)
         corners = stats.get("prom_corners", 0)
         tarjetas = stats.get("prom_tarjetas", 0)
-        cuota = match.get("cuota_over25", 1.80)
 
-        tiene_valor = evaluar_valor_cuota(prob_over25, cuota)
+        mercados = [
+            ("Over 1.5 goles", stats.get("over_1_5", 0), match.get("cuota_over15", 1.60)),
+            ("Over 2.5 goles", stats.get("over_2_5", 0), match.get("cuota_over25", 1.80)),
+            ("Over 3.5 goles", stats.get("over_3_5", 0), match.get("cuota_over35", 2.40)),
+            ("Under 2.5 goles", 1 - stats.get("over_2_5", 0), match.get("cuota_under25", 2.00)),
+            ("Under 3.5 goles", 1 - stats.get("over_3_5", 0), match.get("cuota_under35", 1.50))
+        ]
 
-        pick = {
-            "partido": f'{match.get("home_team")} vs {match.get("away_team")}',
-            "cuota": cuota,
-            "valor": True,
-            "mercado": "Over 2.5 goles",
-            "liga": match.get("league_name"),
-            "fecha": datetime.now().strftime("%Y-%m-%d"),
-            "stats": {
-                "prob_over25": prob_over25,
-                "btts": btts,
-                "corners": corners,
-                "tarjetas": tarjetas
+        for mercado, probabilidad, cuota in mercados:
+            tiene_valor = evaluar_valor_cuota(probabilidad, cuota)
+
+            pick = {
+                "partido": f'{match.get("home_team")} vs {match.get("away_team")}',
+                "cuota": cuota,
+                "valor": True,
+                "mercado": mercado,
+                "liga": match.get("league_name"),
+                "fecha": datetime.now().strftime("%Y-%m-%d"),
+                "stats": {
+                    "probabilidad": probabilidad,
+                    "btts": btts,
+                    "corners": corners,
+                    "tarjetas": tarjetas
+                }
             }
-        }
 
-        if tiene_valor:
-            if 1.50 <= cuota <= 4.00:
-                picks.append(pick)
-            elif 1.30 <= cuota < 1.50:
-                parlays.append(pick)
+            if tiene_valor:
+                if 1.50 <= cuota <= 4.00:
+                    picks.append(pick)
+                elif 1.30 <= cuota < 1.50:
+                    parlays.append(pick)
 
     print(f"✅ Picks individuales: {len(picks)} | Para parlays: {len(parlays)}")
 
@@ -85,4 +92,3 @@ def generate_soccer_picks():
 
 if __name__ == "__main__":
     generate_soccer_picks()
-
