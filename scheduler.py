@@ -15,7 +15,8 @@ def job_top5():
 schedule.every().day.at("06:15").do(job_futbol)
 
 # Ejecuta Top 5 a las 11:15 AM
-schedule.every().day.at("11:15").do(job_top5)
+schedule.every(1).minutes.do(job_top5)
+
 
 print("📅 Análisis de fútbol programado a las 06:15 a.m. y Top 5 a las 11:15 a.m. (hora local del servidor)")
 
