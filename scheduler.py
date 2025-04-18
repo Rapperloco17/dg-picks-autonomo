@@ -12,7 +12,7 @@ def job_top5():
     subprocess.run(["python", "top_matches.py"])
 
 # Ejecuta análisis general de fútbol a las 6:15 AM
-schedule.every().day.at("06:15").do(job_futbol)
+schedule.every(1).minutes.do(job_futbol)
 
 # Ejecuta Top 5 a las 11:15 AM
 schedule.every(1).minutes.do(job_top5)
