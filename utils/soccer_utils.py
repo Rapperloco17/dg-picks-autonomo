@@ -1,3 +1,9 @@
+import json
+import os
+from datetime import datetime
+
+# Ya existente
+
 def interpretar_resultado_pick(pick, resultado):
     if not resultado:
         return "desconocido"
@@ -31,23 +37,30 @@ def interpretar_resultado_pick(pick, resultado):
     elif tipo == "BTTS":  # Ambos anotan
         return "ganado" if goles_local > 0 and goles_visita > 0 else "perdido"
 
-    # Si es tipo desconocido o falta info
     return "desconocido"
 
+# NUEVAS FUNCIONES PARA SOPORTE AL GENERADOR
 
-if __name__ == "__main__":
-    pick = {
-        "tipo": "OVER",
-        "linea": 2.5,
-        "equipo": "Arsenal",
-        "partido": "Arsenal vs Chelsea"
+def analyze_match(partido):
+    return {
+        "valor": True,
+        "cuota": partido.get("cuota", 1.85),
+        "stake": 1,
+        "analisis": "Análisis simulado. Partido con valor.",
+        "porcentaje_btts": 60,
+        "prom_goles": 2.7,
+        "prom_corners": 8.2,
+        "prom_tarjetas": 4.0
     }
 
-    resultado = {
-        "goles_local": 2,
-        "goles_visita": 1,
-        "nombre_local": "Arsenal",
-        "nombre_visita": "Chelsea"
-    }
-
-    print(interpretar_resultado_pick(pick, resultado))
+def get_soccer_matches(api_key, whitelist):
+    # Simulación para evitar errores. Luego se reemplaza por API real
+    return [
+        {
+            "partido": "Barcelona vs Sevilla",
+            "equipo_local": "Barcelona",
+            "equipo_visitante": "Sevilla",
+            "liga": "La Liga",
+            "cuota": 1.85
+        }
+    ]
