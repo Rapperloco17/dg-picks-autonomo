@@ -1,7 +1,7 @@
-import json
 import os
+import json
 from datetime import datetime
-from utils.telegram import log_envio
+from utils.telegram import log_envio, send_message_telegram
 from utils.soccer_stats import analizar_forma_futbol
 
 OUTPUT_FOLDER = "outputs"
@@ -28,22 +28,26 @@ def generar_top5():
                 "prom_goles": estadisticas.get("prom_goles"),
                 "btts": estadisticas.get("porcentaje_btts", 0),
                 "corners": estadisticas.get("prom_corners"),
-                "tarjetas": estadisticas["prom_tarjetas"]
+                "tarjetas": estadisticas.get("prom_tarjetas")
             })
 
     # Ordenar por goles + BTTS + valor
-    top = sorted(evaluados, key=lambda x: (x["prom_goles"] * x["btts"] / 100), reverse=True)[:5]
+    top = sorted(evaluados, key=lambda x: (x["prom_goles"] + x["btts"]) / 100, reverse=True)[:5]
 
     if not top:
-        log_envio("free", "⚠️ No se encontraron partidos para el Top 5 del día.")
+        log_envio("top5", "⚠️ No se encontraron partidos para el Top 5 del día.")
         return
 
-    mensaje = "🔥 *Top 5 Partidos con Más Valor del Día*\n\n"
+    mensaje = "📊 *Top 5 Partidos con Más Valor del Día*\n\n"
     for i, p in enumerate(top, 1):
-        mensaje += f"*{i}. {p['partido']}*\n"
-        mensaje += f"{p['analisis']}\n"
-        mensaje += f"Prom. Goles: {p['prom_goles']} | BTTS: {p['btts']}%\n"
-        mensaje += f"Corners: {p['corners']} | Tarjetas: {p['tarjetas']}\n\n"
+        mensaje += (
+            f"{i}. *{p['partido']}*\n"
+            f"{p['analisis']}\n"
+            f"⚽️ Prom. Goles: {p['prom_goles']} | BTTS: {p['btts']}%\n"
+            f"🔁 Corners: {p['corners']} | Tarjetas: {p['tarjetas']}\n\n"
+        )
+    mensaje += "📌 Basado en análisis estadístico.\n✅ Picks verificados por el sistema *DG Picks*."
 
-    mensaje += "📊 Basado en análisis estadístico.\n✅ Picks verificados por el sistema DG Picks."
-    log_envio("free", mensaje)
+    # Enviar al canal FREE
+    send_message_telegram(mensaje, canal="FREE")
+    log_envio("top5", mensaje)
