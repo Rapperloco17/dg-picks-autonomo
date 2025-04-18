@@ -1,16 +1,14 @@
-import json
 import os
+import json
 from datetime import datetime
-from utils.telegram import log_envio
-from utils.soccer_stats import analyze_match, get_soccer_matches
-from utils.odds_api import get_odds_for_match
 
-API_FOOTBALL_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
-ODDS_API_KEY = "137992569bc2352366c01e6928577b2d"
+OUTPUT_FOLDER = "outputs/"
 
-LEAGUES_WHITELIST_PATH = "leagues_whitelist.json"
-MESSAGE_TEMPLATES_PATH = "message_templates.json"
-OUTPUT_FOLDER = "outputs"
+
+def save_json(data, file_path):
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    with open(file_path, "w", encoding="utf-8") as file:
+        json.dump(data, file, ensure_ascii=False, indent=2)
 
 
 def load_json(file_path):
@@ -18,38 +16,33 @@ def load_json(file_path):
         return json.load(file)
 
 
-def save_json(data, file_path):
-    with open(file_path, "w", encoding="utf-8") as file:
-        json.dump(data, file, ensure_ascii=False, indent=2)
-
-
 def generate_soccer_picks():
     print("Iniciando generación de picks de fútbol...")
 
-    whitelist = load_json(LEAGUES_WHITELIST_PATH)
-    message_templates = load_json(MESSAGE_TEMPLATES_PATH)
+    # Ejemplo de partidos
+    partidos = [
+        {"partido": "Barcelona vs Real Madrid", "cuota": 1.90, "valor": True},
+        {"partido": "Manchester City vs Arsenal", "cuota": 2.10, "valor": False}
+    ]
 
-    matches = get_soccer_matches(API_FOOTBALL_KEY, whitelist)
-    print(f"Partidos obtenidos: {len(matches)}")
+    print(f"Partidos obtenidos: {len(partidos)}")
 
     picks = []
-    combinadas = []
+    for p in partidos:
+        if p["valor"]:
+            pick = {
+                "partido": p["partido"],
+                "cuota": p["cuota"],
+                "valor": p["valor"],
+                "fecha": datetime.now().strftime("%Y-%m-%d")
+            }
+            picks.append(pick)
 
-    for match in matches:
-        analysis = analyze_match(match)  # Corregido: solo 1 argumento
-        if analysis:
-            picks.append(analysis)
-
-    fecha = datetime.now().strftime("%Y-%m-%d")
-    output_path = os.path.join(OUTPUT_FOLDER, f"futbol_{fecha}.json")
-
-    save_json({
-        "fecha": fecha,
-        "picks": picks,
-        "combinadas": combinadas
-    }, output_path)
-
-    log_envio("Fútbol", picks)
+    data = {"picks": picks}
+    nombre_archivo = f"futbol_{datetime.now().strftime('%Y-%m-%d')}.json"
+    ruta_archivo = os.path.join(OUTPUT_FOLDER, nombre_archivo)
+    save_json(data, ruta_archivo)
+    print(f"Picks guardados en {ruta_archivo}")
 
 
 if __name__ == "__main__":
