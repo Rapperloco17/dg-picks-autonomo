@@ -1,29 +1,14 @@
-# utils/valor_cuota.py
+def evaluar_valor_cuota(probabilidad_implied, cuota_real):
+    """
+    Evalúa si una cuota tiene valor en función de la probabilidad implícita estimada
+    y la cuota real ofrecida por la casa de apuestas.
 
-def detectar_valor_tenis(cuota):
-    try:
-        cuota = float(cuota)
-        return 1.70 <= cuota <= 3.50
-    except:
+    :param probabilidad_implied: Probabilidad estimada (por ejemplo, 0.60 para 60%)
+    :param cuota_real: Cuota decimal ofrecida (por ejemplo, 2.10)
+    :return: True si tiene valor esperado positivo, False si no
+    """
+    if cuota_real <= 1:
         return False
 
-def detectar_valor_mlb(cuota):
-    try:
-        cuota = float(cuota)
-        return 1.60 <= cuota <= 3.50
-    except:
-        return False
-
-def detectar_valor_nba(cuota):
-    try:
-        cuota = float(cuota)
-        return 1.60 <= cuota <= 3.50
-    except:
-        return False
-
-def detectar_valor_futbol(cuota):
-    try:
-        cuota = float(cuota)
-        return 1.50 <= cuota <= 3.50
-    except:
-        return False
+    valor_esperado = (cuota_real * probabilidad_implied) - 1
+    return valor_esperado > 0
