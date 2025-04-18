@@ -1,33 +1,26 @@
-def analyze_match(partido):
-    return {
-        "partido": partido.get("partido"),
-        "liga": partido.get("liga"),
-        "cuota": partido.get("cuota", 1.85),
-        "stake": 1,
-        "tipo": "ML",
-        "equipo": partido.get("equipo_local"),
-        "analisis": "Equipo local con buena forma y cuota justa.",
-        "valor": True,
-        "porcentaje_btts": 60,
-        "prom_goles": 2.7,
-        "prom_corners": 8.2,
-        "prom_tarjetas": 4.0
+def analizar_forma_futbol(equipo, stats_equipo):
+    partidos = stats_equipo.get("last_5", [])
+    goles_hechos = 0
+    goles_recibidos = 0
+    victorias = 0
+
+    for p in partidos:
+        if p["team"]["name"].lower() == equipo.lower():
+            goles_hechos += p["goals"]["for"]
+            goles_recibidos += p["goals"]["against"]
+            if p["goals"]["for"] > p["goals"]["against"]:
+                victorias += 1
+        else:
+            goles_hechos += p["goals"]["against"]
+            goles_recibidos += p["goals"]["for"]
+            if p["goals"]["against"] > p["goals"]["for"]:
+                victorias += 1
+
+    forma = {
+        "promedio_goles_hechos": goles_hechos / len(partidos) if partidos else 0,
+        "promedio_goles_recibidos": goles_recibidos / len(partidos) if partidos else 0,
+        "victorias": victorias,
+        "total": len(partidos),
     }
 
-def get_soccer_matches(api_key, whitelist):
-    return [
-        {
-            "partido": "Barcelona vs Sevilla",
-            "equipo_local": "Barcelona",
-            "equipo_visitante": "Sevilla",
-            "liga": "La Liga",
-            "cuota": 1.85
-        },
-        {
-            "partido": "Arsenal vs Liverpool",
-            "equipo_local": "Arsenal",
-            "equipo_visitante": "Liverpool",
-            "liga": "Premier League",
-            "cuota": 2.00
-        }
-    ]
+    return forma
