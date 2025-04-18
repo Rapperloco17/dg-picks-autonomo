@@ -20,12 +20,12 @@ def generate_soccer_picks():
     print("🔍 Iniciando generación de picks de fútbol...")
 
     whitelist = load_json(LEAGUES_WHITELIST_PATH)
-    ligas_autorizadas = whitelist.get("ligas", [])
+    ligas_autorizadas = whitelist.get("ligas", whitelist)  # soporte para array o diccionario
 
     fixtures = get_fixtures_today()
     partidos_validos = [
         f for f in fixtures
-        if f.get("league_name") in ligas_autorizadas
+        if any(w.lower() in f.get("league_name", "").lower() for w in ligas_autorizadas)
     ]
 
     print(f"📅 Partidos hoy en ligas permitidas: {len(partidos_validos)}")
@@ -33,11 +33,10 @@ def generate_soccer_picks():
     picks = []
 
     for match in partidos_validos:
-        stats = get_team_stats(match["fixture_id"], match["home_team_id"], match["away_team_id"])
+        stats = get_team_stats(match.get("fixture_id"), match.get("home_team_id"), match.get("away_team_id"))
         if not stats:
             continue
 
-        # Análisis: Over 2.5 goles
         prob_over25 = stats.get("over_2_5", 0)
         btts = stats.get("btts", 0)
         corners = stats.get("prom_corners", 0)
@@ -48,11 +47,11 @@ def generate_soccer_picks():
 
         if tiene_valor:
             pick = {
-                "partido": f'{match["home_team"]} vs {match["away_team"]}',
+                "partido": f'{match.get("home_team")} vs {match.get("away_team")}',
                 "cuota": cuota,
                 "valor": True,
                 "mercado": "Over 2.5 goles",
-                "liga": match["league_name"],
+                "liga": match.get("league_name"),
                 "fecha": datetime.now().strftime("%Y-%m-%d"),
                 "stats": {
                     "prob_over25": prob_over25,
