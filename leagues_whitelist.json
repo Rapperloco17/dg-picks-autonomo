@@ -1,1 +1,22 @@
-# leagues_whitelist.json - contenido generado automáticamente
+{
+  "leagues": [
+    39,   // Premier League
+    140,  // LaLiga
+    135,  // Serie A
+    78,   // Bundesliga
+    61,   // Ligue 1
+    88,   // Eredivisie
+    94,   // Primeira Liga
+    2,    // UEFA Champions League
+    3,    // UEFA Europa League
+    848,  // UEFA Conference League
+    262,  // Liga MX
+    253,  // MLS
+    71,   // Brasileirão
+    128,  // Argentina LPF
+    144,  // Bélgica
+    203,  // Turquía
+    141,  // Segunda División España
+    40    // Championship Inglaterra
+  ]
+}
