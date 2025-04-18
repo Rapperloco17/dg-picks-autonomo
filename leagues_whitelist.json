@@ -1,22 +1,18 @@
 {
-  "leagues": [
-    39,   // Premier League
-    140,  // LaLiga
-    135,  // Serie A
-    78,   // Bundesliga
-    61,   // Ligue 1
-    88,   // Eredivisie
-    94,   // Primeira Liga
-    2,    // UEFA Champions League
-    3,    // UEFA Europa League
-    848,  // UEFA Conference League
-    262,  // Liga MX
-    253,  // MLS
-    71,   // Brasileirão
-    128,  // Argentina LPF
-    144,  // Bélgica
-    203,  // Turquía
-    141,  // Segunda División España
-    40    // Championship Inglaterra
-  ]
+  "LaLiga": true,
+  "Premier League": true,
+  "Serie A": true,
+  "Bundesliga": true,
+  "Ligue 1": true,
+  "Championship": true,
+  "Liga MX": true,
+  "MLS": true,
+  "UEFA Champions League": true,
+  "UEFA Europa League": true,
+  "UEFA Conference League": true,
+  "Brasileirão": true,
+  "Primera División Argentina": true,
+  "Eredivisie": true,
+  "Süper Lig": true,
+  "Jupiler Pro League": true
 }
