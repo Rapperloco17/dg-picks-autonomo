@@ -4,8 +4,7 @@ from datetime import datetime
 from utils.telegram import log_envio
 from utils.soccer_stats import analizar_forma_futbol
 
-OUTPUT_FOLDER = "outputs/"
-
+OUTPUT_FOLDER = "outputs"
 
 def cargar_partidos():
     hoy = datetime.now().strftime("%Y-%m-%d")
@@ -15,7 +14,6 @@ def cargar_partidos():
         with open(ruta, "r", encoding="utf-8") as f:
             return json.load(f).get("picks", [])
     return []
-
 
 def generar_top5():
     partidos = cargar_partidos()
@@ -27,28 +25,25 @@ def generar_top5():
             evaluados.append({
                 "partido": p["partido"],
                 "analisis": estadisticas["descripcion"],
-                "prom_goles": estadisticas["prom_goles"],
+                "prom_goles": estadisticas.get("prom_goles"),
                 "btts": estadisticas.get("porcentaje_btts", 0),
-                "corners": estadisticas["prom_corners"],
+                "corners": estadisticas.get("prom_corners"),
                 "tarjetas": estadisticas["prom_tarjetas"]
             })
 
     # Ordenar por goles + BTTS + valor
-    top = sorted(evaluados, key=lambda x: (x["prom_goles"] + x["btts"] / 100), reverse=True)[:5]
+    top = sorted(evaluados, key=lambda x: (x["prom_goles"] * x["btts"] / 100), reverse=True)[:5]
 
     if not top:
-        log_envio("free", "⚠️ Hoy no hay partidos con estadísticas destacadas para el Top 5.")
+        log_envio("free", "⚠️ No se encontraron partidos para el Top 5 del día.")
         return
 
-    mensaje = "🔥 *Top 5 Partidos con Valor del Día*\n"
-    for i, m in enumerate(top, 1):
-        mensaje += f"\n{i}. *{m['partido']}*\n"
-        mensaje += f"{m['analisis']}\n"
-        mensaje += f"Prom Goles: {m['prom_goles']} | BTTS: {m['btts']}%\n"
-        mensaje += f"Corners: {m['corners']} | Tarjetas: {m['tarjetas']}\n"
+    mensaje = "🔥 *Top 5 Partidos con Más Valor del Día*\n\n"
+    for i, p in enumerate(top, 1):
+        mensaje += f"*{i}. {p['partido']}*\n"
+        mensaje += f"{p['analisis']}\n"
+        mensaje += f"Prom. Goles: {p['prom_goles']} | BTTS: {p['btts']}%\n"
+        mensaje += f"Corners: {p['corners']} | Tarjetas: {p['tarjetas']}\n\n"
 
+    mensaje += "📊 Basado en análisis estadístico.\n✅ Picks verificados por el sistema DG Picks."
     log_envio("free", mensaje)
-
-
-if __name__ == "__main__":
-    generar_top5()
