@@ -1,53 +1,65 @@
-import os
-import json
+# utils/api_football.py (con ajustes completos)
+
+import requests
 from datetime import datetime
-from utils.api_football import get_fixtures_today
 
-# Cargar API key
-API_KEY = os.getenv("API_FOOTBALL_KEY") or "178b66e41ba9d4d3b8549f096ef1e377"
+API_URL = "https://v3.football.api-sports.io"
+API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"  # ← Tu clave real activa
 
-# Cargar whitelist de ligas
-with open("utils/leagues_whitelist_ids.json", "r", encoding="utf-8") as f:
-    leagues_whitelist = json.load(f)["allowed_league_ids"]
+headers = {
+    "x-apisports-key": API_KEY
+}
 
-# Cargar temporadas por liga
-with open("utils/league_seasons.json", "r", encoding="utf-8") as f:
-    league_seasons = json.load(f)
+# Ligas permitidas con IDs reales desde leagues_whitelist_ids.json
+ligas_validas = {
+    39: "Premier League",
+    140: "La Liga",
+    135: "Serie A",
+    78: "Bundesliga",
+    61: "Ligue 1",
+    253: "Championship",
+    262: "Liga MX",
+    71: "Eredivisie",
+    94: "Primeira Liga",
+    203: "Brasileirao",
+    129: "MLS",
+    2: "UEFA Champions League",
+    3: "UEFA Europa League",
+    848: "Conference League",
+    667: "Copa Libertadores",
+    307: "Argentina Liga Profesional",
+    301: "Copa Sudamericana",
+    63: "Bélgica First Division A",
+    36: "Turquía Super Lig",
+    6334: "Championship (alt ID)"
+}
 
-# Obtener fixtures del día
-def get_fixtures():
-    fixtures = []
-    today = datetime.now().strftime("%Y-%m-%d")
+# Fecha actual en formato YYYY-MM-DD
+fecha_hoy = datetime.now().strftime("%Y-%m-%d")
 
-    for league_id in leagues_whitelist:
-        season = league_seasons.get(str(league_id), 2024)
 
-        url = f"https://v3.football.api-sports.io/fixtures?date={today}&league={league_id}&season={season}"
-        headers = {"x-apisports-key": API_KEY}
+def obtener_partidos_de_liga(liga_id, fecha):
+    params = {
+        "league": liga_id,
+        "season": 2025,
+        "date": fecha
+    }
+    try:
+        response = requests.get(f"{API_URL}/fixtures", headers=headers, params=params)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"\u26a0\ufe0f Error al conectar con la API para liga {liga_id}:", e)
+        return {"response": []}
 
-        try:
-            response = get_fixtures_today(url, headers)
-            if response:
-                fixtures.extend(response)
-            else:
-                print(f"⚠️ No hay partidos en liga {league_id} temporada {season}")
-        except Exception as e:
-            print(f"❌ Error al consultar liga {league_id}: {e}")
 
-    return fixtures
-
-# Guardar archivo
+# Ejemplo de ejecución para testeo directo
 if __name__ == "__main__":
-    fixtures = get_fixtures()
-    print(f"📋 Total de partidos encontrados: {len(fixtures)}")
+    resultados = {}
+    for liga_id in ligas_validas:
+        data = obtener_partidos_de_liga(liga_id, fecha_hoy)
+        resultados[ligas_validas[liga_id]] = len(data.get("response", []))
 
-    if not os.path.exists("outputs"):
-        os.makedirs("outputs")
-
-    hoy = datetime.now().strftime("%Y-%m-%d")
-    archivo_salida = f"outputs/futbol_{hoy}.json"
-
-    with open(archivo_salida, "w", encoding="utf-8") as f:
-        json.dump({"picks": fixtures}, f, indent=2, ensure_ascii=False)
-
-    print(f"✅ Partidos guardados en {archivo_salida}")
+    print("\nResumen de partidos encontrados hoy:")
+    for liga, cantidad in resultados.items():
+        print(f"- {liga}: {cantidad} partidos")
