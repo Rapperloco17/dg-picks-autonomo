@@ -1,4 +1,4 @@
-# utils/soccer_stats.py – Cuotas reales (ML, Doble Oportunidad, Over/Under) 100% activas
+# utils/soccer_stats.py – Cuotas reales completas (ML, Doble Oportunidad, Over 1.5 / 2.5 / 3.5)
 
 import requests
 
@@ -64,7 +64,7 @@ def obtener_cuotas_completas(fixture_id, home_name, away_name):
                     cuotas[v["value"]] = round(float(v["odd"]), 2)
             elif tipo == "OVER_UNDER":
                 for v in valores:
-                    if "Over" in v["value"] or "Under" in v["value"]:
+                    if v["value"] in ["Over 1.5", "Over 2.5", "Over 3.5", "Under 2.5"]:
                         cuotas[v["value"]] = round(float(v["odd"]), 2)
     except Exception as e:
         print(f"\u26a0\ufe0f Error obteniendo cuotas fixture {fixture_id}: {e}")
@@ -90,14 +90,23 @@ def analizar_partido(fixture):
         cuota_final = cuotas["ML"]
         pick = f"Gana {home}"
 
-        # Si ML es muy baja pero 1X o Over 2.5 tienen más valor, podemos usar otra apuesta
-        if cuota_final < 1.50:
-            if "1X" in cuotas and cuotas["1X"] >= 1.60:
-                pick = f"{home} o Empate"
-                cuota_final = cuotas["1X"]
-            elif "Over 2.5" in cuotas and cuotas["Over 2.5"] >= 1.65:
-                pick = "Más de 2.5 goles"
-                cuota_final = cuotas["Over 2.5"]
+        # Evaluar otras opciones si ML no tiene valor
+        opciones = []
+        if "1X" in cuotas:
+            opciones.append((cuotas["1X"], f"{home} o Empate"))
+        if "Over 1.5" in cuotas:
+            opciones.append((cuotas["Over 1.5"], "Más de 1.5 goles"))
+        if "Over 2.5" in cuotas:
+            opciones.append((cuotas["Over 2.5"], "Más de 2.5 goles"))
+        if "Over 3.5" in cuotas:
+            opciones.append((cuotas["Over 3.5"], "Más de 3.5 goles"))
+
+        opciones.sort(reverse=True)
+        for cuota, desc in opciones:
+            if cuota > cuota_final and cuota >= 1.60:
+                cuota_final = cuota
+                pick = desc
+                break
 
         justificacion = []
         if home_form >= 9:
