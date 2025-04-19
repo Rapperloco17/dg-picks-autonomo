@@ -1,31 +1,52 @@
+# utils/api_football.py (actualizado con lectura de JSON y todas las ligas permitidas)
+
 import requests
+import json
+from datetime import datetime
 
-API_FOOTBALL_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
+API_URL = "https://v3.football.api-sports.io"
+API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"  # API Key válida del usuario
 
-HEADERS = {
-    "x-apisports-key": API_FOOTBALL_KEY
+headers = {
+    "x-apisports-key": API_KEY
 }
 
-BASE_URL = "https://v3.football.api-sports.io"
+# Leer ligas válidas desde JSON externo
+with open("utils/leagues_whitelist_ids.json") as f:
+    ligas_validas = json.load(f)
+
+# Leer temporadas correctas por liga desde JSON
+with open("utils/league_seasons.json") as f:
+    temporadas_por_liga = json.load(f)
+
+# Fecha actual en formato YYYY-MM-DD
+fecha_hoy = datetime.now().strftime("%Y-%m-%d")
 
 
-def get_fixtures_today(league_id, season):
-    url = f"{BASE_URL}/fixtures"
+def obtener_partidos_de_liga(liga_id, fecha):
+    temporada = temporadas_por_liga.get(str(liga_id), 2025)  # ← Usa 2025 por defecto si no está
     params = {
-        "league": league_id,
-        "season": season,
-        "date": __import__('datetime').datetime.now().strftime('%Y-%m-%d')
+        "league": liga_id,
+        "season": temporada,
+        "date": fecha
     }
     try:
-        response = requests.get(url, headers=HEADERS, params=params)
+        response = requests.get(f"{API_URL}/fixtures", headers=headers, params=params)
         response.raise_for_status()
-        data = response.json()
-        return data.get("response", [])
-    except requests.RequestException as e:
-        print(f"❌ Error al consultar liga {league_id}, temporada {season}: {e}")
-        return []
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"\u26a0\ufe0f Error al conectar con la API para liga {liga_id}:", e)
+        return {"response": []}
 
-def get_team_stats(fixture_id, team_home_id, team_away_id):
-    # Esta función es solo un placeholder
-    return None
+
+# Ejemplo de ejecución para testeo directo
+if __name__ == "__main__":
+    resultados = {}
+    for liga_id, liga_nombre in ligas_validas.items():
+        data = obtener_partidos_de_liga(int(liga_id), fecha_hoy)
+        resultados[liga_nombre] = len(data.get("response", []))
+
+    print("\nResumen de partidos encontrados hoy:")
+    for liga, cantidad in resultados.items():
+        print(f"- {liga}: {cantidad} partidos")
 
