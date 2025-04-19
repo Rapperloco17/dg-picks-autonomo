@@ -1,4 +1,4 @@
-# utils/soccer_stats.py – Cuotas reales completas (ML, Doble Oportunidad, Over 1.5 / 2.5 / 3.5)
+# utils/soccer_stats.py – Añadido Under 2.5 y análisis de corners desde API-FOOTBALL
 
 import requests
 
@@ -11,7 +11,8 @@ BOOKMAKER_BET365 = 6
 BET_IDS = {
     "ML": 1,
     "DOUBLE_CHANCE": 12,
-    "OVER_UNDER": 5
+    "OVER_UNDER": 5,
+    "CORNERS": 121
 }
 
 
@@ -66,6 +67,10 @@ def obtener_cuotas_completas(fixture_id, home_name, away_name):
                 for v in valores:
                     if v["value"] in ["Over 1.5", "Over 2.5", "Over 3.5", "Under 2.5"]:
                         cuotas[v["value"]] = round(float(v["odd"]), 2)
+            elif tipo == "CORNERS":
+                for v in valores:
+                    if "Over 9.5" in v["value"] or "Under 9.5" in v["value"]:
+                        cuotas[v["value"]] = round(float(v["odd"]), 2)
     except Exception as e:
         print(f"\u26a0\ufe0f Error obteniendo cuotas fixture {fixture_id}: {e}")
 
@@ -90,7 +95,7 @@ def analizar_partido(fixture):
         cuota_final = cuotas["ML"]
         pick = f"Gana {home}"
 
-        # Evaluar otras opciones si ML no tiene valor
+        # Otras opciones con prioridad: mayor valor
         opciones = []
         if "1X" in cuotas:
             opciones.append((cuotas["1X"], f"{home} o Empate"))
@@ -100,6 +105,12 @@ def analizar_partido(fixture):
             opciones.append((cuotas["Over 2.5"], "Más de 2.5 goles"))
         if "Over 3.5" in cuotas:
             opciones.append((cuotas["Over 3.5"], "Más de 3.5 goles"))
+        if "Under 2.5" in cuotas:
+            opciones.append((cuotas["Under 2.5"], "Menos de 2.5 goles"))
+        if "Over 9.5" in cuotas:
+            opciones.append((cuotas["Over 9.5"], "Más de 9.5 corners"))
+        if "Under 9.5" in cuotas:
+            opciones.append((cuotas["Under 9.5"], "Menos de 9.5 corners"))
 
         opciones.sort(reverse=True)
         for cuota, desc in opciones:
