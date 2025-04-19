@@ -1,78 +1,28 @@
-# utils/api_football.py (con ajustes completos)
+# soccer_generator.py (conectado a API con ligas y temporadas correctas)
 
-import requests
+from utils.api_football import obtener_partidos_de_liga
 from datetime import datetime
+import json
 
-API_URL = "https://v3.football.api-sports.io"
-API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"  # ← Tu clave real activa
+# Cargar ligas válidas con nombres (ya debe venir como dict desde JSON)
+with open("utils/leagues_whitelist_ids.json") as f:
+    ligas_validas = json.load(f)
 
-headers = {
-    "x-apisports-key": API_KEY
-}
-
-# Ligas permitidas con IDs reales desde leagues_whitelist_ids.json
-ligas_validas = {
-    39,
-        40,
-        140,
-        144,
-        135,
-        136,
-        78,
-        79,
-        61,
-        62,
-        94,
-        88,
-        203,
-        128,
-        71,
-        72,
-        253,
-        262,
-        256,
-        2,
-        3,
-        848,
-        141,
-        254,
-        291,
-        105,
-        294,
-        103,
-        129,
-        112,
-        292,
-        98,
-        307
-}
-
-# Fecha actual en formato YYYY-MM-DD
+# Fecha de hoy
 fecha_hoy = datetime.now().strftime("%Y-%m-%d")
 
+# Resultado de conteo por liga
+resultados = {}
 
-def obtener_partidos_de_liga(liga_id, fecha):
-    params = {
-        "league": liga_id,
-        "season": 2025,
-        "date": fecha
-    }
-    try:
-        response = requests.get(f"{API_URL}/fixtures", headers=headers, params=params)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"\u26a0\ufe0f Error al conectar con la API para liga {liga_id}:", e)
-        return {"response": []}
+for liga_id, liga_nombre in ligas_validas.items():
+    data = obtener_partidos_de_liga(int(liga_id), fecha_hoy)
+    cantidad = len(data.get("response", []))
+    resultados[liga_nombre] = cantidad
 
+print("\nResumen de partidos encontrados hoy:")
+for liga, cantidad in resultados.items():
+    print(f"- {liga}: {cantidad} partidos")
 
-# Ejemplo de ejecución para testeo directo
-if __name__ == "__main__":
-    resultados = {}
-    for liga_id in ligas_validas:
-        data = obtener_partidos_de_liga(liga_id, fecha_hoy)
-        resultados[ligas_validas[liga_id]] = len(data.get("response", []))
+# Aquí seguiría el análisis de valor, forma, racha y construcción de picks
+# (esto ya lo tienes o se conecta a modules como soccer_stats.py o formato.py)
 
-    print("\nResumen de partidos encontrados hoy:")
-    for liga, cantidad in resultados.items():
-        print(f"- {liga}: {cantidad} partidos")
