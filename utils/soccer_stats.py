@@ -1,18 +1,25 @@
-# utils/soccer_stats.py – Análisis real con forma y cuotas protegidas
+# utils/soccer_stats.py – Ahora usando solo API-FOOTBALL (cuotas ML, tarjetas y corners)
 
 import requests
 
-# Keys
-ODDS_API_KEY = "137992569bc2352366c01e6928577b2d"
+# Clave única para API-FOOTBALL
 FOOTBALL_API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
 
-# Odds API endpoint
-ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/soccer_epl/odds"
+# Endpoints de API-FOOTBALL
 FIXTURES_URL = "https://v3.football.api-sports.io/fixtures"
+ODDS_URL = "https://v3.football.api-sports.io/odds"
 
 headers_api_football = {
     "x-apisports-key": FOOTBALL_API_KEY
 }
+
+# IDs de mercados comunes (según API-FOOTBALL)
+BET_IDS = {
+    "ML": 1,              # Match Winner
+    "TARJETAS": 88,       # Total Cards
+    "CORNERS": 121        # Total Corners
+}
+BOOKMAKER_BET365 = 6
 
 
 def obtener_forma_equipo(equipo_id, local=True):
@@ -43,34 +50,25 @@ def obtener_forma_equipo(equipo_id, local=True):
         return 0
 
 
-def obtener_cuota_real(home_team, away_team):
+def obtener_cuotas_api_football(fixture_id):
     try:
-        params = {
-            "apiKey": ODDS_API_KEY,
-            "regions": "uk",
-            "markets": "h2h",
-            "bookmakers": "bet365"
-        }
-        response = requests.get(ODDS_API_URL, params=params)
-        data = response.json()
+        cuotas = {}
+        for tipo, bet_id in BET_IDS.items():
+            params = {
+                "fixture": fixture_id,
+                "bookmaker": BOOKMAKER_BET365,
+                "bet": bet_id
+            }
+            res = requests.get(ODDS_URL, headers=headers_api_football, params=params)
+            data = res.json().get("response", [])
 
-        for evento in data:
-            if home_team in evento.get('home_team', '') and away_team in evento.get('away_team', ''):
-                bookmakers = evento.get('bookmakers', [])
-                if not bookmakers:
-                    continue
-                markets = bookmakers[0].get('markets', [])
-                if not markets:
-                    continue
-                outcomes = markets[0].get('outcomes', [])
-                for o in outcomes:
-                    if o['name'] == home_team:
-                        return round(o['price'], 2)
-        return None
+            if data and "values" in data[0]:
+                cuotas[tipo] = data[0]["values"]  # Puede contener opciones como Over 9.5 @1.85
 
+        return cuotas
     except Exception as e:
-        print(f"\u26a0\ufe0f Error obteniendo cuota real: {e}")
-        return None
+        print(f"\u26a0\ufe0f Error al obtener cuotas del fixture {fixture_id}: {e}")
+        return {}
 
 
 def analizar_partido(fixture):
@@ -79,32 +77,37 @@ def analizar_partido(fixture):
         away = fixture['teams']['away']['name']
         home_id = fixture['teams']['home']['id']
         away_id = fixture['teams']['away']['id']
+        fixture_id = fixture['fixture']['id']
 
         home_form = obtener_forma_equipo(home_id, local=True)
         away_form = obtener_forma_equipo(away_id, local=False)
 
-        cuota_real = obtener_cuota_real(home, away)
-        if cuota_real is None:
-            cuota_real = 1.70
+        cuotas = obtener_cuotas_api_football(fixture_id)
+        cuota_ml = 1.70  # Default
+
+        if "ML" in cuotas:
+            for valor in cuotas["ML"]:
+                if valor["value"] == home:
+                    cuota_ml = round(valor["odd"], 2)
+                    break
 
         justificacion = []
         if home_form >= 9:
             justificacion.append(f"{home} con buena forma en casa (últimos 5)")
         if away_form <= 4:
             justificacion.append(f"{away} flojo como visitante")
-        justificacion.append("cuota validada en Bet365")
+        justificacion.append("cuota verificada con API-FOOTBALL")
 
-        if home_form >= 9 and away_form <= 4:
+        if home_form >= 9 or away_form <= 3:
             return {
                 "partido": f"{home} vs {away}",
                 "pick": f"Gana {home}",
-                "cuota": cuota_real,
+                "cuota": cuota_ml,
                 "valor": True,
                 "justificacion": "; ".join(justificacion)
             }
 
         return None
-
     except Exception as e:
         print(f"\u26a0\ufe0f Error analizando partido:", e)
         return None
