@@ -1,4 +1,4 @@
-# utils/soccer_stats.py – Cuotas reales obligatorias desde API-FOOTBALL
+# utils/soccer_stats.py – Cuotas reales (ML, Doble Oportunidad, Over/Under) 100% activas
 
 import requests
 
@@ -61,18 +61,11 @@ def obtener_cuotas_completas(fixture_id, home_name, away_name):
                         cuotas["ML"] = round(float(v["odd"]), 2)
             elif tipo == "DOUBLE_CHANCE":
                 for v in valores:
-                    if v["value"] == "1X":
-                        cuotas["1X"] = round(float(v["odd"]), 2)
-                    if v["value"] == "12":
-                        cuotas["12"] = round(float(v["odd"]), 2)
-                    if v["value"] == "X2":
-                        cuotas["X2"] = round(float(v["odd"]), 2)
+                    cuotas[v["value"]] = round(float(v["odd"]), 2)
             elif tipo == "OVER_UNDER":
                 for v in valores:
-                    if v["value"] == "Over 2.5":
-                        cuotas["Over 2.5"] = round(float(v["odd"]), 2)
-                    if v["value"] == "Under 2.5":
-                        cuotas["Under 2.5"] = round(float(v["odd"]), 2)
+                    if "Over" in v["value"] or "Under" in v["value"]:
+                        cuotas[v["value"]] = round(float(v["odd"]), 2)
     except Exception as e:
         print(f"\u26a0\ufe0f Error obteniendo cuotas fixture {fixture_id}: {e}")
 
@@ -92,9 +85,19 @@ def analizar_partido(fixture):
 
         cuotas = obtener_cuotas_completas(fixture_id, home, away)
         if "ML" not in cuotas:
-            return None  # Sin cuota real, no se genera pick
+            return None
 
         cuota_final = cuotas["ML"]
+        pick = f"Gana {home}"
+
+        # Si ML es muy baja pero 1X o Over 2.5 tienen más valor, podemos usar otra apuesta
+        if cuota_final < 1.50:
+            if "1X" in cuotas and cuotas["1X"] >= 1.60:
+                pick = f"{home} o Empate"
+                cuota_final = cuotas["1X"]
+            elif "Over 2.5" in cuotas and cuotas["Over 2.5"] >= 1.65:
+                pick = "Más de 2.5 goles"
+                cuota_final = cuotas["Over 2.5"]
 
         justificacion = []
         if home_form >= 9:
@@ -103,18 +106,15 @@ def analizar_partido(fixture):
             justificacion.append(f"{away} flojo como visitante")
         justificacion.append("cuota validada con API-FOOTBALL")
 
-        if home_form >= 9 or away_form <= 3:
-            return {
-                "partido": f"{home} vs {away}",
-                "pick": f"Gana {home}",
-                "cuota": cuota_final,
-                "valor": True,
-                "justificacion": "; ".join(justificacion),
-                "cuotas": cuotas
-            }
-        return None
+        return {
+            "partido": f"{home} vs {away}",
+            "pick": pick,
+            "cuota": cuota_final,
+            "valor": True,
+            "justificacion": "; ".join(justificacion),
+            "cuotas": cuotas
+        }
 
     except Exception as e:
         print(f"\u26a0\ufe0f Error analizando partido:", e)
         return None
-
