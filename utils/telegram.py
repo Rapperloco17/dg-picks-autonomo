@@ -1,30 +1,38 @@
+# utils/telegram.py – Envío automático a Telegram para DG Picks
+
 import requests
 
-def send_message_telegram(bot_token, chat_id, text):
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    data = {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "HTML"
-    }
-    try:
-        response = requests.post(url, data=data)
-        if response.status_code != 200:
-            print(f"Error al enviar mensaje: {response.status_code} - {response.text}")
-        else:
-            print("📤 Mensaje enviado correctamente a Telegram.")
-    except Exception as e:
-        print(f"Error de conexión al enviar mensaje: {e}")
-
-def log_envio(contexto, mensaje):
-    print(f"📤 Enviando mensaje desde {contexto}:\n{mensaje}\n")
-
-# ✅ TOKEN y CHAT IDs OFICIALES DE DG PICKS
+# TOKEN del bot y chat IDs oficiales
 BOT_TOKEN = "7520899056:AAHaS2Id5BGa9HlrX6YWJFX6hCnZsADTOFA"
 
+# Canales oficiales
 CHAT_IDS = {
-    "vip": "-1001285733813",         # Canal VIP (privado)
-    "reto": "-1002453760512",        # Canal Reto Escalera
-    "free": "@dgpickspro17",         # Canal Free (público)
-    "admin": "7450739156"            # Admin personal
+    "VIP": "-1001285733813",
+    "RETO": "-1002453760512",
+    "FREE": "@dgpickspro17",
+    "ADMIN": "7450739156"  # usuario administrador
 }
+
+def enviar_mensaje(mensaje, canal="VIP"):
+    """
+    Envía un mensaje a un canal de Telegram según la clave especificada: VIP, FREE, RETO, ADMIN
+    """
+    try:
+        chat_id = CHAT_IDS.get(canal)
+        if not chat_id:
+            raise ValueError(f"Canal '{canal}' no está configurado.")
+
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        data = {
+            "chat_id": chat_id,
+            "text": mensaje,
+            "parse_mode": "HTML"
+        }
+        response = requests.post(url, data=data)
+        if not response.ok:
+            print(f"\u26a0\ufe0f Error al enviar mensaje a {canal}: {response.text}")
+        else:
+            print(f"\u2705 Mensaje enviado a {canal}")
+
+    except Exception as e:
+        print(f"\u26a0\ufe0f Error general al enviar mensaje a Telegram ({canal}):", e)
