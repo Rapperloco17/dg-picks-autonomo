@@ -1,4 +1,4 @@
-# utils/soccer_stats.py – conectado a historial y logs por consola
+# utils/soccer_stats.py – ahora con análisis de Ambos Anotan (BTTS)
 
 import requests
 from utils.telegram import enviar_mensaje
@@ -19,7 +19,8 @@ BET_IDS = {
     "ML": 1,
     "DOUBLE_CHANCE": 12,
     "OVER_UNDER": 5,
-    "CORNERS": 121
+    "CORNERS": 121,
+    "BTTS": both_teams_to_score := 13
 }
 
 
@@ -91,6 +92,10 @@ def obtener_cuotas_completas(fixture_id, home_name, away_name):
                 for v in valores:
                     if "Over 9.5" in v["value"] or "Under 9.5" in v["value"]:
                         cuotas[v["value"]] = round(float(v["odd"]), 2)
+            elif tipo == "BTTS":
+                for v in valores:
+                    if v["value"] in ["Yes", "No"]:
+                        cuotas[f"BTTS_{v['value']}"] = round(float(v["odd"]), 2)
     except Exception as e:
         print(f"\u26a0\ufe0f Error obteniendo cuotas fixture {fixture_id}: {e}")
 
@@ -145,6 +150,12 @@ def analizar_partido(fixture):
             opciones.append((cuotas["Over 9.5"], "Más de 9.5 corners"))
         if "Under 9.5" in cuotas:
             opciones.append((cuotas["Under 9.5"], "Menos de 9.5 corners"))
+
+        # Ambos Anotan (BTTS)
+        if "BTTS_Yes" in cuotas:
+            opciones.append((cuotas["BTTS_Yes"], "Ambos equipos anotan"))
+        if "BTTS_No" in cuotas:
+            opciones.append((cuotas["BTTS_No"], "No anotan ambos equipos"))
 
         opciones.sort(reverse=True)
         for cuota, desc in opciones:
