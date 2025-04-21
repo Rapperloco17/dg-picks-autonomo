@@ -1,146 +1,80 @@
-# utils/soccer_stats.py – Incluye módulo de corners por equipo (props individuales)
+# utils/soccer_stats.py
 
-import requests
-from utils.telegram import enviar_mensaje
-from utils.corners_stats import analizar_corners_avanzado
-from utils.corners_equipo import analizar_corners_por_equipo
+from utils.valor_cuota import obtener_cuota_real
+from utils.api_football import obtener_stats_partido
 
-FOOTBALL_API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
-HEADERS = {"x-apisports-key": FOOTBALL_API_KEY}
-FIXTURES_URL = "https://v3.football.api-sports.io/fixtures"
-ODDS_URL = "https://v3.football.api-sports.io/odds"
+def analizar_partido(partido):
+    equipo_local = partido['teams']['home']['name']
+    equipo_visitante = partido['teams']['away']['name']
+    fixture_id = partido['fixture']['id']
 
-BOOKMAKER_BET365 = 6
-BET_IDS = {
-    "ML": 1,
-    "DOUBLE_CHANCE": 12,
-    "OVER_UNDER": 5,
-    "CORNERS": 121
-}
-
-
-def obtener_forma_equipo(equipo_id, local=True):
-    try:
-        params = {"team": equipo_id, "last": 5}
-        if local:
-            params["venue"] = "home"
-        else:
-            params["venue"] = "away"
-
-        res = requests.get(FIXTURES_URL, headers=HEADERS, params=params)
-        data = res.json().get("response", [])
-
-        forma = 0
-        for match in data:
-            resultado = match['teams']['home' if local else 'away']['winner']
-            if resultado:
-                forma += 3
-            elif resultado is None:
-                forma += 1
-        return forma
-    except Exception as e:
-        print(f"\u26a0\ufe0f Error forma equipo {equipo_id}: {e}")
-        return 0
-
-
-def obtener_cuotas_completas(fixture_id, home_name, away_name):
-    cuotas = {}
-    try:
-        for tipo, bet_id in BET_IDS.items():
-            params = {
-                "fixture": fixture_id,
-                "bookmaker": BOOKMAKER_BET365,
-                "bet": bet_id
-            }
-            res = requests.get(ODDS_URL, headers=HEADERS, params=params)
-            data = res.json().get("response", [])
-
-            if not data:
-                continue
-
-            valores = data[0].get("values", [])
-            if tipo == "ML":
-                for v in valores:
-                    if v["value"] == home_name:
-                        cuotas["ML"] = round(float(v["odd"]), 2)
-            elif tipo == "DOUBLE_CHANCE":
-                for v in valores:
-                    cuotas[v["value"]] = round(float(v["odd"]), 2)
-            elif tipo == "OVER_UNDER":
-                for v in valores:
-                    if v["value"] in ["Over 1.5", "Over 2.5", "Over 3.5", "Under 2.5"]:
-                        cuotas[v["value"]] = round(float(v["odd"]), 2)
-            elif tipo == "CORNERS":
-                for v in valores:
-                    if "Over 9.5" in v["value"] or "Under 9.5" in v["value"]:
-                        cuotas[v["value"]] = round(float(v["odd"]), 2)
-    except Exception as e:
-        print(f"\u26a0\ufe0f Error obteniendo cuotas fixture {fixture_id}: {e}")
-
-    return cuotas
-
-
-def analizar_partido(fixture):
-    try:
-        home = fixture['teams']['home']['name']
-        away = fixture['teams']['away']['name']
-        home_id = fixture['teams']['home']['id']
-        away_id = fixture['teams']['away']['id']
-        fixture_id = fixture['fixture']['id']
-
-        # Conexiones automáticas a módulos de corners
-        analizar_corners_avanzado(fixture)
-        analizar_corners_por_equipo(fixture)
-
-        home_form = obtener_forma_equipo(home_id, local=True)
-        away_form = obtener_forma_equipo(away_id, local=False)
-
-        cuotas = obtener_cuotas_completas(fixture_id, home, away)
-        if "ML" not in cuotas:
-            return None
-
-        cuota_final = cuotas["ML"]
-        pick = f"Gana {home}"
-
-        opciones = []
-        if "1X" in cuotas:
-            opciones.append((cuotas["1X"], f"{home} o Empate"))
-        if "Over 1.5" in cuotas:
-            opciones.append((cuotas["Over 1.5"], "Más de 1.5 goles"))
-        if "Over 2.5" in cuotas:
-            opciones.append((cuotas["Over 2.5"], "Más de 2.5 goles"))
-        if "Over 3.5" in cuotas:
-            opciones.append((cuotas["Over 3.5"], "Más de 3.5 goles"))
-        if "Under 2.5" in cuotas:
-            opciones.append((cuotas["Under 2.5"], "Menos de 2.5 goles"))
-        if "Over 9.5" in cuotas:
-            opciones.append((cuotas["Over 9.5"], "Más de 9.5 corners"))
-        if "Under 9.5" in cuotas:
-            opciones.append((cuotas["Under 9.5"], "Menos de 9.5 corners"))
-
-        opciones.sort(reverse=True)
-        for cuota, desc in opciones:
-            if cuota > cuota_final and cuota >= 1.60:
-                cuota_final = cuota
-                pick = desc
-                break
-
-        justificacion = []
-        if home_form >= 9:
-            justificacion.append(f"{home} en buena forma en casa")
-        if away_form <= 4:
-            justificacion.append(f"{away} flojo como visitante")
-        justificacion.append("cuota validada con API-FOOTBALL")
-
-        return {
-            "partido": f"{home} vs {away}",
-            "pick": pick,
-            "cuota": cuota_final,
-            "valor": True,
-            "justificacion": "; ".join(justificacion),
-            "cuotas": cuotas
-        }
-
-    except Exception as e:
-        print(f"\u26a0\ufe0f Error analizando partido:", e)
+    stats = obtener_stats_partido(fixture_id)
+    if not stats:
         return None
+
+    goles_local = partido['goals']['home']
+    goles_visitante = partido['goals']['away']
+    form_local = partido['form']['local']
+    form_visitante = partido['form']['visitante']
+
+    promedio_goles = form_local['promedio_goles'] + form_visitante['promedio_goles']
+    tiros_local = form_local['promedio_tiros']
+    tiros_visitante = form_visitante['promedio_tiros']
+
+    # Analizar posibles apuestas
+    picks = []
+
+    # ML Local
+    if form_local['racha'] == 'W' and form_visitante['racha'] == 'L':
+        cuota_ml = obtener_cuota_real(fixture_id, '1')
+        if cuota_ml and cuota_ml <= 1.80:
+            picks.append({
+                'mercado': 'ML',
+                'pick': f'Gana {equipo_local}',
+                'cuota': cuota_ml,
+                'analisis': f"{equipo_local} llega con buena racha, {equipo_visitante} viene flojo."
+            })
+
+    # Over 2.5 goles
+    if promedio_goles >= 2.7:
+        cuota_ov25 = obtener_cuota_real(fixture_id, 'over_2.5')
+        if cuota_ov25:
+            picks.append({
+                'mercado': 'Over 2.5 goles',
+                'pick': 'Over 2.5 goles',
+                'cuota': cuota_ov25,
+                'analisis': f"Promedio de goles alto entre ambos equipos: {promedio_goles:.2f}"
+            })
+
+    # Over 1.5 o 3.5 según lógica
+    if promedio_goles <= 1.8:
+        cuota_ov15 = obtener_cuota_real(fixture_id, 'over_1.5')
+        if cuota_ov15:
+            picks.append({
+                'mercado': 'Over 1.5 goles',
+                'pick': 'Over 1.5 goles',
+                'cuota': cuota_ov15,
+                'analisis': f"A pesar del promedio bajo, se espera reacción ofensiva."
+            })
+    elif promedio_goles >= 3.5:
+        cuota_ov35 = obtener_cuota_real(fixture_id, 'over_3.5')
+        if cuota_ov35:
+            picks.append({
+                'mercado': 'Over 3.5 goles',
+                'pick': 'Over 3.5 goles',
+                'cuota': cuota_ov35,
+                'analisis': f"Equipos ofensivos con tendencia clara a juegos abiertos."
+            })
+
+    # Doble oportunidad
+    if form_local['solidez'] and not form_visitante['constante']:
+        cuota_doble = obtener_cuota_real(fixture_id, '1X')
+        if cuota_doble and cuota_doble <= 1.70:
+            picks.append({
+                'mercado': 'Doble oportunidad',
+                'pick': f'{equipo_local} o Empate',
+                'cuota': cuota_doble,
+                'analisis': f"{equipo_local} suele sacar puntos en casa, visitante irregular."
+            })
+
+    return picks
