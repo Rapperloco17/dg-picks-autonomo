@@ -1,4 +1,4 @@
-# utils/soccer_stats.py – Incluye Under 3.5 goles y árbitro para faltas
+# utils/soccer_stats.py – ahora con sistema de cache para ahorrar requests
 
 import requests
 from utils.telegram import enviar_mensaje
@@ -6,6 +6,7 @@ from utils.corners_stats import analizar_corners_avanzado
 from utils.corners_equipo import analizar_corners_por_equipo
 from utils.cards_stats import analizar_tarjetas
 from utils.fouls_stats import analizar_faltas
+from utils.cache import cargar_fixture_cache, guardar_fixture_cache, fixture_en_cache
 
 FOOTBALL_API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
 HEADERS = {"x-apisports-key": FOOTBALL_API_KEY}
@@ -43,6 +44,19 @@ def obtener_forma_equipo(equipo_id, local=True):
     except Exception as e:
         print(f"\u26a0\ufe0f Error forma equipo {equipo_id}: {e}")
         return 0
+
+
+def obtener_fixture_completo(fixture_id):
+    if fixture_en_cache(fixture_id):
+        return cargar_fixture_cache(fixture_id)
+    else:
+        url = f"https://v3.football.api-sports.io/fixtures?id={fixture_id}&timezone=America/Mexico_City"
+        res = requests.get(url, headers=HEADERS)
+        data = res.json().get("response", [])
+        if data:
+            guardar_fixture_cache(fixture_id, data[0])
+            return data[0]
+        return None
 
 
 def obtener_cuotas_completas(fixture_id, home_name, away_name):
@@ -84,17 +98,21 @@ def obtener_cuotas_completas(fixture_id, home_name, away_name):
 
 def analizar_partido(fixture):
     try:
-        home = fixture['teams']['home']['name']
-        away = fixture['teams']['away']['name']
-        home_id = fixture['teams']['home']['id']
-        away_id = fixture['teams']['away']['id']
         fixture_id = fixture['fixture']['id']
+        full_fixture = obtener_fixture_completo(fixture_id)
+        if not full_fixture:
+            return None
+
+        home = full_fixture['teams']['home']['name']
+        away = full_fixture['teams']['away']['name']
+        home_id = full_fixture['teams']['home']['id']
+        away_id = full_fixture['teams']['away']['id']
 
         # Conexiones automáticas a módulos físicos
-        analizar_corners_avanzado(fixture)
-        analizar_corners_por_equipo(fixture)
-        analizar_tarjetas(fixture)
-        analizar_faltas(fixture)
+        analizar_corners_avanzado(full_fixture)
+        analizar_corners_por_equipo(full_fixture)
+        analizar_tarjetas(full_fixture)
+        analizar_faltas(full_fixture)
 
         home_form = obtener_forma_equipo(home_id, local=True)
         away_form = obtener_forma_equipo(away_id, local=False)
