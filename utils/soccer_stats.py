@@ -1,4 +1,4 @@
-# utils/soccer_stats.py – conectado a historial de picks
+# utils/soccer_stats.py – conectado a historial y logs por consola
 
 import requests
 from utils.telegram import enviar_mensaje
@@ -102,12 +102,15 @@ def analizar_partido(fixture):
         fixture_id = fixture['fixture']['id']
         full_fixture = obtener_fixture_completo(fixture_id)
         if not full_fixture:
+            print(f"\u274c No se encontró fixture completo para ID {fixture_id}")
             return None
 
         home = full_fixture['teams']['home']['name']
         away = full_fixture['teams']['away']['name']
         home_id = full_fixture['teams']['home']['id']
         away_id = full_fixture['teams']['away']['id']
+
+        print(f"\n\ud83d\udd39 Analizando: {home} vs {away}")
 
         analizar_corners_avanzado(full_fixture)
         analizar_corners_por_equipo(full_fixture)
@@ -119,6 +122,7 @@ def analizar_partido(fixture):
 
         cuotas = obtener_cuotas_completas(fixture_id, home, away)
         if "ML" not in cuotas:
+            print("\u274c No hay cuota ML disponible, se descarta")
             return None
 
         cuota_final = cuotas["ML"]
@@ -164,6 +168,8 @@ def analizar_partido(fixture):
             "justificacion": "; ".join(justificacion),
             "cuotas": cuotas
         }
+
+        print(f"\u2705 PICK: {pick} | Cuota: {cuota_final}")
 
         guardar_pick_en_historial(resultado)
         return resultado
