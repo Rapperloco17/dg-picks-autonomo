@@ -1,23 +1,27 @@
-# cards_stats.py – Análisis de tarjetas totales por equipo y árbitro
+# cards_stats.py – Ahora con uso de cache para evitar repetir requests
 
 import requests
 from utils.telegram import enviar_mensaje
+from utils.cache import cargar_fixture_cache
 
 FOOTBALL_API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
 HEADERS = {"x-apisports-key": FOOTBALL_API_KEY}
 STATS_URL = "https://v3.football.api-sports.io/teams/statistics"
-FIXTURES_URL = "https://v3.football.api-sports.io/fixtures"
 ADMIN_CHAT_ID = "7450739156"
 
 
 def analizar_tarjetas(fixture):
     try:
-        league_id = fixture['league']['id']
-        season = fixture['league']['season']
         fixture_id = fixture['fixture']['id']
-        home = fixture['teams']['home']
-        away = fixture['teams']['away']
-        referee = fixture['fixture'].get('referee', None)
+        full_fixture = cargar_fixture_cache(fixture_id)
+        if not full_fixture:
+            return
+
+        league_id = full_fixture['league']['id']
+        season = full_fixture['league']['season']
+        home = full_fixture['teams']['home']
+        away = full_fixture['teams']['away']
+        referee = full_fixture['fixture'].get('referee', None)
 
         def obtener_tarjetas_promedio(team_id):
             params = {"league": league_id, "season": season, "team": team_id}
@@ -46,7 +50,7 @@ def analizar_tarjetas(fixture):
             ref_data = obtener_info_arbitro(referee)
             if ref_data:
                 justificacion.append(f"Árbitro {referee} promedia {ref_data} tarjetas por partido")
-                total_promedio += ref_data * 0.2  # Refuerzo leve
+                total_promedio += ref_data * 0.2
 
         if total_promedio >= 5:
             mensaje = f"\ud83d\udd39 <b>PROP DE TARJETAS – SIN CUOTA</b>\n"
@@ -63,7 +67,6 @@ def analizar_tarjetas(fixture):
 
 
 def obtener_info_arbitro(nombre):
-    # Simulación simple – puede ampliarse a base de datos real
     arbitros_estrictos = {
         "Antonio Mateu Lahoz": 6.1,
         "Sánchez Martínez": 5.9,
@@ -72,4 +75,3 @@ def obtener_info_arbitro(nombre):
         "Clément Turpin": 4.8
     }
     return arbitros_estrictos.get(nombre, 4.0)
-
