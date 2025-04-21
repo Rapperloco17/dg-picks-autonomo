@@ -1,6 +1,8 @@
-# utils/soccer_stats.py – Añadido Under 2.5 y análisis de corners desde API-FOOTBALL
+# utils/soccer_stats.py – Análisis completo con conexión automática a córners
 
 import requests
+from utils.telegram import enviar_mensaje
+from utils.corners_stats import analizar_corners_avanzado
 
 FOOTBALL_API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
 HEADERS = {"x-apisports-key": FOOTBALL_API_KEY}
@@ -85,6 +87,9 @@ def analizar_partido(fixture):
         away_id = fixture['teams']['away']['id']
         fixture_id = fixture['fixture']['id']
 
+        # Conectar con corners aunque no se genere pick
+        analizar_corners_avanzado(fixture)
+
         home_form = obtener_forma_equipo(home_id, local=True)
         away_form = obtener_forma_equipo(away_id, local=False)
 
@@ -95,7 +100,6 @@ def analizar_partido(fixture):
         cuota_final = cuotas["ML"]
         pick = f"Gana {home}"
 
-        # Otras opciones con prioridad: mayor valor
         opciones = []
         if "1X" in cuotas:
             opciones.append((cuotas["1X"], f"{home} o Empate"))
