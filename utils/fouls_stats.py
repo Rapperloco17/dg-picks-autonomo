@@ -1,7 +1,8 @@
-# fouls_stats.py – Análisis completo con árbitro (permiso/rigor)
+# fouls_stats.py – Ahora con cache para evitar doble request
 
 import requests
 from utils.telegram import enviar_mensaje
+from utils.cache import cargar_fixture_cache
 
 FOOTBALL_API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
 HEADERS = {"x-apisports-key": FOOTBALL_API_KEY}
@@ -11,11 +12,16 @@ ADMIN_CHAT_ID = "7450739156"
 
 def analizar_faltas(fixture):
     try:
-        league_id = fixture['league']['id']
-        season = fixture['league']['season']
-        home = fixture['teams']['home']
-        away = fixture['teams']['away']
-        referee = fixture['fixture'].get('referee', None)
+        fixture_id = fixture['fixture']['id']
+        full_fixture = cargar_fixture_cache(fixture_id)
+        if not full_fixture:
+            return
+
+        league_id = full_fixture['league']['id']
+        season = full_fixture['league']['season']
+        home = full_fixture['teams']['home']
+        away = full_fixture['teams']['away']
+        referee = full_fixture['fixture'].get('referee', None)
 
         def obtener_faltas(team_id):
             params = {"league": league_id, "season": season, "team": team_id}
@@ -47,7 +53,6 @@ def analizar_faltas(fixture):
         if recibidas_away >= 11:
             justificacion.append(f"{away['name']} recibe muchas faltas: {recibidas_away}")
 
-        # Ajuste por árbitro si se detecta
         if referee:
             promedio_arbitro = promedio_faltas_arbitro(referee)
             if promedio_arbitro:
@@ -68,7 +73,6 @@ def analizar_faltas(fixture):
 
 
 def promedio_faltas_arbitro(nombre):
-    # Base de árbitros manual para ejemplo – puedes expandirla
     arbitros = {
         "Mateu Lahoz": 27.2,
         "Sánchez Martínez": 28.6,
