@@ -1,4 +1,4 @@
-# utils/soccer_stats.py – ahora con sistema de cache para ahorrar requests
+# utils/soccer_stats.py – conectado a historial de picks
 
 import requests
 from utils.telegram import enviar_mensaje
@@ -7,6 +7,7 @@ from utils.corners_equipo import analizar_corners_por_equipo
 from utils.cards_stats import analizar_tarjetas
 from utils.fouls_stats import analizar_faltas
 from utils.cache import cargar_fixture_cache, guardar_fixture_cache, fixture_en_cache
+from utils.historial_picks import guardar_pick_en_historial
 
 FOOTBALL_API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
 HEADERS = {"x-apisports-key": FOOTBALL_API_KEY}
@@ -108,7 +109,6 @@ def analizar_partido(fixture):
         home_id = full_fixture['teams']['home']['id']
         away_id = full_fixture['teams']['away']['id']
 
-        # Conexiones automáticas a módulos físicos
         analizar_corners_avanzado(full_fixture)
         analizar_corners_por_equipo(full_fixture)
         analizar_tarjetas(full_fixture)
@@ -156,7 +156,7 @@ def analizar_partido(fixture):
             justificacion.append(f"{away} flojo como visitante")
         justificacion.append("cuota validada con API-FOOTBALL")
 
-        return {
+        resultado = {
             "partido": f"{home} vs {away}",
             "pick": pick,
             "cuota": cuota_final,
@@ -164,6 +164,9 @@ def analizar_partido(fixture):
             "justificacion": "; ".join(justificacion),
             "cuotas": cuotas
         }
+
+        guardar_pick_en_historial(resultado)
+        return resultado
 
     except Exception as e:
         print(f"\u26a0\ufe0f Error analizando partido:", e)
