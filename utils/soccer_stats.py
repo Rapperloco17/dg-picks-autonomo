@@ -1,4 +1,4 @@
-# utils/soccer_stats.py – Conexión total: corners, tarjetas, faltas, análisis completo
+# utils/soccer_stats.py – Incluye Under 3.5 goles y árbitro para faltas
 
 import requests
 from utils.telegram import enviar_mensaje
@@ -70,7 +70,7 @@ def obtener_cuotas_completas(fixture_id, home_name, away_name):
                     cuotas[v["value"]] = round(float(v["odd"]), 2)
             elif tipo == "OVER_UNDER":
                 for v in valores:
-                    if v["value"] in ["Over 1.5", "Over 2.5", "Over 3.5", "Under 2.5"]:
+                    if v["value"] in ["Over 1.5", "Over 2.5", "Over 3.5", "Under 2.5", "Under 3.5"]:
                         cuotas[v["value"]] = round(float(v["odd"]), 2)
             elif tipo == "CORNERS":
                 for v in valores:
@@ -117,6 +117,8 @@ def analizar_partido(fixture):
             opciones.append((cuotas["Over 3.5"], "Más de 3.5 goles"))
         if "Under 2.5" in cuotas:
             opciones.append((cuotas["Under 2.5"], "Menos de 2.5 goles"))
+        if "Under 3.5" in cuotas:
+            opciones.append((cuotas["Under 3.5"], "Menos de 3.5 goles"))
         if "Over 9.5" in cuotas:
             opciones.append((cuotas["Over 9.5"], "Más de 9.5 corners"))
         if "Under 9.5" in cuotas:
