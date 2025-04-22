@@ -1,5 +1,3 @@
-# utils/soccer_stats.py – ahora con análisis de Ambos Anotan (BTTS)
-
 import requests
 from utils.telegram import enviar_mensaje
 from utils.corners_stats import analizar_corners_avanzado
@@ -8,6 +6,7 @@ from utils.cards_stats import analizar_tarjetas
 from utils.fouls_stats import analizar_faltas
 from utils.cache import cargar_fixture_cache, guardar_fixture_cache, fixture_en_cache
 from utils.historial_picks import guardar_pick_en_historial
+from btts_valor import analizar_btts_local_vs_visitante
 
 FOOTBALL_API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
 HEADERS = {"x-apisports-key": FOOTBALL_API_KEY}
@@ -20,7 +19,7 @@ BET_IDS = {
     "DOUBLE_CHANCE": 12,
     "OVER_UNDER": 5,
     "CORNERS": 121,
-    "BTTS": both_teams_to_score := 13
+    "BTTS": 13
 }
 
 
@@ -150,12 +149,11 @@ def analizar_partido(fixture):
             opciones.append((cuotas["Over 9.5"], "Más de 9.5 corners"))
         if "Under 9.5" in cuotas:
             opciones.append((cuotas["Under 9.5"], "Menos de 9.5 corners"))
-
-        # Ambos Anotan (BTTS)
-        if "BTTS_Yes" in cuotas:
-            opciones.append((cuotas["BTTS_Yes"], "Ambos equipos anotan"))
-        if "BTTS_No" in cuotas:
-            opciones.append((cuotas["BTTS_No"], "No anotan ambos equipos"))
+        if analizar_btts_local_vs_visitante(full_fixture['teams']['home'], full_fixture['teams']['away']):
+            if "BTTS_Yes" in cuotas:
+                opciones.append((cuotas["BTTS_Yes"], "Ambos equipos anotan"))
+            else:
+                enviar_mensaje(f"⚠️ Valor detectado en BTTS (Ambos anotan) para {home} vs {away}, pero sin cuota disponible.", canal=7450739156)
 
         opciones.sort(reverse=True)
         for cuota, desc in opciones:
@@ -185,6 +183,9 @@ def analizar_partido(fixture):
         guardar_pick_en_historial(resultado)
         return resultado
 
+    except Exception as e:
+        print(f"\u26a0\ufe0f Error analizando partido:", e)
+        return None
     except Exception as e:
         print(f"\u26a0\ufe0f Error analizando partido:", e)
         return None
