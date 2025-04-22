@@ -19,8 +19,8 @@ def formatear_pick(analisis):
         f"Pick: {pick}\n"
         f"Cuota: {cuota}\n"
         f"Justificación: {justificacion}\n"
-        f"\u2705 Valor detectado en la cuota"
+        f"✅ Valor detectado en la cuota"
     )
 
-    log_seguro(f"\u2705 Pick generado para {partido}")
+    log_seguro(f"✅ Pick generado para {partido}")
     return mensaje
