@@ -5,6 +5,12 @@ from utils.telegram import enviar_mensaje
 from datetime import datetime
 import json
 
+def log_seguro(texto):
+    try:
+        print(texto.encode("utf-8", "ignore").decode("utf-8"))
+    except:
+        pass
+
 # Cargar lista de IDs permitidos desde el JSON
 with open("utils/leagues_whitelist_ids.json", encoding="utf-8") as f:
     lista_ids = json.load(f)["allowed_league_ids"]
@@ -31,22 +37,19 @@ for liga_id in lista_ids:
                     mensaje = formatear_pick(analisis)
                     picks_generados.append(mensaje)
                     enviar_mensaje(mensaje, canal="VIP")
-            except Exception as inner_e:
-                print(f"[⚠️] Error analizando partido: {str(inner_e).encode('utf-8', errors='ignore').decode('utf-8')}")
+            except Exception as e:
+                log_seguro(f"[Error analizando partido]: {e}")
 
     except Exception as e:
-        print(f"[⚠️] Error con liga {liga_id}: {str(e).encode('utf-8', errors='ignore').decode('utf-8')}")
+        log_seguro(f"[Error con liga {liga_id}]: {e}")
         resultados[liga_id] = 0
 
 # Mostrar resumen de partidos por liga
-print("\nResumen de partidos encontrados hoy:")
+log_seguro("\nResumen de partidos encontrados hoy:")
 for liga_id, cantidad in resultados.items():
-    print(f"- Liga {liga_id}: {cantidad} partidos")
+    log_seguro(f"- Liga {liga_id}: {cantidad} partidos")
 
 # Mostrar resumen de picks generados
-print("\nPicks generados:")
+log_seguro("\nPicks generados:")
 for pick in picks_generados:
-    try:
-        print(pick.encode('utf-8', errors='ignore').decode('utf-8'))
-    except:
-        continue
+    log_seguro(pick)
