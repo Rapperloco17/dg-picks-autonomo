@@ -1,5 +1,3 @@
-# soccer_generator.py (corregido para evitar errores UTF-8 y análisis completo)
-
 from utils.api_football import obtener_partidos_de_liga
 from utils.soccer_stats import analizar_partido
 from utils.formato import formatear_pick
@@ -8,7 +6,7 @@ from datetime import datetime
 import json
 
 # Cargar lista de IDs permitidos desde el JSON
-with open("utils/leagues_whitelist_ids.json") as f:
+with open("utils/leagues_whitelist_ids.json", encoding="utf-8") as f:
     lista_ids = json.load(f)["allowed_league_ids"]
 
 # Fecha actual
@@ -33,19 +31,22 @@ for liga_id in lista_ids:
                     mensaje = formatear_pick(analisis)
                     picks_generados.append(mensaje)
                     enviar_mensaje(mensaje, canal="VIP")
-            except Exception as e:
-                print(f"⚠️ Error analizando partido: {str(e)}".encode('utf-8', errors='ignore').decode('utf-8'))
+            except Exception as inner_e:
+                print(f"[⚠️] Error analizando partido: {str(inner_e).encode('utf-8', errors='ignore').decode('utf-8')}")
 
     except Exception as e:
-        print(f"⚠️ Error con liga {liga_id}: {str(e)}".encode('utf-8', errors='ignore').decode('utf-8'))
+        print(f"[⚠️] Error con liga {liga_id}: {str(e).encode('utf-8', errors='ignore').decode('utf-8')}")
         resultados[liga_id] = 0
 
-# Imprimir resumen
+# Mostrar resumen de partidos por liga
 print("\nResumen de partidos encontrados hoy:")
 for liga_id, cantidad in resultados.items():
     print(f"- Liga {liga_id}: {cantidad} partidos")
 
-# Imprimir resumen de picks
+# Mostrar resumen de picks generados
 print("\nPicks generados:")
 for pick in picks_generados:
-    print(pick.encode('utf-8', errors='ignore').decode('utf-8'))
+    try:
+        print(pick.encode('utf-8', errors='ignore').decode('utf-8'))
+    except:
+        continue
