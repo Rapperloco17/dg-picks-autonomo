@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from utils.api_football import obtener_partidos_de_liga
 from utils.leagues import cargar_ligas_permitidas
-from utils.telegram_bot import enviar_mensaje
+from utils.telegram import enviar_mensaje  # ✅ CORREGIDO
 
 # ⚽ Configuración general
 LIGAS_PERMITIDAS = cargar_ligas_permitidas()
@@ -50,7 +50,7 @@ def analizar_partido(fixture):
                 PICKS_GENERADOS.append(PICK)
                 analisis["pick_generado"] = PICK
 
-                # Envío opcional al canal VIP
+                # Envío al canal VIP
                 enviar_mensaje(f"🎯 PICK DG Picks\n{pick}\nCuota: {cuota}\n✅ Partido con goles confirmados")
 
         FIXTURES_ANALIZADOS.append(analisis)
