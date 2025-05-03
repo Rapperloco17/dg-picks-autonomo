@@ -11,9 +11,13 @@ def analizar_partido_profundo(fixture, stats, prediction):
     razonamiento = []
     pick = None
 
+    # Si stats viene como lista, intentar convertir a dict
+    if isinstance(stats, list):
+        stats = {item.get('team', {}).get('name', ''): item for item in stats}
+
     def get_stat(stat_list, stat_type):
         try:
-            return next((x['value'] for x in stat_list if x.get('type') == stat_type), 0) or 0
+            return next((x['value'] for x in stat_list if x.get('type') == stat_type), 0)
         except:
             return 0
 
@@ -22,7 +26,7 @@ def analizar_partido_profundo(fixture, stats, prediction):
         away_stats_list = stats.get('away', {}).get('statistics', [])
 
         if not isinstance(home_stats_list, list) or not isinstance(away_stats_list, list):
-            raise ValueError("Formato inesperado en estadísticas")
+            raise ValueError("❌ Formato inesperado en estadísticas")
 
         home_goals = get_stat(home_stats_list, "Goals scored")
         away_goals = get_stat(away_stats_list, "Goals scored")
@@ -30,17 +34,17 @@ def analizar_partido_profundo(fixture, stats, prediction):
         home_concede = get_stat(home_stats_list, "Goals conceded")
         away_concede = get_stat(away_stats_list, "Goals conceded")
 
-        # Lógica de generación
+        # Lógica de generación de pick
         if home_goals + away_goals >= 3 and home_concede + away_concede >= 2:
-            razonamiento.append(f"📈 Ambos equipos promedian muchos goles: {home_goals}+{away_goals} anotados y {home_concede}+{away_concede} concedidos.")
+            razonamiento.append(f"🔎 Ambos equipos promedian muchos goles: {home_goals}+{away_goals} anotados y {home_concede}+{away_concede} concedidos.")
             pick = "Over 2.5 goles"
 
-        elif home_goals >= 1.5 and away_concede >= 1.2:
-            razonamiento.append(f"⚽ El local ({home}) anota bastante y el visitante ({away}) concede muchos.")
+        elif home_goals > 1.5 and away_concede >= 1.2:
+            razonamiento.append(f"⚠️ El local ({home}) anota bastante y el visitante ({away}) concede muchos.")
             pick = f"{home} gana o Over 1.5 goles"
 
-        elif home_concede >= 1.5 and away_goals >= 1.3:
-            razonamiento.append(f"🚨 El visitante ({away}) suele anotar y el local ({home}) recibe goles.")
+        elif home_concede > 1.5 and away_goals >= 1.3:
+            razonamiento.append(f"⚠️ El visitante ({away}) suele anotar y el local ({home}) recibe goles.")
             pick = "Ambos anotan (BTTS)"
 
         if pick and advice and pick.lower() in advice.lower():
