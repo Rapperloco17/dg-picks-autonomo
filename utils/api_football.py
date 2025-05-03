@@ -1,23 +1,22 @@
-def obtener_partidos_de_liga(league_id, fecha, temporada):
+def analizar_partido_futbol(partido, datos_estadisticos=None, cuotas=None):
     """
-    Función simulada que retorna estructura esperada por soccer_generator.py.
-    Retorna un diccionario con clave 'response' que contiene una lista de partidos.
+    Genera un pick simulado básico para testeo.
 
-    :param league_id: ID de la liga
-    :param fecha: Fecha de consulta (YYYY-MM-DD)
-    :param temporada: Año de la temporada (ej. 2024)
-    :return: dict con clave 'response' y lista de fixtures simulados
+    :param partido: dict con datos del fixture
+    :param datos_estadisticos: opcional (no usado en dummy)
+    :param cuotas: opcional (no usado en dummy)
+    :return: dict con pick simulado
     """
+    local = partido["teams"]["home"]["name"]
+    visitante = partido["teams"]["away"]["name"]
+    fecha = partido["fixture"]["date"]
+
     return {
-        "response": [
-            {
-                "fixture": {"id": 1, "date": fecha},
-                "teams": {
-                    "home": {"name": "Equipo A"},
-                    "away": {"name": "Equipo B"}
-                },
-                "goals": {"home": 2, "away": 1},
-                "league": {"id": league_id, "season": temporada}
-            }
-        ]
+        "partido": f"{local} vs {visitante}",
+        "fecha": fecha,
+        "pick": f"{local} gana o empata",
+        "mercado": "Doble Oportunidad",
+        "cuota": 1.65,
+        "confianza": "media",
+        "justificacion": f"{local} juega en casa y llega con buena forma. Pick simulado."
     }
