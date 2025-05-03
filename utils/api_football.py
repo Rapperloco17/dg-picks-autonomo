@@ -1,3 +1,10 @@
+def obtener_partidos_de_liga(liga_id, fecha_hoy, temporada):
+    """
+    Función dummy temporal para evitar crash del sistema.
+    Retorna lista vacía.
+    """
+    return []
+
 def analizar_partido_futbol(partido, datos_estadisticos, cuotas):
     """
     Función dummy temporal para evitar crash del sistema.
