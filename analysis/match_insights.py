@@ -13,20 +13,24 @@ def analizar_partido_profundo(fixture, stats, prediction):
 
     def get_stat(stat_list, stat_type):
         try:
-            return next((x['value'] for x in stat_list if x['type'] == stat_type), 0) or 0
+            return next((x['value'] for x in stat_list if x.get('type') == stat_type), 0) or 0
         except:
             return 0
 
     try:
-        home_stats = stats.get('home', {}).get('statistics', [])
-        away_stats = stats.get('away', {}).get('statistics', [])
+        home_stats_list = stats.get('home', {}).get('statistics', [])
+        away_stats_list = stats.get('away', {}).get('statistics', [])
 
-        home_goals = get_stat(home_stats, "Goals scored")
-        away_goals = get_stat(away_stats, "Goals scored")
+        if not isinstance(home_stats_list, list) or not isinstance(away_stats_list, list):
+            raise ValueError("Formato inesperado en estadísticas")
 
-        home_concede = get_stat(home_stats, "Goals conceded")
-        away_concede = get_stat(away_stats, "Goals conceded")
+        home_goals = get_stat(home_stats_list, "Goals scored")
+        away_goals = get_stat(away_stats_list, "Goals scored")
 
+        home_concede = get_stat(home_stats_list, "Goals conceded")
+        away_concede = get_stat(away_stats_list, "Goals conceded")
+
+        # Lógica de generación
         if home_goals + away_goals >= 3 and home_concede + away_concede >= 2:
             razonamiento.append(f"📈 Ambos equipos promedian muchos goles: {home_goals}+{away_goals} anotados y {home_concede}+{away_concede} concedidos.")
             pick = "Over 2.5 goles"
@@ -45,7 +49,7 @@ def analizar_partido_profundo(fixture, stats, prediction):
             razonamiento.append("⚠️ Pick generado por estadísticas, no coincide 100% con el consejo del API.")
 
     except Exception as e:
-        print(f"❌ Error en análisis profundo: {e}")
+        print(f"❌ Error en análisis profundo del fixture {fixture_id}: {e}")
         return None
 
     if not pick:
@@ -59,4 +63,5 @@ def analizar_partido_profundo(fixture, stats, prediction):
         "pick": pick,
         "razonamiento": razonamiento
     }
+
 
