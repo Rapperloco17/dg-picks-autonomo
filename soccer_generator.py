@@ -1,70 +1,33 @@
 import os
 import time
 import json
-import requests
 from datetime import datetime
-from utils.api_football import obtener_partidos_de_liga
+from utils.api_futbol import obtener_partidos_de_liga, get_team_statistics, get_predictions
 from utils.leagues import cargar_ligas_permitidas
 from utils.telegram import enviar_mensaje
 from analysis.match_insights import analizar_partido_profundo
 
-# ✅ API Key y headers
-API_FOOTBALL_HEADERS = {
-    "x-apisports-key": "178b66e41ba9d4d3b8549f096ef1e377"
-}
-
-# ⚙️ Configuración general
+# ✅ Configuración general
 LIGAS_PERMITIDAS = cargar_ligas_permitidas()
 FIXTURES_ANALIZADOS = []
 PICKS_GENERADOS = []
 
-# 📊 Análisis completo de un partido
-def analizar_partido(fixture):
-    fixture_id = fixture["fixture"]["id"]
-    try:
-        # Obtener estadísticas del partido
-        stats_url = f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fixture_id}"
-        stats_response = requests.get(stats_url, headers=API_FOOTBALL_HEADERS).json()
-        stats = {
-            "home": stats_response["response"][0],
-            "away": stats_response["response"][1]
-        }
-
-        # Obtener predicción del partido
-        prediction_url = f"https://v3.football.api-sports.io/predictions?fixture={fixture_id}"
-        prediction_response = requests.get(prediction_url, headers=API_FOOTBALL_HEADERS).json()
-        prediction = prediction_response["response"][0]
-
-        # Analizar con lógica avanzada
-        resultado = analizar_partido_profundo(fixture, stats, prediction)
-
-        if resultado:
-            PICKS_GENERADOS.append(resultado)
-            enviar_mensaje(
-                f"📊 PICK DG Picks\n{resultado['pick']}\n📌 {resultado['match']}\n🧠 {resultado['razonamiento'][0]}"
-            )
-
-        FIXTURES_ANALIZADOS.append(fixture)
-
-    except Exception as e:
-        print(f"⚠️ Error al analizar fixture {fixture_id}: {e}")
-
-# 💾 Guardar fixtures analizados del día
+# 📦 Guardar fixtures analizados del día
 def guardar_fixture_diario():
     fecha_hoy = datetime.now().strftime('%Y-%m-%d')
     carpeta = "historial/fixtures"
     os.makedirs(carpeta, exist_ok=True)
-    ruta = os.path.join(carpeta, f'{fecha_hoy}.json')
+    ruta = os.path.join(carpeta, f"{fecha_hoy}.json")
 
     data = {
-        'fecha': fecha_hoy,
-        'total_partidos': len(FIXTURES_ANALIZADOS),
-        'total_picks': len(PICKS_GENERADOS),
-        'fixtures': FIXTURES_ANALIZADOS,
-        'picks_generados': PICKS_GENERADOS
+        "fecha": fecha_hoy,
+        "total_partidos": len(FIXTURES_ANALIZADOS),
+        "total_picks": len(PICKS_GENERADOS),
+        "fixtures": FIXTURES_ANALIZADOS,
+        "picks_generados": PICKS_GENERADOS,
     }
 
-    with open(ruta, 'w', encoding='utf-8') as f:
+    with open(ruta, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
         print(f"✅ Análisis del día guardado en: {ruta}")
 
@@ -84,19 +47,41 @@ def limpiar_historial_antiguo(directorio="historial/fixtures", dias=15):
 
 # 🚀 FLUJO PRINCIPAL
 if __name__ == "__main__":
-    print("\n⚙️ Iniciando análisis DG Picks...\n")
+    print("⚽ Iniciando análisis DG Picks...\n")
     fecha_hoy = datetime.now().strftime('%Y-%m-%d')
 
     for liga_id in LIGAS_PERMITIDAS:
         try:
             data = obtener_partidos_de_liga(int(liga_id), fecha_hoy)
+
             for fixture in data.get("response", []):
-                analizar_partido(fixture)
+                try:
+                    fixture_id = fixture["fixture"]["id"]
+
+                    # Obtener estadísticas y predicción
+                    stats = get_team_statistics(fixture_id)
+                    prediction = get_predictions(fixture_id)
+
+                    if not stats or not prediction:
+                        print(f"⚠️ Fixture {fixture_id} omitido: sin estadísticas o predicción.")
+                        continue
+
+                    resultado = analizar_partido_profundo(fixture, stats, prediction)
+
+                    if resultado:
+                        PICKS_GENERADOS.append(resultado)
+                        enviar_mensaje(f"📊 {resultado['pick']} para {resultado['match']}\n🧠 {resultado['razonamiento'][0]}")
+
+                    FIXTURES_ANALIZADOS.append(fixture)
+
+                except Exception as e:
+                    print(f"⚠️ Error al analizar fixture {fixture_id}: {e}")
+
         except Exception as e:
             print(f"❌ Error al analizar liga {liga_id}: {e}")
 
     guardar_fixture_diario()
     limpiar_historial_antiguo()
 
-    print(f"\n🏁 Proceso finalizado: {len(FIXTURES_ANALIZADOS)} partidos analizados | {len(PICKS_GENERADOS)} picks generados.")
+    print(f"\n✅ Proceso finalizado: {len(FIXTURES_ANALIZADOS)} partidos analizados | {len(PICKS_GENERADOS)} picks generados.")
 
