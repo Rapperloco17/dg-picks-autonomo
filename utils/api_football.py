@@ -1,22 +1,22 @@
-def analizar_partido_futbol(partido, datos_estadisticos=None, cuotas=None):
+# utils/api_football.py
+
+def obtener_partidos_de_liga(liga_id, fecha_hoy, temporada):
     """
-    Genera un pick simulado básico para testeo.
+    Función dummy temporal que evita crash cuando se llama a obtener_partidos_de_liga.
+    Devuelve una lista vacía para permitir pruebas.
+    """
+    print(f"⚠️ Dummy activa - obtener_partidos_de_liga(liga_id={liga_id}, fecha={fecha_hoy}, temporada={temporada})")
+    return []
+
+def analizar_partido_futbol(partido, datos_estadisticos, cuotas):
+    """
+    Función dummy temporal para evitar crash del sistema.
+    Retorna None para cada análisis, sin procesar lógica real.
 
     :param partido: dict con datos del fixture
-    :param datos_estadisticos: opcional (no usado en dummy)
-    :param cuotas: opcional (no usado en dummy)
-    :return: dict con pick simulado
+    :param datos_estadisticos: dict con estadísticas del partido
+    :param cuotas: dict con cuotas disponibles
+    :return: dict o None
     """
-    local = partido["teams"]["home"]["name"]
-    visitante = partido["teams"]["away"]["name"]
-    fecha = partido["fixture"]["date"]
-
-    return {
-        "partido": f"{local} vs {visitante}",
-        "fecha": fecha,
-        "pick": f"{local} gana o empata",
-        "mercado": "Doble Oportunidad",
-        "cuota": 1.65,
-        "confianza": "media",
-        "justificacion": f"{local} juega en casa y llega con buena forma. Pick simulado."
-    }
+    # Esta función será reemplazada por el análisis real más adelante.
+    return None
