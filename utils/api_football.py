@@ -1,25 +1,23 @@
-# utils/api_football.py
-
-def obtener_partidos_de_liga(liga_id, fecha_hoy, temporada):
-    # Simula una respuesta directa como lista para pruebas (puedes reemplazar por lógica real con requests)
-    partidos = [
-        {
-            "fixture": {"id": 12345, "date": fecha_hoy},
-            "teams": {"home": {"name": "Equipo A"}, "away": {"name": "Equipo B"}},
-            "league": {"id": liga_id, "season": temporada}
-        }
-    ]
-    return partidos
-
-def analizar_partido_futbol(partido, datos_estadisticos, cuotas):
+def obtener_partidos_de_liga(league_id, fecha, temporada):
     """
-    Función dummy temporal para evitar crash del sistema.
-    Retorna None para cada análisis, sin procesar lógica real.
+    Función simulada que retorna estructura esperada por soccer_generator.py.
+    Retorna un diccionario con clave 'response' que contiene una lista de partidos.
 
-    :param partido: dict con datos del fixture
-    :param datos_estadisticos: dict con estadísticas del partido
-    :param cuotas: dict con cuotas disponibles
-    :return: dict o None
+    :param league_id: ID de la liga
+    :param fecha: Fecha de consulta (YYYY-MM-DD)
+    :param temporada: Año de la temporada (ej. 2024)
+    :return: dict con clave 'response' y lista de fixtures simulados
     """
-    # Esta función será reemplazada por el análisis real más adelante.
-    return None
+    return {
+        "response": [
+            {
+                "fixture": {"id": 1, "date": fecha},
+                "teams": {
+                    "home": {"name": "Equipo A"},
+                    "away": {"name": "Equipo B"}
+                },
+                "goals": {"home": 2, "away": 1},
+                "league": {"id": league_id, "season": temporada}
+            }
+        ]
+    }
