@@ -1,51 +1,46 @@
 import json
 from datetime import datetime
-from utils.api_futbol import obtener_partidos_de_liga, get_team_statistics, get_predictions
-from utils.leagues_whitelist_ids import ligas_validas
+from utils.api_football import obtener_partidos_de_liga, get_team_statistics, get_predictions
 from analysis.match_insights import analizar_partido_profundo
 import os
 
+def generar_picks_soccer():
+    print("⚙️ Iniciando análisis DG Picks...")
 
-# Fecha actual para analizar partidos del día
-fecha_actual = datetime.now().strftime("%Y-%m-%d")
+    with open("utils/leagues_whitelist_ids.json") as f:
+        ligas = json.load(f)
 
-# Lista para almacenar todos los partidos
-fixtures = []
+    resultados = []
+    hoy = datetime.now().strftime("%Y-%m-%d")
 
-# Obtener todos los fixtures de cada liga autorizada
-for liga_id in ligas_validas:
-    partidos_liga = obtener_partidos_de_liga(liga_id, fecha_actual)
-    fixtures.extend(partidos_liga)
+    for liga_id in ligas:
+        partidos = obtener_partidos_de_liga(liga_id, hoy)
 
-# Contadores
-analizados = 0
-picks_generados = []
+        for fixture in partidos:
+            stats = get_team_statistics(fixture["fixture"]["id"])
+            prediction = get_predictions(fixture["fixture"]["id"])
 
-# Procesar cada fixture con datos completos
-for fixture in fixtures:
-    fixture_id = fixture['fixture']['id']
+            if stats and prediction:
+                try:
+                    pick = analizar_partido_profundo(fixture, stats, prediction)
+                    if pick:
+                        resultados.append(pick)
+                except Exception as e:
+                    print(f"❌ Error en análisis profundo del fixture {fixture['fixture']['id']}: {e}")
+            else:
+                print(f"⚠️ No se pudieron obtener datos para fixture {fixture['fixture']['id']}")
 
-    stats = get_team_statistics(fixture_id)
-    prediction = get_predictions(fixture_id)
+    # Guardar resultados
+    os.makedirs("historial/fixtures", exist_ok=True)
+    fecha_archivo = datetime.now().strftime("%Y-%m-%d")
+    path_archivo = f"historial/fixtures/{fecha_archivo}.json"
 
-    # Validar datos antes de analizar
-    if not stats or not isinstance(stats, dict) or not prediction or not isinstance(prediction, dict):
-        print(f"⚠️ No se pudieron obtener datos para fixture {fixture_id}")
-        continue
+    with open(path_archivo, "w", encoding="utf-8") as f:
+        json.dump(resultados, f, ensure_ascii=False, indent=2)
 
-    try:
-        analisis = analizar_partido_profundo(fixture, stats, prediction)
-        if analisis:
-            analizados += 1
-            picks_generados.append(analisis)
-    except Exception as e:
-        print(f"❌ Error en análisis profundo del fixture {fixture_id}: {e}")
+    print(f"✅ Análisis del día guardado en: {path_archivo}")
+    print(f"📊 Proceso finalizado: {len(resultados)} partidos analizados | {len([r for r in resultados if r])} picks generados.")
 
-# Guardar resultados en archivo JSON con fecha
-nombre_archivo = f"historial/fixtures/{datetime.now().strftime('%Y-%m-%d')}.json"
-os.makedirs(os.path.dirname(nombre_archivo), exist_ok=True)
-with open(nombre_archivo, "w", encoding="utf-8") as f:
-    json.dump(picks_generados, f, indent=2, ensure_ascii=False)
 
-print(f"✅ Análisis del día guardado en: {nombre_archivo}")
-print(f"📊 Proceso finalizado: {analizados} partidos analizados | {len(picks_generados)} picks generados.")
+if __name__ == "__main__":
+    generar_picks_soccer()
