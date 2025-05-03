@@ -11,21 +11,24 @@ def analizar_partido_profundo(fixture, stats, prediction):
     razonamiento = []
     pick = None
 
-    # Extraer estadísticas principales
+    def get_stat(stat_list, stat_type):
+        try:
+            return next((x['value'] for x in stat_list if x['type'] == stat_type), 0) or 0
+        except:
+            return 0
+
     try:
-        home_stats = stats['home']['statistics']
-        away_stats = stats['away']['statistics']
+        home_stats = stats.get('home', {}).get('statistics', [])
+        away_stats = stats.get('away', {}).get('statistics', [])
 
-        # Goles promedio y tiros
-        home_goals = next((x['value'] for x in home_stats if x['type'] == "Goals scored"), 0)
-        away_goals = next((x['value'] for x in away_stats if x['type'] == "Goals scored"), 0)
+        home_goals = get_stat(home_stats, "Goals scored")
+        away_goals = get_stat(away_stats, "Goals scored")
 
-        home_concede = next((x['value'] for x in home_stats if x['type'] == "Goals conceded"), 0)
-        away_concede = next((x['value'] for x in away_stats if x['type'] == "Goals conceded"), 0)
+        home_concede = get_stat(home_stats, "Goals conceded")
+        away_concede = get_stat(away_stats, "Goals conceded")
 
-        # Lógica de selección
         if home_goals + away_goals >= 3 and home_concede + away_concede >= 2:
-            razonamiento.append(f"📈 Ambos equipos promedian muchos goles: {home_goals}+{away_goals} marcados y {home_concede}+{away_concede} concedidos.")
+            razonamiento.append(f"📈 Ambos equipos promedian muchos goles: {home_goals}+{away_goals} anotados y {home_concede}+{away_concede} concedidos.")
             pick = "Over 2.5 goles"
 
         elif home_goals >= 1.5 and away_concede >= 1.2:
@@ -36,7 +39,6 @@ def analizar_partido_profundo(fixture, stats, prediction):
             razonamiento.append(f"🚨 El visitante ({away}) suele anotar y el local ({home}) recibe goles.")
             pick = "Ambos anotan (BTTS)"
 
-        # Si el pick coincide con el consejo del API
         if pick and advice and pick.lower() in advice.lower():
             razonamiento.append(f"✅ El consejo del API también recomienda: {advice}")
         elif pick:
@@ -47,7 +49,7 @@ def analizar_partido_profundo(fixture, stats, prediction):
         return None
 
     if not pick:
-        return None  # No hay valor detectado
+        return None
 
     return {
         "fixture_id": fixture_id,
