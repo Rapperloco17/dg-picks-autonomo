@@ -1,38 +1,36 @@
-{
-  "allowed_league_ids": [
-    2,
-    3,
-    9,
-    39,
-    140,
-    135,
-    78,
-    61,
-    62,
-    88,
-    144,
-    71,
-    94,
-    848,
-    129,
-    130,
-    113,
-    98,
-    128,
-    253,
-    239,
-    245,
-    210,
-    203,
-    233,
-    271,
-    106,
-    195,
-    2660,
-    45,
-    1439,
-    1379,
-    118,
-    1129
-  ]
-}
+[
+  2,     // UEFA Champions League
+  3,     // UEFA Europa League
+  9,     // UEFA Conference League
+  16,    // CONCACAF Champions Cup
+  39,    // Premier League (Inglaterra)
+  61,    // Ligue 1 (Francia)
+  62,    // Ligue 2 (Francia)
+  71,    // Serie B (Italia)
+  78,    // Bundesliga (Alemania)
+  88,    // Eredivisie (Países Bajos)
+  94,    // Liga MX (México)
+  98,    // Brasileirao (Brasil)
+  106,   // Ekstraklasa (Polonia)
+  113,   // Allsvenskan (Suecia)
+  129,   // MLS (EE.UU.)
+  130,   // A-League (Australia)
+  135,   // Serie A (Italia)
+  140,   // La Liga (España)
+  144,   // Championship (Inglaterra)
+  195,   // Bundesliga (Austria)
+  203,   // Segunda División (España)
+  210,   // Liga 1 (Perú)
+  233,   // Fortuna Liga (Chequia)
+  239,   // Categoría Primera A (Colombia)
+  245,   // Primera División (Chile)
+  253,   // Primera Nacional (Argentina)
+  262,   // Liga Expansión MX (México)
+  271,   // Liga I (Rumanía)
+  292,   // Eerste Divisie (Países Bajos)
+  1129,  // Copa do Brasil
+  118,   // DFB Pokal (Alemania)
+  1379,  // Coppa Italia (Italia)
+  1439,  // Copa del Rey (España)
+  45     // FA Cup (Inglaterra)
+]
