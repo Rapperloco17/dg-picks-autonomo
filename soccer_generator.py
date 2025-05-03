@@ -1,23 +1,19 @@
-import os
 import json
 from utils.api_football import obtener_partidos_de_liga, get_team_statistics, get_predictions
 from analysis.match_insights import analizar_partido_profundo
 
+# Cargar ligas permitidas desde JSON
+with open("utils/leagues_whitelist.json", "r", encoding="utf-8") as f:
+    ligas_ids = json.load(f)
+
 def generar_picks_soccer():
-    print("Iniciando analisis DG Picks...")
+    print("Iniciando análisis DG Picks...")
 
-    from utils.leagues_whitelist_ids import ligas_ids
-    output_folder = "output"
-    output_file = os.path.join(output_folder, "picks_futbol.json")
-
-    # Crear carpeta si no existe
-    os.makedirs(output_folder, exist_ok=True)
-
-    picks = []
+    resultados = []
 
     for liga_id in ligas_ids:
-        response = obtener_partidos_de_liga(liga_id, None)
-        fixtures = response.get("response", [])
+        fixtures_response = obtener_partidos_de_liga(liga_id, fecha=None)
+        fixtures = fixtures_response.get("response", [])
 
         for fixture in fixtures:
             fixture_id = fixture.get("fixture", {}).get("id")
@@ -27,18 +23,18 @@ def generar_picks_soccer():
             stats = get_team_statistics(fixture_id)
             prediction = get_predictions(fixture_id)
 
-            if not stats or not prediction:
-                continue
-
-            pick = analizar_partido_profundo(fixture, stats, prediction)
-            if pick:
-                picks.append(pick)
+            if stats and prediction:
+                pick_info = analizar_partido_profundo(fixture, stats, prediction)
+                if pick_info:
+                    resultados.append(pick_info)
 
     # Guardar resultados
-    with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(picks, f, ensure_ascii=False, indent=2)
+    import os
+    os.makedirs("output", exist_ok=True)
+    with open("output/picks_futbol.json", "w", encoding="utf-8") as f:
+        json.dump(resultados, f, indent=4, ensure_ascii=False)
 
-    print(f"Picks de fútbol generados: {len(picks)}")
+    print("✅ Picks de fútbol generados y guardados correctamente.")
 
 if __name__ == "__main__":
     generar_picks_soccer()
