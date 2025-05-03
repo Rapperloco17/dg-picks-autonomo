@@ -4,7 +4,7 @@ from utils.api_football import obtener_partidos_de_liga, get_team_statistics, ge
 from analysis.match_insights import analizar_partido_profundo
 
 def generar_picks_soccer():
-    print("Iniciando análisis DG Picks...")
+    print("Iniciando analisis DG Picks...")
 
     from utils.leagues_whitelist_ids import ligas_ids
     output_folder = "output"
@@ -34,7 +34,7 @@ def generar_picks_soccer():
             if pick:
                 picks.append(pick)
 
-    # Guardar picks generados
+    # Guardar resultados
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(picks, f, ensure_ascii=False, indent=2)
 
@@ -43,5 +43,3 @@ def generar_picks_soccer():
 if __name__ == "__main__":
     generar_picks_soccer()
 
-if __name__ == "__main__":
-    generar_picks_soccer()
