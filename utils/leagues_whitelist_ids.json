@@ -1,30 +1,30 @@
 [
-  39,     // Premier League
-  140,    // La Liga
-  135,    // Serie A
-  78,     // Bundesliga
-  61,     // Eredivisie
-  71,     // Serie B (Italia)
-  262,    // UEFA Champions League
-  307,    // UEFA Europa Conference League
-  128,    // Liga Profesional Argentina
-  129,    // Primera Nacional Argentina
-  144,    // Liga MX
-  143,    // MLS
-  848,    // Brasileirao
-  2,      // Bundesliga 2
-  9,      // Championship
-  254,    // Süper Lig Turquía
-  203,    // Ligue 1 Francia ✅
-  251,    // Ligue 2 Francia ✅
-  253,    // Segunda División España
-  391,    // Copa Libertadores
-  233,    // Copa Sudamericana
-  130,    // Liga de Expansión MX ✅
-  212,    // Primera División Colombia
-  97,     // Primera División Chile
-  210,    // Primera División Perú
-  113,    // Primera División Uruguay
-  266,    // Allsvenskan Suecia ✅
-  291     // A-League Australia ✅
+  39,
+  140,
+  135,
+  78,
+  61,
+  71,
+  262,
+  307,
+  128,
+  129,
+  144,
+  143,
+  848,
+  2,
+  9,
+  254,
+  203,
+  251,
+  253,
+  391,
+  233,
+  130,
+  212,
+  97,
+  210,
+  113,
+  266,
+  291
 ]
