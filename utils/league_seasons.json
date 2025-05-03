@@ -1,36 +1,36 @@
 {
-  "2": [2024],
-  "3": [2024],
-  "9": [2024],
-  "39": [2024],
-  "140": [2024],
-  "135": [2024],
-  "78": [2024],
-  "61": [2024],
-  "62": [2024],
-  "88": [2024],
-  "144": [2024],
-  "71": [2024],
-  "94": [2024],
-  "848": [2024],
-  "129": [2024],
-  "130": [2024],
-  "113": [2024],
-  "98": [2024],
-  "128": [2024],
-  "253": [2024],
-  "239": [2024],
-  "245": [2024],
-  "210": [2024],
-  "203": [2024],
-  "233": [2024],
-  "271": [2024],
-  "106": [2024],
-  "195": [2024],
-  "2660": [2024],
-  "45": [2024],
-  "1439": [2024],
-  "1379": [2024],
-  "118": [2024],
-  "1129": [2024]
+  "2": [2024],      // UEFA Champions League
+  "3": [2024],      // UEFA Europa League
+  "9": [2024],      // UEFA Conference League
+  "16": [2024],     // CONCACAF Champions Cup
+  "39": [2024],     // Premier League (Inglaterra)
+  "61": [2024],     // Ligue 1 (Francia)
+  "62": [2024],     // Ligue 2 (Francia)
+  "71": [2024],     // Serie B (Italia)
+  "78": [2024],     // Bundesliga (Alemania)
+  "88": [2024],     // Eredivisie (Países Bajos)
+  "94": [2024],     // Liga MX (México)
+  "98": [2024],     // Brasileirão (Brasil)
+  "106": [2024],    // Ekstraklasa (Polonia)
+  "113": [2024],    // Allsvenskan (Suecia)
+  "129": [2024],    // MLS (EE.UU.)
+  "130": [2024],    // A-League (Australia)
+  "135": [2024],    // Serie A (Italia)
+  "140": [2024],    // La Liga (España)
+  "144": [2024],    // Championship (Inglaterra)
+  "195": [2024],    // Bundesliga (Austria)
+  "203": [2024],    // Segunda División (España)
+  "210": [2024],    // Liga 1 (Perú)
+  "233": [2024],    // Fortuna Liga (Chequia)
+  "239": [2024],    // Categoría Primera A (Colombia)
+  "245": [2024],    // Primera División (Chile)
+  "253": [2024],    // Primera Nacional (Argentina)
+  "262": [2024],    // Liga Expansión MX (México)
+  "271": [2024],    // Liga I (Rumanía)
+  "292": [2024],    // Eerste Divisie (Países Bajos)
+  "1129": [2024],   // Copa do Brasil
+  "118": [2024],    // DFB Pokal (Alemania)
+  "1379": [2024],   // Coppa Italia (Italia)
+  "1439": [2024],   // Copa del Rey (España)
+  "45": [2024]      // FA Cup (Inglaterra)
 }
