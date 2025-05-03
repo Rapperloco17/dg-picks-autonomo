@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 
 API_URL = "https://v3.football.api-sports.io"
-API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"  # API Key válida del usuario
+API_KEY = "71786cde41a9ad043bde3849f906ef1377"  # Tu API Key válida
 
 headers = {
     "x-apisports-key": API_KEY
@@ -17,12 +17,11 @@ with open("utils/leagues_whitelist_ids.json") as f:
 with open("utils/league_seasons.json") as f:
     temporadas_por_liga = json.load(f)
 
-# Fecha actual en formato YYYY-MM-DD
+# Fecha actual en formato 'YYYY-MM-DD'
 fecha_hoy = datetime.now().strftime("%Y-%m-%d")
 
-
 def obtener_partidos_de_liga(liga_id, fecha):
-    temporada = temporadas_por_liga.get(str(liga_id), 2025)  # Default 2025 si no está
+    temporada = temporadas_por_liga.get(str(liga_id), 2025)  # Por defecto 2025 si no se encuentra
     params = {
         "league": liga_id,
         "season": temporada,
@@ -33,9 +32,8 @@ def obtener_partidos_de_liga(liga_id, fecha):
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        print(f"🔴❌ Error al conectar con la API para liga {liga_id}: {e}")
+        print(f"❌ Error al conectar con la API para liga {liga_id}: {e}")
         return {"response": []}
-
 
 def get_team_statistics(fixture_id):
     """
@@ -49,7 +47,6 @@ def get_team_statistics(fixture_id):
         print(f"❌ Error al obtener estadísticas del fixture {fixture_id}: {e}")
         return []
 
-
 def get_predictions(fixture_id):
     """
     Obtiene predicciones del sistema de API-FOOTBALL para el fixture.
@@ -62,3 +59,4 @@ def get_predictions(fixture_id):
     except requests.exceptions.RequestException as e:
         print(f"❌ Error al obtener predicción del fixture {fixture_id}: {e}")
         return None
+
