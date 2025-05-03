@@ -1,30 +1,12 @@
-import requests
-
-API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"  # TU API KEY ACTUAL
-API_URL = "https://v3.football.api-sports.io/fixtures"
-
-headers = {
-    "x-apisports-key": API_KEY
-}
-
-def obtener_partidos_de_liga(liga_id, fecha, temporada):
+def analizar_partido_futbol(partido, datos_estadisticos, cuotas):
     """
-    Consulta la API para obtener los partidos de una liga específica en una fecha dada y temporada definida.
-    :param liga_id: ID numérico de la liga (según API-FOOTBALL)
-    :param fecha: Fecha en formato YYYY-MM-DD
-    :param temporada: Año de la temporada (ej. 2024)
-    :return: Lista de partidos del día para esa liga
-    """
-    params = {
-        "league": liga_id,
-        "season": temporada,
-        "date": fecha
-    }
+    Función dummy temporal para evitar crash del sistema.
+    Retorna None para cada análisis, sin procesar lógica real.
 
-    response = requests.get(API_URL, headers=headers, params=params)
-    if response.status_code == 200:
-        data = response.json()
-        return data.get("response", [])
-    else:
-        print(f"Error en la API: {response.status_code}")
-        return []
+    :param partido: dict con datos del fixture
+    :param datos_estadisticos: dict con estadísticas del partido
+    :param cuotas: dict con cuotas disponibles
+    :return: dict o None
+    """
+    # Esta función será reemplazada por el análisis real más adelante.
+    return None
