@@ -1,49 +1,45 @@
+
 import json
 import os
-from utils.api_football import obtener_partidos_de_liga, get_team_statistics, get_predictions
+from datetime import datetime
+from utils.api_football import obtener_partidos_de_liga, analizar_partido_futbol
 
-def generar_picks_soccer():
-    print("⚽ Iniciando análisis DG Picks...")
+def main():
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    print(f"📅 Fecha actual: {fecha_hoy}")
 
     with open("utils/leagues_whitelist_ids.json", "r", encoding="utf-8") as f:
-        ligas_ids = json.load(f)
+        ligas_validas = json.load(f)
 
-    from datetime import datetime
-    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    with open("utils/league_seasons.json", "r", encoding="utf-8") as f:
+        temporadas_por_liga = json.load(f)
 
     all_picks = []
 
-    for liga_id in ligas_ids:
-        partidos = obtener_partidos_de_liga(liga_id, fecha_hoy)
+    for liga_id in ligas_validas.keys():
+        temporada = temporadas_por_liga.get(str(liga_id), 2024)
+        print(f"🔍 Analizando liga {liga_id} - temporada {temporada}")
 
-        for fixture in partidos.get("response", []):
-            stats = get_team_statistics(fixture["fixture"]["id"])
-            if not stats:
-                continue
+        partidos = obtener_partidos_de_liga(liga_id, fecha_hoy, temporada)
+        fixtures = partidos.get("response", [])
+        print(f"➡️ Fixtures obtenidos: {len(fixtures)}")
 
-            pred = get_predictions(fixture["fixture"]["id"])
-            if not pred:
-                continue
-
-            # Ejemplo básico de criterio: más de 2.5 goles si ambos equipos promedian más de 1.5 goles a favor
+        for fixture in fixtures:
             try:
-                goles_local = stats["teams"]["home"]["statistics"]["goals"]["for"]["average"]["total"]
-                goles_visitante = stats["teams"]["away"]["statistics"]["goals"]["for"]["average"]["total"]
-                if goles_local and goles_visitante:
-                    goles_local = float(goles_local)
-                    goles_visitante = float(goles_visitante)
-                    if goles_local > 1.4 and goles_visitante > 1.4:
-                        pick = {
-                            "partido": f"{fixture['teams']['home']['name']} vs {fixture['teams']['away']['name']}",
-                            "mercado": "Más de 2.5 goles",
-                            "fecha": fixture["fixture"]["date"]
-                        }
-                        all_picks.append(pick)
-            except:
-                continue
+                pick = analizar_partido_futbol(fixture)
+                if pick:
+                    print(f"✅ Pick generado: {fixture['teams']['home']['name']} vs {fixture['teams']['away']['name']} → {pick['pick']}")
+                    all_picks.append(pick)
+                else:
+                    print(f"⛔ Sin pick válido para: {fixture['teams']['home']['name']} vs {fixture['teams']['away']['name']}")
+            except Exception as e:
+                print(f"❌ Error analizando fixture {fixture.get('fixture', {}).get('id')}: {e}")
 
     os.makedirs("output", exist_ok=True)
     with open("output/picks_futbol.json", "w", encoding="utf-8") as f:
         json.dump(all_picks, f, indent=4, ensure_ascii=False)
 
-    print("✅ Picks generados correctamente.")
+    print(f"🎯 Total de picks generados: {len(all_picks)}")
+
+if __name__ == "__main__":
+    main()
