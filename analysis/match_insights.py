@@ -1,65 +1,60 @@
-import requests
-from datetime import datetime
-
-# Header con tu API Key de API-FOOTBALL
-API_FOOTBALL_HEADERS = {
-    "x-apisports-key": "178b66e41ba9d4d3b8549f096ef1e377"
-}
+import datetime
 
 def analizar_partido_profundo(fixture, stats, prediction):
+    fixture_id = fixture['fixture']['id']
+    date = fixture['fixture']['date'][:10]
+    league = fixture['league']['name']
+    home = fixture['teams']['home']['name']
+    away = fixture['teams']['away']['name']
+    advice = prediction.get('advice', '').strip()
+
     razonamiento = []
     pick = None
 
-    fixture_id = fixture["fixture"]["id"]
-    home = fixture["teams"]["home"]["name"]
-    away = fixture["teams"]["away"]["name"]
-    league = fixture["league"]["name"]
-    date = fixture["fixture"]["date"]
+    # Extraer estadísticas principales
+    try:
+        home_stats = stats['home']['statistics']
+        away_stats = stats['away']['statistics']
 
-    home_stats = stats.get("home", {}).get("teams", {}).get("statistics", {})
-    away_stats = stats.get("away", {}).get("teams", {}).get("statistics", {})
+        # Goles promedio y tiros
+        home_goals = next((x['value'] for x in home_stats if x['type'] == "Goals scored"), 0)
+        away_goals = next((x['value'] for x in away_stats if x['type'] == "Goals scored"), 0)
 
-    advice = prediction.get("advice", "")
+        home_concede = next((x['value'] for x in home_stats if x['type'] == "Goals conceded"), 0)
+        away_concede = next((x['value'] for x in away_stats if x['type'] == "Goals conceded"), 0)
 
-    # Goles promedio, tiros, forma
-    home_goals = home_stats.get("Goals scored", 0)
-    away_goals = away_stats.get("Goals scored", 0)
-    home_concede = home_stats.get("Goals conceded", 0)
-    away_concede = away_stats.get("Goals conceded", 0)
-
-    if home_goals and away_goals and home_concede and away_concede:
+        # Lógica de selección
         if home_goals + away_goals >= 3 and home_concede + away_concede >= 2:
-            razonamiento.append(
-                f"Ambos equipos tienen buena producción ofensiva y defensiva débil: {home} ({home_goals} GF / {home_concede} GA), {away} ({away_goals} GF / {away_concede} GA)"
-            )
+            razonamiento.append(f"📈 Ambos equipos promedian muchos goles: {home_goals}+{away_goals} marcados y {home_concede}+{away_concede} concedidos.")
             pick = "Over 2.5 goles"
 
-        elif home_concede + away_concede >= 3:
-            razonamiento.append(
-                f"Ambos equipos permiten muchos goles: {home} concede {home_concede}, {away} concede {away_concede}"
-            )
+        elif home_goals >= 1.5 and away_concede >= 1.2:
+            razonamiento.append(f"⚽ El local ({home}) anota bastante y el visitante ({away}) concede muchos.")
+            pick = f"{home} gana o Over 1.5 goles"
+
+        elif home_concede >= 1.5 and away_goals >= 1.3:
+            razonamiento.append(f"🚨 El visitante ({away}) suele anotar y el local ({home}) recibe goles.")
             pick = "Ambos anotan (BTTS)"
 
-        elif home_goals >= 1.5 and away_concede >= 1.5:
-            razonamiento.append(
-                f"{home} promedia {home_goals} goles a favor y {away} concede {away_concede} por partido."
-            )
-            pick = f"{home} gana"
+        # Si el pick coincide con el consejo del API
+        if pick and advice and pick.lower() in advice.lower():
+            razonamiento.append(f"✅ El consejo del API también recomienda: {advice}")
+        elif pick:
+            razonamiento.append("⚠️ Pick generado por estadísticas, no coincide 100% con el consejo del API.")
 
-    # Validación con predicción del API
-    if pick and advice and pick.lower() in advice.lower():
-        razonamiento.append(f"✅ El consejo del API también sugiere: '{advice}'")
-    elif pick:
-        razonamiento.append(f"⚠️ El pick se genera por análisis real, aunque el API no lo recomienda directamente.")
+    except Exception as e:
+        print(f"❌ Error en análisis profundo: {e}")
+        return None
 
     if not pick:
-        return None  # No se detectó valor real
+        return None  # No hay valor detectado
 
     return {
         "fixture_id": fixture_id,
         "match": f"{home} vs {away}",
         "league": league,
-        "fecha": date,
+        "date": date,
         "pick": pick,
         "razonamiento": razonamiento
     }
+
