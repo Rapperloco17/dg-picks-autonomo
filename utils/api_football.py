@@ -1,35 +1,30 @@
 import requests
-from utils.valor_cuota import calcular_valor_apuesta
 
-API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
-HEADERS = {
+API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"  # TU API KEY ACTUAL
+API_URL = "https://v3.football.api-sports.io/fixtures"
+
+headers = {
     "x-apisports-key": API_KEY
 }
 
+def obtener_partidos_de_liga(liga_id, fecha, temporada):
+    """
+    Consulta la API para obtener los partidos de una liga específica en una fecha dada y temporada definida.
+    :param liga_id: ID numérico de la liga (según API-FOOTBALL)
+    :param fecha: Fecha en formato YYYY-MM-DD
+    :param temporada: Año de la temporada (ej. 2024)
+    :return: Lista de partidos del día para esa liga
+    """
+    params = {
+        "league": liga_id,
+        "season": temporada,
+        "date": fecha
+    }
 
-def obtener_partidos_de_liga(league_id, season):
-    url = f"https://v3.football.api-sports.io/fixtures?league={league_id}&season={season}&timezone=America/Mexico_City"
-    response = requests.get(url, headers=HEADERS)
+    response = requests.get(API_URL, headers=headers, params=params)
     if response.status_code == 200:
         data = response.json()
         return data.get("response", [])
     else:
+        print(f"Error en la API: {response.status_code}")
         return []
-
-
-def analizar_partido_futbol(partido, datos_equipo_local, datos_equipo_visitante, prediccion, cuotas):
-    # Lógica simple de análisis (ejemplo)
-    analisis = {
-        "partido_id": partido["fixture"]["id"],
-        "equipos": f"{partido['teams']['home']['name']} vs {partido['teams']['away']['name']}",
-        "prediccion": prediccion.get("winner", {}).get("name"),
-        "valor_detectado": False,
-        "cuota": cuotas.get("1", 0),
-    }
-
-    # Ejemplo de detección de valor
-    if prediccion.get("winner", {}).get("name") == partido['teams']['home']['name'] and cuotas.get("1"):
-        valor = calcular_valor_apuesta(0.55, cuotas.get("1"))  # Suponiendo 55% de probabilidad implícita
-        analisis["valor_detectado"] = valor >= 1.05
-
-    return analisis
