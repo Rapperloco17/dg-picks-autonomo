@@ -1,9 +1,15 @@
+# utils/api_football.py
+
 def obtener_partidos_de_liga(liga_id, fecha_hoy, temporada):
-    """
-    Función dummy temporal para evitar crash del sistema.
-    Retorna lista vacía.
-    """
-    return []
+    # Simula una respuesta directa como lista para pruebas (puedes reemplazar por lógica real con requests)
+    partidos = [
+        {
+            "fixture": {"id": 12345, "date": fecha_hoy},
+            "teams": {"home": {"name": "Equipo A"}, "away": {"name": "Equipo B"}},
+            "league": {"id": liga_id, "season": temporada}
+        }
+    ]
+    return partidos
 
 def analizar_partido_futbol(partido, datos_estadisticos, cuotas):
     """
