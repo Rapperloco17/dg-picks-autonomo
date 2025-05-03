@@ -12,51 +12,18 @@ FIXTURES_ANALIZADOS = []
 PICKS_GENERADOS = []
 
 # 📊 Análisis de un partido
+from analysis.match_insights import analizar_partido_profundo  # Asegúrate de tener este import arriba
+
 def analizar_partido(fixture):
-    fixture_id = fixture['fixture']['id']
-    equipos = fixture['teams']
-    local = equipos['home']['name']
-    visitante = equipos['away']['name']
-    liga = fixture['league']['name']
-
     try:
-        goles_local = fixture['goals']['home']
-        goles_visitante = fixture['goals']['away']
-        status = fixture['fixture']['status']['short']
-
-        analisis = {
-            "id_fixture": fixture_id,
-            "liga": liga,
-            "equipos": f"{local} vs {visitante}",
-            "estado_partido": status,
-            "goles_actuales": {
-                "local": goles_local,
-                "visitante": goles_visitante
-            },
-            "pick_generado": None
-        }
-
-        # 🎯 Lógica simple de generación de pick
-        if goles_local is not None and goles_visitante is not None:
-            total_goles = goles_local + goles_visitante
-            if total_goles >= 3:
-                pick = f"✅ Ya hay más de 2.5 goles en {local} vs {visitante}"
-                cuota = "LIVE"
-                PICK = {
-                    "fixture_id": fixture_id,
-                    "pick": pick,
-                    "cuota": cuota
-                }
-                PICKS_GENERADOS.append(PICK)
-                analisis["pick_generado"] = PICK
-
-                # Envío al canal VIP
-                enviar_mensaje(f"🎯 PICK DG Picks\n{pick}\nCuota: {cuota}\n✅ Partido con goles confirmados")
-
-        FIXTURES_ANALIZADOS.append(analisis)
-
+        pick = analizar_partido_profundo(fixture)
+        if pick:
+            PICKS_GENERADOS.append(pick)
+            enviar_mensaje(f"🎯 PICK DG Picks\n📌 {pick['pick']}\n🧠 {pick['razonamiento'][0]}")
+        FIXTURES_ANALIZADOS.append(fixture)
     except Exception as e:
-        print(f"⚠️ Error al analizar fixture {fixture_id}: {e}")
+        print(f"⚠️ Error al analizar fixture {fixture['fixture']['id']}: {e}")
+
 
 # 💾 Guardar fixtures analizados del día
 def guardar_fixture_diario():
