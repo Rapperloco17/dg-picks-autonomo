@@ -1,47 +1,62 @@
-# utils/analizar_partido_futbol.py
-
 def analizar_partido_futbol(partido, datos_estadisticos, cuotas):
     """
-    Análisis real del partido basado en datos estadísticos y cuotas.
-    Esta es una versión inicial que puedes extender.
-
-    :param partido: dict con datos del fixture
-    :param datos_estadisticos: dict con estadísticas detalladas del partido
-    :param cuotas: dict con cuotas disponibles del partido
-    :return: dict con pick sugerido o None si no hay valor
+    Análisis inicial simple basado en estadísticas recientes y goles promedio.
+    Devuelve pick si hay valor detectado en Over/Under o BTTS.
     """
+    try:
+        equipo_local = partido["teams"]["home"]["name"]
+        equipo_visitante = partido["teams"]["away"]["name"]
 
-    fixture_id = partido.get("fixture", {}).get("id")
-    print(f"🔍 Analizando fixture ID: {fixture_id}")
+        stats_local = datos_estadisticos.get("local", {})
+        stats_visitante = datos_estadisticos.get("visitante", {})
 
-    # Extraer estadísticas clave
-    goles_prom_home = datos_estadisticos.get("home", {}).get("goals_per_game", 0)
-    goles_prom_away = datos_estadisticos.get("away", {}).get("goals_per_game", 0)
-    btts_ratio = datos_estadisticos.get("btts_ratio", 0)
+        # Goles promedio
+        goles_local = stats_local.get("goles_promedio", 0)
+        goles_visitante = stats_visitante.get("goles_promedio", 0)
+        total_goles = goles_local + goles_visitante
 
-    # Extraer cuotas
-    cuota_over_2_5 = cuotas.get("Over 2.5", 0)
-    cuota_btts = cuotas.get("BTTS", 0)
+        # Forma reciente
+        forma_local = stats_local.get("forma", [])
+        forma_visitante = stats_visitante.get("forma", [])
 
-    # Lógica de ejemplo: apostar al Over 2.5 si hay valor
-    if goles_prom_home + goles_prom_away >= 2.8 and cuota_over_2_5 >= 1.70:
+        btts_local = stats_local.get("btts", 0)
+        btts_visitante = stats_visitante.get("btts", 0)
+
+        # Reglas básicas para detección de valor
+        if total_goles >= 2.8 and cuotas.get("over_2.5", 0) >= 1.75:
+            return {
+                "pick": "Más de 2.5 goles",
+                "valor": True,
+                "motivo": f"Promedio de goles alto: {total_goles:.2f} entre ambos equipos",
+                "cuota": cuotas["over_2.5"]
+            }
+
+        if btts_local >= 0.6 and btts_visitante >= 0.6 and cuotas.get("btts", 0) >= 1.80:
+            return {
+                "pick": "Ambos equipos anotan",
+                "valor": True,
+                "motivo": f"BTTS alto en ambos: local {btts_local:.2f}, visitante {btts_visitante:.2f}",
+                "cuota": cuotas["btts"]
+            }
+
+        if stats_local.get("invicto_local", False) and cuotas.get("1X", 0) >= 1.55:
+            return {
+                "pick": "Local o Empate (1X)",
+                "valor": True,
+                "motivo": "Equipo local viene invicto en casa",
+                "cuota": cuotas["1X"]
+            }
+
         return {
-            "pick": "Over 2.5 goles",
-            "valor": True,
-            "motivo": f"Promedio de goles alto ({goles_prom_home + goles_prom_away}), cuota: {cuota_over_2_5}"
+            "pick": None,
+            "valor": False,
+            "motivo": "No se detectó valor real en este partido"
         }
 
-    # Lógica de ejemplo: apostar al BTTS si hay valor
-    if btts_ratio >= 0.65 and cuota_btts >= 1.80:
+    except Exception as e:
         return {
-            "pick": "Ambos anotan (BTTS)",
-            "valor": True,
-            "motivo": f"Alta probabilidad de BTTS ({btts_ratio}), cuota: {cuota_btts}"
+            "pick": None,
+            "valor": False,
+            "motivo": f"Error en análisis: {str(e)}"
         }
 
-    # Si no se cumple nada
-    return {
-        "pick": None,
-        "valor": False,
-        "motivo": "No se encontró valor en este partido"
-    }
