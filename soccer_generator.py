@@ -1,42 +1,37 @@
-from utils.api_football import obtener_partidos_de_liga, analizar_partido_futbol
-from utils.soccer_utils import cargar_datos_estadisticos, cargar_cuotas
-from utils.leagues import LEAGUES
-from datetime import datetime
-import time
+import json
+from api_football import obtener_estadisticas_y_cuotas
+from utils.analizar_partido_futbol import analizar_partido_futbol
+from utils.partidos_disponibles import obtener_partidos_disponibles
 
-def main():
-    fecha_actual = datetime.now().strftime("%Y-%m-%d")
-    temporada_actual = 2024  # Puedes automatizar esto después
+def generar_picks_soccer():
+    partidos = obtener_partidos_disponibles()
+    picks_detectados = []
 
-    print(f"📅 Fecha actual: {fecha_actual}")
+    for partido in partidos:
+        fixture_id = partido.get("fixture", {}).get("id")
+        if not fixture_id:
+            continue
 
-    for liga in LEAGUES:
-        liga_id = liga["league_id"]
-        nombre_liga = liga["nombre"]
+        datos_estadisticos, cuotas = obtener_estadisticas_y_cuotas(fixture_id)
+        if not datos_estadisticos or not cuotas:
+            continue
 
-        print(f"🔎 Analizando {nombre_liga} - temporada {temporada_actual}")
+        resultado = analizar_partido_futbol(partido, datos_estadisticos, cuotas)
 
-        try:
-            partidos = obtener_partidos_de_liga(liga_id, fecha=fecha_actual, temporada=temporada_actual)
+        if resultado["valor"]:
+            picks_detectados.append({
+                "fixture_id": fixture_id,
+                "partido": f"{partido['teams']['home']['name']} vs {partido['teams']['away']['name']}",
+                "pick": resultado["pick"],
+                "motivo": resultado["motivo"],
+                "cuota": resultado["cuota"]
+            })
 
-            for partido in partidos:
-                fixture_id = partido.get("fixture", {}).get("id")
+    with open("picks_futbol.json", "w", encoding="utf-8") as f:
+        json.dump(picks_detectados, f, indent=4, ensure_ascii=False)
 
-                if not fixture_id:
-                    continue
-
-                datos_estadisticos = cargar_datos_estadisticos(fixture_id)
-                cuotas = cargar_cuotas(fixture_id)
-
-                resultado = analizar_partido_futbol(partido, datos_estadisticos, cuotas)
-
-                print(f"📊 Análisis: {fixture_id}")
-                print(f"📌 Resultado: {resultado}")
-
-                time.sleep(1.2)  # Respeta límite de la API
-
-        except Exception as e:
-            print(f"❌ Error al analizar {nombre_liga}: {str(e)}")
+    print(f"✅ Picks generados: {len(picks_detectados)}")
+    return picks_detectados
 
 if __name__ == "__main__":
-    main()
+    generar_picks_soccer()
