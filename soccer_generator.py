@@ -1,37 +1,40 @@
-import json
-from api_football import obtener_estadisticas_y_cuotas
-from utils.analizar_partido_futbol import analizar_partido_futbol
+# soccer_generator.py
+
 from utils.partidos_disponibles import obtener_partidos_disponibles
+from utils.api_football import obtener_datos_partido, obtener_estadisticas_partido, obtener_cuotas_partido
+from utils.analizar_partido_futbol import analizar_partido_futbol
+from datetime import datetime
 
-def generar_picks_soccer():
-    partidos = obtener_partidos_disponibles()
-    picks_detectados = []
+def main():
+    fecha_actual = datetime.now().strftime("%Y-%m-%d")
+    print(f"📅 Fecha actual: {fecha_actual}")
+    
+    partidos = obtener_partidos_disponibles(fecha_actual)
+    
+    if not partidos:
+        print("⚠️ No hay partidos disponibles para analizar.")
+        return
 
-    for partido in partidos:
-        fixture_id = partido.get("fixture", {}).get("id")
-        if not fixture_id:
-            continue
+    for p in partidos:
+        liga_id = p["liga_id"]
+        fixture_id = p["fixture_id"]
+        temporada = p["temporada"]
 
-        datos_estadisticos, cuotas = obtener_estadisticas_y_cuotas(fixture_id)
-        if not datos_estadisticos or not cuotas:
-            continue
+        print(f"\n🔍 Analizando fixture {fixture_id} | Liga {liga_id} - temporada {temporada}")
 
-        resultado = analizar_partido_futbol(partido, datos_estadisticos, cuotas)
+        try:
+            datos = obtener_datos_partido(fixture_id)
+            stats = obtener_estadisticas_partido(fixture_id)
+            cuotas = obtener_cuotas_partido(fixture_id)
 
-        if resultado["valor"]:
-            picks_detectados.append({
-                "fixture_id": fixture_id,
-                "partido": f"{partido['teams']['home']['name']} vs {partido['teams']['away']['name']}",
-                "pick": resultado["pick"],
-                "motivo": resultado["motivo"],
-                "cuota": resultado["cuota"]
-            })
+            resultado = analizar_partido_futbol(datos, stats, cuotas)
 
-    with open("picks_futbol.json", "w", encoding="utf-8") as f:
-        json.dump(picks_detectados, f, indent=4, ensure_ascii=False)
+            print(f"✅ Resultado: {resultado}")
+        
+        except Exception as e:
+            print(f"❌ Error al analizar fixture {fixture_id}: {str(e)}")
 
-    print(f"✅ Picks generados: {len(picks_detectados)}")
-    return picks_detectados
 
 if __name__ == "__main__":
-    generar_picks_soccer()
+    main()
+
