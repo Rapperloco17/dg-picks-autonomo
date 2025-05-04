@@ -1,18 +1,20 @@
-from utils.api_football import get_fixtures_by_league_and_date
-from utils.leagues import obtener_ligas_hoy
-from utils.league_seasons import obtener_temporada_actual
-from datetime import datetime
+import datetime
+from utils.api_football import obtener_partidos_de_liga
+from utils.leagues_whitelist_ids import LEAGUES_WHITELIST
+from utils.league_seasons import LEAGUE_SEASONS
 
-def obtener_partidos_disponibles(fecha_actual=None):
-    if fecha_actual is None:
-        fecha_actual = datetime.now().strftime('%Y-%m-%d')
-
-    ligas = obtener_ligas_hoy()
+def obtener_partidos_disponibles():
+    hoy = datetime.date.today()
     partidos_disponibles = []
 
-    for liga in ligas:
-        temporada = obtener_temporada_actual(liga)
-        fixtures = get_fixtures_by_league_and_date(liga, temporada, fecha_actual)
-        partidos_disponibles.extend(fixtures)
+    for liga_id in LEAGUES_WHITELIST:
+        temporada = LEAGUE_SEASONS.get(str(liga_id), hoy.year)
+
+        try:
+            fixtures = obtener_partidos_de_liga(liga_id=liga_id, fecha=hoy.isoformat(), temporada=temporada)
+            if isinstance(fixtures, list):
+                partidos_disponibles.extend(fixtures)
+        except Exception as e:
+            print(f"Error al obtener partidos para liga {liga_id}: {str(e)}")
 
     return partidos_disponibles
