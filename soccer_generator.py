@@ -1,35 +1,42 @@
 from utils.api_football import obtener_partidos_de_liga, analizar_partido_futbol
+from utils.soccer_utils import cargar_datos_estadisticos, cargar_cuotas
+from utils.leagues import LEAGUES
 from datetime import datetime
+import time
 
 def main():
-    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
-    print(f"📅 Fecha actual: {fecha_hoy}")
+    fecha_actual = datetime.now().strftime("%Y-%m-%d")
+    temporada_actual = 2024  # Puedes automatizar esto después
 
-    # Ligas de ejemplo (puedes cargar desde JSON real después)
-    ligas = [
-        {"league_id": 2, "nombre": "liga 2", "temporada": 2024},
-        {"league_id": 3, "nombre": "liga 3", "temporada": 2024},
-    ]
+    print(f"📅 Fecha actual: {fecha_actual}")
 
-    for liga in ligas:
+    for liga in LEAGUES:
         liga_id = liga["league_id"]
-        temporada = liga["temporada"]
-        nombre = liga["nombre"]
+        nombre_liga = liga["nombre"]
 
-        print(f"⚽ Analizando {nombre} - temporada {temporada}")
+        print(f"🔎 Analizando {nombre_liga} - temporada {temporada_actual}")
 
         try:
-            partidos = obtener_partidos_de_liga(liga_id=liga_id, fecha=fecha_hoy, temporada=temporada)
+            partidos = obtener_partidos_de_liga(liga_id, fecha=fecha_actual, temporada=temporada_actual)
 
-            # Compatibilidad con dummy y real
-            fixtures = partidos.get("response", []) if isinstance(partidos, dict) else partidos
+            for partido in partidos:
+                fixture_id = partido.get("fixture", {}).get("id")
 
-            for partido in fixtures:
-                resultado = analizar_partido_futbol(partido, {}, {})
-                if resultado:
-                    print(f"📊 Resultado: {resultado}")
+                if not fixture_id:
+                    continue
+
+                datos_estadisticos = cargar_datos_estadisticos(fixture_id)
+                cuotas = cargar_cuotas(fixture_id)
+
+                resultado = analizar_partido_futbol(partido, datos_estadisticos, cuotas)
+
+                print(f"📊 Análisis: {fixture_id}")
+                print(f"📌 Resultado: {resultado}")
+
+                time.sleep(1.2)  # Respeta límite de la API
+
         except Exception as e:
-            print(f"❌ Error analizando {nombre}: {e}")
+            print(f"❌ Error al analizar {nombre_liga}: {str(e)}")
 
 if __name__ == "__main__":
     main()
