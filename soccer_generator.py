@@ -1,41 +1,63 @@
 from utils.partidos_disponibles import obtener_partidos_disponibles
-from utils.api_football import obtener_datos_partido, obtener_estadisticas_partido, obtener_cuotas_partido
-from utils.analizar_partido_futbol import analizar_partido_futbol
-from datetime import datetime
+from utils.api_football import analizar_partido_futbol
+from utils.valor_cuota import filtrar_picks_con_valor
+from utils.formato import formatear_mensaje_futbol
+from utils.telegram import enviar_mensaje
+from utils.horarios import obtener_fecha_actual
+from utils.leagues import LEAGUE_NAMES
+import datetime
 
-def main():
-    fecha_actual = datetime.now().strftime("%Y-%m-%d")
-    print(f"\n📅 Fecha actual: {fecha_actual}")
 
-    partidos = obtener_partidos_disponibles()
+def generar_picks_futbol():
+    fecha_actual = obtener_fecha_actual()
+    print(f"\nFecha actual: {fecha_actual}")
 
-    if not partidos:
-        print("⚠️ No hay partidos disponibles para analizar hoy.")
-        return
+    picks_finales = []
 
-    for p in partidos:
-        fixture_id = p.get("fixture", {}).get("id")
-        if not fixture_id:
-            continue
+    for liga_id, temporada in LEAGUE_NAMES.items():
+        print(f"\nAnalizando liga {liga_id} - temporada {temporada}")
 
-        print(f"\n🔍 Analizando fixture {fixture_id}")
+        partidos = obtener_partidos_disponibles(liga_id=liga_id, fecha=fecha_actual, temporada=temporada)
 
-        try:
-            datos = obtener_datos_partido(fixture_id)
-            stats = obtener_estadisticas_partido(fixture_id)
-            cuotas = obtener_cuotas_partido(fixture_id)
+        for partido in partidos:
+            fixture_id = partido['fixture']['id']
+            equipo_local = partido['teams']['home']['name']
+            equipo_visitante = partido['teams']['away']['name']
 
-            resultado = analizar_partido_futbol(datos, stats, cuotas)
+            print(f"\nAnalizando partido: {equipo_local} vs {equipo_visitante} (ID: {fixture_id})")
 
-            if resultado:
-                print(f"✅ Pick generado: {resultado}")
-            else:
-                print("❌ No se encontró valor en este partido.")
+            resultado = analizar_partido_futbol(partido)
 
-        except Exception as e:
-            print(f"❌ Error en el análisis del fixture {fixture_id}: {e}")
+            if resultado['valor']:
+                mensaje = formatear_mensaje_futbol(
+                    fixture_id=fixture_id,
+                    equipo_local=equipo_local,
+                    equipo_visitante=equipo_visitante,
+                    tipo_apuesta=resultado['pick'],
+                    cuota=resultado['cuota'],
+                    razon=resultado['motivo']
+                )
+                picks_finales.append({
+                    "fixture_id": fixture_id,
+                    "liga_id": liga_id,
+                    "temporada": temporada,
+                    "pick": resultado['pick'],
+                    "cuota": resultado['cuota'],
+                    "valor": True,
+                    "mensaje": mensaje,
+                    "timestamp": datetime.datetime.now().isoformat()
+                })
+
+    # Enviar los mensajes y filtrar picks con valor real
+    picks_filtrados = filtrar_picks_con_valor(picks_finales)
+    for pick in picks_filtrados:
+        enviar_mensaje(pick['mensaje'], canal="VIP")
+
+    print(f"\n✅ Total picks con valor: {len(picks_filtrados)}")
+    return picks_filtrados
+
 
 if __name__ == "__main__":
-    main()
+    generar_picks_futbol()
 
 
