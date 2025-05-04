@@ -1,117 +1,126 @@
-# utils/analizar_partido_futbol.py
-
-def analizar_partido_futbol(partido, datos_estadisticos, cuotas):
+def analizar_partido_futbol(datos, stats, cuotas):
     try:
-        equipo_local = partido["teams"]["home"]["name"]
-        equipo_visitante = partido["teams"]["away"]["name"]
+        if not datos or not stats or not cuotas:
+            return None
 
-        stats_local = datos_estadisticos.get("local", {})
-        stats_visit = datos_estadisticos.get("visitante", {})
+        equipo_local = datos.get("teams", {}).get("home", {}).get("name", "Local")
+        equipo_visita = datos.get("teams", {}).get("away", {}).get("name", "Visitante")
+        goles_local = stats.get("goles_local", 0)
+        goles_visita = stats.get("goles_visita", 0)
+        promedio_goles = (goles_local + goles_visita) / 2
+        btts_prob = stats.get("btts_prob", 0)
+        win_local = stats.get("prob_win_local", 0)
+        win_visit = stats.get("prob_win_visit", 0)
+        empate = stats.get("prob_draw", 0)
 
-        total_goles = stats_local.get("goles_promedio", 0) + stats_visit.get("goles_promedio", 0)
-        btts_local = stats_local.get("btts", 0)
-        btts_visit = stats_visit.get("btts", 0)
+        opciones = []
 
-        forma_local = stats_local.get("forma", [])
-        forma_visit = stats_visit.get("forma", [])
-        victorias_local = forma_local.count("W")
-        derrotas_visit = forma_visit.count("L")
-        empates_local = forma_local.count("D")
-        empates_visit = forma_visit.count("D")
-
-        pick = None
-        motivo = ""
-        cuota = 0
-
-        # 🎯 OVER Markets
-        if total_goles >= 3.2 and cuotas.get("over_3.5", 0) >= 2.00:
-            pick = f"Más de 3.5 goles en {equipo_local} vs {equipo_visitante}"
-            motivo = f"Goles proyectados muy altos: {total_goles:.2f}"
-            cuota = cuotas["over_3.5"]
-
-        elif total_goles >= 2.6 and cuotas.get("over_2.5", 0) >= 1.75:
-            pick = f"Más de 2.5 goles en {equipo_local} vs {equipo_visitante}"
-            motivo = f"Promedio de goles: {total_goles:.2f} entre ambos"
-            cuota = cuotas["over_2.5"]
-
-        elif total_goles >= 1.9 and cuotas.get("over_1.5", 0) >= 1.45:
-            pick = f"Más de 1.5 goles en {equipo_local} vs {equipo_visitante}"
-            motivo = f"Probabilidad alta de al menos 2 goles"
-            cuota = cuotas["over_1.5"]
-
-        # 🎯 UNDER Markets
-        elif total_goles <= 1.6 and cuotas.get("under_1.5", 0) >= 2.20:
-            pick = f"Menos de 1.5 goles en {equipo_local} vs {equipo_visitante}"
-            motivo = f"Bajo promedio de goles: {total_goles:.2f}"
-            cuota = cuotas["under_1.5"]
-
-        elif total_goles <= 2.0 and cuotas.get("under_2.5", 0) >= 1.90:
-            pick = f"Menos de 2.5 goles en {equipo_local} vs {equipo_visitante}"
-            motivo = f"Partido con tendencia a pocos goles"
-            cuota = cuotas["under_2.5"]
-
-        elif total_goles <= 3.0 and cuotas.get("under_3.5", 0) >= 1.55:
-            pick = f"Menos de 3.5 goles en {equipo_local} vs {equipo_visitante}"
-            motivo = f"Previsión moderada de goles"
-            cuota = cuotas["under_3.5"]
-
-        # 🎯 Ambos Anotan
-        elif btts_local >= 0.6 and btts_visit >= 0.6 and cuotas.get("btts", 0) >= 1.80:
-            pick = f"Ambos equipos anotan en {equipo_local} vs {equipo_visitante}"
-            motivo = f"BTTS alto en ambos: local ({btts_local:.2f}), visitante ({btts_visit:.2f})"
-            cuota = cuotas["btts"]
-
-        # 🎯 Doble oportunidad
-        elif stats_local.get("invicto_local", False) and cuotas.get("1X", 0) >= 1.55:
-            pick = f"Local o Empate (1X) en {equipo_local} vs {equipo_visitante}"
-            motivo = "El local está invicto en casa"
-            cuota = cuotas["1X"]
-
-        elif stats_visit.get("invicto_visitante", False) and cuotas.get("X2", 0) >= 1.60:
-            pick = f"Empate o Visitante (X2) en {equipo_local} vs {equipo_visitante}"
-            motivo = "El visitante se mantiene invicto fuera"
-            cuota = cuotas["X2"]
-
-        elif victorias_local >= 2 and derrotas_visit >= 2 and cuotas.get("12", 0) >= 1.45:
-            pick = f"1 o 2 (sin empate) en {equipo_local} vs {equipo_visitante}"
-            motivo = "Equipos con tendencia decidida (sin empates recientes)"
-            cuota = cuotas["12"]
-
-        # 🎯 ML directo
-        elif victorias_local >= 3 and cuotas.get("ml_local", 0) >= 1.75:
-            pick = f"{equipo_local} gana vs {equipo_visitante}"
-            motivo = f"{equipo_local} viene fuerte con 3+ victorias"
-            cuota = cuotas["ml_local"]
-
-        elif derrotas_visit >= 3 and cuotas.get("ml_visitante", 0) >= 1.90:
-            pick = f"{equipo_visitante} gana vs {equipo_local}"
-            motivo = f"{equipo_local} viene en mala racha"
-            cuota = cuotas["ml_visitante"]
-
-        elif empates_local >= 3 and empates_visit >= 2 and cuotas.get("empate", 0) >= 3.20:
-            pick = f"Empate entre {equipo_local} y {equipo_visitante}"
-            motivo = "Ambos con tendencia reciente a empatar"
-            cuota = cuotas["empate"]
-
-        if pick:
-            return {
-                "pick": pick,
+        if "over_1.5" in cuotas and promedio_goles > 1.7 and cuotas["over_1.5"] >= 1.50:
+            opciones.append({
+                "pick": "Over 1.5 goles",
                 "valor": True,
-                "motivo": motivo,
-                "cuota": cuota
-            }
+                "cuota": cuotas["over_1.5"],
+                "motivo": "Promedio de goles alto en ambos equipos"
+            })
 
-        return {
-            "pick": None,
-            "valor": False,
-            "motivo": "No se detectó valor real en este partido"
-        }
+        if "over_2.5" in cuotas and promedio_goles > 2.5 and cuotas["over_2.5"] >= 1.70:
+            opciones.append({
+                "pick": "Over 2.5 goles",
+                "valor": True,
+                "cuota": cuotas["over_2.5"],
+                "motivo": "Equipos con tendencia a partidos con muchos goles"
+            })
+
+        if "over_3.5" in cuotas and promedio_goles > 3.2 and cuotas["over_3.5"] >= 2.00:
+            opciones.append({
+                "pick": "Over 3.5 goles",
+                "valor": True,
+                "cuota": cuotas["over_3.5"],
+                "motivo": "Altísimo promedio goleador en ambos equipos"
+            })
+
+        if "under_3.5" in cuotas and promedio_goles < 3.5 and cuotas["under_3.5"] >= 1.60:
+            opciones.append({
+                "pick": "Under 3.5 goles",
+                "valor": True,
+                "cuota": cuotas["under_3.5"],
+                "motivo": "Promedio de goles moderado o defensivo"
+            })
+
+        if "under_2.5" in cuotas and promedio_goles < 2.2 and cuotas["under_2.5"] >= 1.80:
+            opciones.append({
+                "pick": "Under 2.5 goles",
+                "valor": True,
+                "cuota": cuotas["under_2.5"],
+                "motivo": "Promedio bajo de goles"
+            })
+
+        if "BTTS" in cuotas and btts_prob >= 65 and cuotas["BTTS"] >= 1.75:
+            opciones.append({
+                "pick": "Ambos equipos anotan",
+                "valor": True,
+                "cuota": cuotas["BTTS"],
+                "motivo": "Alta probabilidad estadística de BTTS"
+            })
+
+        if "1X" in cuotas and win_local + empate > 70 and cuotas["1X"] >= 1.50:
+            opciones.append({
+                "pick": "Doble oportunidad 1X",
+                "valor": True,
+                "cuota": cuotas["1X"],
+                "motivo": "Alta probabilidad de que el local no pierda"
+            })
+
+        if "X2" in cuotas and win_visit + empate > 70 and cuotas["X2"] >= 1.50:
+            opciones.append({
+                "pick": "Doble oportunidad X2",
+                "valor": True,
+                "cuota": cuotas["X2"],
+                "motivo": "Alta probabilidad de que el visitante no pierda"
+            })
+
+        if "12" in cuotas and win_local + win_visit > 75 and cuotas["12"] >= 1.50:
+            opciones.append({
+                "pick": "Doble oportunidad 12",
+                "valor": True,
+                "cuota": cuotas["12"],
+                "motivo": "Alta probabilidad de que haya un ganador"
+            })
+
+        if "ML_local" in cuotas and win_local > 60 and cuotas["ML_local"] >= 1.70:
+            opciones.append({
+                "pick": "Gana local",
+                "valor": True,
+                "cuota": cuotas["ML_local"],
+                "motivo": "Alta probabilidad de victoria local"
+            })
+
+        if "ML_visit" in cuotas and win_visit > 60 and cuotas["ML_visit"] >= 1.80:
+            opciones.append({
+                "pick": "Gana visitante",
+                "valor": True,
+                "cuota": cuotas["ML_visit"],
+                "motivo": "Alta probabilidad de victoria visitante"
+            })
+
+        if "Empate" in cuotas and empate > 30 and cuotas["Empate"] >= 3.00:
+            opciones.append({
+                "pick": "Empate",
+                "valor": True,
+                "cuota": cuotas["Empate"],
+                "motivo": "Empate probable con valor en la cuota"
+            })
+
+        if opciones:
+            mejor = sorted(opciones, key=lambda x: x["cuota"], reverse=True)[0]
+            mejor["partido"] = f"{equipo_local} vs {equipo_visita}"
+            return mejor
+
+        return None
 
     except Exception as e:
-        return {
-            "pick": None,
-            "valor": False,
-            "motivo": f"Error en análisis: {str(e)}"
-        }
+        print(f"Error en analizar_partido_futbol: {str(e)}")
+        return None
+
 
 
