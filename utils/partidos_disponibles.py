@@ -1,29 +1,18 @@
-# utils/partidos_disponibles.py
-
-from utils.odds_api import obtener_fixtures
-from utils.leagues_whitelist_ids import leagues_whitelist
-from utils.league_seasons import league_seasons
+from utils.api_football import get_fixtures_by_league_and_date
+from utils.leagues import obtener_ligas_hoy
+from utils.league_seasons import obtener_temporada_actual
 from datetime import datetime
 
-def obtener_partidos_disponibles(fecha_actual):
-    fixtures_disponibles = []
+def obtener_partidos_disponibles(fecha_actual=None):
+    if fecha_actual is None:
+        fecha_actual = datetime.now().strftime('%Y-%m-%d')
 
-    for liga_id in leagues_whitelist:
-        temporada = league_seasons.get(str(liga_id))
-        if not temporada:
-            continue
+    ligas = obtener_ligas_hoy()
+    partidos_disponibles = []
 
-        try:
-            partidos = obtener_fixtures(liga_id, temporada, fecha_actual)
-            for partido in partidos:
-                fixture_id = partido.get("fixture", {}).get("id")
-                if fixture_id:
-                    fixtures_disponibles.append({
-                        "fixture_id": fixture_id,
-                        "liga_id": liga_id,
-                        "temporada": temporada
-                    })
-        except Exception as e:
-            print(f"Error al obtener fixtures de liga {liga_id}: {e}")
+    for liga in ligas:
+        temporada = obtener_temporada_actual(liga)
+        fixtures = get_fixtures_by_league_and_date(liga, temporada, fecha_actual)
+        partidos_disponibles.extend(fixtures)
 
-    return fixtures_disponibles
+    return partidos_disponibles
