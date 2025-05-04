@@ -1,42 +1,26 @@
-import os
-import requests
-
-API_KEY = os.getenv("API_FOOTBALL_KEY")
+from utils.analizar_partido_futbol import analizar_partido_futbol
 
 def obtener_partidos_de_liga(liga_id, fecha, temporada):
-    """
-    Trae los partidos reales de una liga en una fecha específica usando API-FOOTBALL.
+    # Dummy para pruebas mientras se implementa el consumo real de la API
+    print(f"Dummy activa - obtener_partidos_de_liga(liga_id={liga_id}, fecha={fecha}, temporada={temporada})")
 
-    :param liga_id: ID numérico de la liga
-    :param fecha: string en formato 'YYYY-MM-DD'
-    :param temporada: año de la temporada (ej. 2024)
-    :return: lista de partidos con estructura estándar
-    """
-    print(f"Buscando partidos reales para liga {liga_id} - {fecha} - temporada {temporada}")
+    partidos_simulados = [
+        {
+            "fixture": {"id": 12345, "date": fecha},
+            "teams": {
+                "home": {"name": "Equipo Local"},
+                "away": {"name": "Equipo Visitante"}
+            },
+            "league": {"id": liga_id, "season": temporada}
+        }
+    ]
+    return partidos_simulados
 
-    url = "https://v3.football.api-sports.io/fixtures"
-    headers = {
-        "x-apisports-key": API_KEY
+
+def analizar_partido_dummy(partido, datos_estadisticos, cuotas):
+    print(f"📊 Análisis dummy: {partido.get('fixture', {}).get('id')}")
+    return {
+        "pick": None,
+        "valor": False,
+        "motivo": "Análisis aún no implementado"
     }
-    params = {
-        "league": liga_id,
-        "season": temporada,
-        "date": fecha,
-        "timezone": "America/Mexico_City"
-    }
-
-    try:
-        response = requests.get(url, headers=headers, params=params)
-        data = response.json()
-
-        if data.get("errors"):
-            print("❌ Error en respuesta de API:", data["errors"])
-            return []
-
-        partidos = data.get("response", [])
-        print(f"✅ {len(partidos)} partidos encontrados")
-        return partidos
-
-    except Exception as e:
-        print(f"❌ Error obteniendo partidos: {e}")
-        return []
