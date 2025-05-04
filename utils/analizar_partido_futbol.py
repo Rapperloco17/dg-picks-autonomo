@@ -1,3 +1,6 @@
+import json
+import os
+
 def analizar_partido_futbol(datos, stats, cuotas):
     try:
         if not datos or not stats or not cuotas:
@@ -114,6 +117,19 @@ def analizar_partido_futbol(datos, stats, cuotas):
         if opciones:
             mejor = sorted(opciones, key=lambda x: x["cuota"], reverse=True)[0]
             mejor["partido"] = f"{equipo_local} vs {equipo_visita}"
+
+            archivo = "picks_futbol.json"
+            if os.path.exists(archivo):
+                with open(archivo, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            else:
+                data = []
+
+            data.append(mejor)
+
+            with open(archivo, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4, ensure_ascii=False)
+
             return mejor
 
         return None
