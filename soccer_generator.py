@@ -1,6 +1,7 @@
 import os
 from utils.partidos_disponibles import obtener_partidos_disponibles
-from analysis.analizar_partido import analizar_partido
+from utils.analizar_partido_futbol import analizar_partido
+
 import json
 
 print("⚙️ Ejecutando soccer_generator.py...")
