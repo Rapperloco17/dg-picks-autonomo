@@ -1,33 +1,29 @@
-from utils.leagues_whitelist_ids import LEAGUES_WHITELIST
-from utils.league_seasons import LEAGUE_SEASONS
+import json
+import os
 from utils.api_football import obtener_partidos_de_liga
-from datetime import datetime
+from utils.league_seasons import LEAGUE_SEASONS
 
-def obtener_partidos_disponibles(fecha_str):
-    """
-    Revisa todas las ligas permitidas y obtiene los partidos disponibles desde la API-FOOTBALL para la fecha dada.
-    """
+# ✅ Cargar archivo JSON con los IDs de ligas permitidas
+def cargar_leagues_whitelist_ids():
+    ruta = os.path.join(os.path.dirname(__file__), 'leagues_whitelist_ids.json')
+    with open(ruta, 'r', encoding='utf-8') as f:
+        return json.load(f)
 
+LEAGUES_WHITELIST = cargar_leagues_whitelist_ids()
+
+
+def obtener_partidos_disponibles(fecha):
     partidos_disponibles = []
 
     for liga_id in LEAGUES_WHITELIST:
         temporada = LEAGUE_SEASONS.get(str(liga_id), 2024)
+        print(f"🔍 Analizando liga {liga_id} - temporada {temporada}")
 
-        partidos = obtener_partidos_de_liga(liga_id, fecha_str, temporada)
-
-        for p in partidos:
-            fixture_id = p["fixture"]["id"]
-            equipo_local = p["teams"]["home"]["name"]
-            equipo_visitante = p["teams"]["away"]["name"]
-            fecha_partido = p["fixture"]["date"]
-
-            partidos_disponibles.append({
-                "fixture_id": fixture_id,
-                "fecha": fecha_partido,
-                "liga_id": liga_id,
-                "temporada": temporada,
-                "equipo_local": equipo_local,
-                "equipo_visitante": equipo_visitante
-            })
+        try:
+            partidos_liga = obtener_partidos_de_liga(liga_id, fecha, temporada)
+            if partidos_liga:
+                partidos_disponibles.extend(partidos_liga)
+        except Exception as e:
+            print(f"❌ Error obteniendo partidos de liga {liga_id}: {str(e)}")
 
     return partidos_disponibles
