@@ -1,63 +1,42 @@
 from utils.partidos_disponibles import obtener_partidos_disponibles
-from utils.api_football import analizar_partido_futbol
-from utils.valor_cuota import filtrar_picks_con_valor
-from utils.formato import formatear_mensaje_futbol
-from utils.telegram import enviar_mensaje
-from utils.horarios import obtener_fecha_actual
-from utils.leagues import LEAGUE_NAMES
-import datetime
+from utils.analizar_partido_futbol import analizar_partido_futbol
+from utils.formato import formatear_pick
+from utils.telegram import enviar_telegram
+from utils.reto_stats import guardar_pick_generado
+from datetime import datetime
 
+def generar_picks_soccer(fecha_hoy: str):
+    print(f"📅 Fecha actual: {fecha_hoy}")
+    
+    ligas = [2, 3, 39, 61, 78, 135, 140, 253, 262, 88, 94, 203, 1439]  # Ejemplo de whitelist reducida
 
-def generar_picks_futbol():
-    fecha_actual = obtener_fecha_actual()
-    print(f"\nFecha actual: {fecha_actual}")
+    for liga_id in ligas:
+        print(f"\n🔍 Analizando liga {liga_id} - temporada 2024")
 
-    picks_finales = []
-
-    for liga_id, temporada in LEAGUE_NAMES.items():
-        print(f"\nAnalizando liga {liga_id} - temporada {temporada}")
-
-        partidos = obtener_partidos_disponibles(liga_id=liga_id, fecha=fecha_actual, temporada=temporada)
+        partidos = obtener_partidos_disponibles(liga_id=liga_id, fecha=fecha_hoy, temporada=2024)
 
         for partido in partidos:
-            fixture_id = partido['fixture']['id']
-            equipo_local = partido['teams']['home']['name']
-            equipo_visitante = partido['teams']['away']['name']
-
-            print(f"\nAnalizando partido: {equipo_local} vs {equipo_visitante} (ID: {fixture_id})")
+            print(f"➡️ {partido['homeTeam']} vs {partido['awayTeam']}")
 
             resultado = analizar_partido_futbol(partido)
 
-            if resultado['valor']:
-                mensaje = formatear_mensaje_futbol(
-                    fixture_id=fixture_id,
-                    equipo_local=equipo_local,
-                    equipo_visitante=equipo_visitante,
-                    tipo_apuesta=resultado['pick'],
-                    cuota=resultado['cuota'],
-                    razon=resultado['motivo']
+            if resultado["valor"]:
+                print(f"✅ Pick encontrado: {resultado['pick']}")
+                mensaje = formatear_pick(
+                    deporte="fútbol",
+                    tipo_apuesta=resultado["tipo"],
+                    pick=resultado["pick"],
+                    cuota=resultado["cuota"],
+                    valor=resultado["valor"],
+                    motivo=resultado["motivo"],
+                    equipos=f"{partido['homeTeam']} vs {partido['awayTeam']}",
+                    fecha=fecha_hoy
                 )
-                picks_finales.append({
-                    "fixture_id": fixture_id,
-                    "liga_id": liga_id,
-                    "temporada": temporada,
-                    "pick": resultado['pick'],
-                    "cuota": resultado['cuota'],
-                    "valor": True,
-                    "mensaje": mensaje,
-                    "timestamp": datetime.datetime.now().isoformat()
-                })
+                enviar_telegram(mensaje, canal="VIP")
+                guardar_pick_generado("fútbol", resultado)
 
-    # Enviar los mensajes y filtrar picks con valor real
-    picks_filtrados = filtrar_picks_con_valor(picks_finales)
-    for pick in picks_filtrados:
-        enviar_mensaje(pick['mensaje'], canal="VIP")
+            else:
+                print(f"❌ Sin valor en este partido: {resultado['motivo']}")
 
-    print(f"\n✅ Total picks con valor: {len(picks_filtrados)}")
-    return picks_filtrados
-
-
-if __name__ == "__main__":
-    generar_picks_futbol()
 
 
