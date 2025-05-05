@@ -1,39 +1,43 @@
-import os
-from utils.partidos_disponibles import obtener_partidos_disponibles
-from utils.analizar_partido_futbol import analizar_partido
-
 import json
+from utils.partidos_disponibles import obtener_partidos_disponibles
+from utils.api_football import obtener_datos_fixture
+from utils.soccer_stats import obtener_estadisticas_fixture
+from utils.cuotas import obtener_cuotas_fixture
+from utils.analizar_partido_futbol import analizar_partido_futbol
+from utils.telegram import enviar_mensaje
 
-print("⚙️ Ejecutando soccer_generator.py...")
+def generar_picks_soccer():
+    print("🔍 Buscando partidos de fútbol...")
 
-partidos = obtener_partidos_disponibles()
+    partidos = obtener_partidos_disponibles()
+    print(f"📅 Total de partidos encontrados: {len(partidos)}")
 
-if not partidos:
-    print("🚫 No se encontraron partidos para analizar hoy.")
-else:
-    print(f"✅ Partidos listos para análisis: {len(partidos)}")
-    resultados = []
+    for fixture in partidos:
+        fixture_id = fixture["fixture"]["id"]
+        nombre_partido = f'{fixture["teams"]["home"]["name"]} vs {fixture["teams"]["away"]["name"]}'
+        print(f"\n⚽ Analizando: {nombre_partido} (ID: {fixture_id})")
 
-    for partido in partidos:
-        local = partido['teams']['home']['name']
-        visitante = partido['teams']['away']['name']
-        fecha = partido['fixture']['date']
-        print(f"➡️ Analizando: {local} vs {visitante} | Fecha: {fecha}")
+        datos = obtener_datos_fixture(fixture_id)
+        stats = obtener_estadisticas_fixture(fixture_id)
+        cuotas = obtener_cuotas_fixture(fixture_id)
 
-        try:
-            pick = analizar_partido(partido)
-            if pick:
-                resultados.append(pick)
-                print(f"✅ Pick generado: {pick['pick']} | Cuota: {pick['odds']}")
-            else:
-                print("⚠️ No se encontró pick con valor en este partido.")
-        except Exception as e:
-            print(f"❌ Error al analizar {local} vs {visitante}: {e}")
+        if not datos or not stats or not cuotas:
+            print("⚠️ Datos incompletos. Se omite el partido.")
+            continue
 
-    if resultados:
-        os.makedirs("output", exist_ok=True)
-        with open("output/picks_futbol.json", "w", encoding="utf-8") as f:
-            json.dump(resultados, f, ensure_ascii=False, indent=4)
-        print(f"📁 Picks guardados en output/picks_futbol.json")
-    else:
-        print("⚠️ No se generaron picks con valor hoy.")
+        pick = analizar_partido_futbol(datos, stats, cuotas)
+
+        if pick:
+            mensaje = (
+                f"📊 *Pick de Fútbol Detectado:*\n\n"
+                f"📍 Partido: {nombre_partido}\n"
+                f"✅ Apuesta: *{pick['pick']}*\n"
+                f"💡 Motivo: {pick['motivo']}\n"
+                f"💸 Cuota: {pick['cuota']}\n\n"
+                f"📘 Análisis automatizado por DG Picks\n"
+                f"✅ Valor detectado en la cuota"
+            )
+            enviar_mensaje(mensaje, canal="VIP")
+
+if __name__ == "__main__":
+    generar_picks_soccer()
