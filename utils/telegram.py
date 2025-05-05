@@ -1,18 +1,17 @@
-# utils/telegram.py – Envío automático a Telegram para DG Picks
 import requests
 
-# TOKEN del bot y chat IDs oficiales
-BOT_TOKEN = "7520899056:AAHaS2Id5BGa9HlrX6YWJFX6hCnZsADTOFA"
+# Token del bot y chat IDs oficiales
+BOT_TOKEN = "7520899056:AAHaS2Id5BGa9HlrX6WJY6FKhCnZsADTOFA"
 
 # Canales oficiales
 CHAT_IDS = {
     "VIP": -1001285733813,
     "RETO": -1002453760512,
     "FREE": "@dgpickspro17",
-    "ADMIN": "7450739156"  # usuario administrador
+    "ADMIN": 7450739156  # usuario administrador
 }
 
-def enviar_mensaje(mensaje, canal="VIP"):
+def enviar_telegram(mensaje, canal="VIP"):
     """
     Envía un mensaje a un canal de Telegram según la clave especificada: VIP, FREE, RETO, ADMIN
     """
@@ -32,7 +31,7 @@ def enviar_mensaje(mensaje, canal="VIP"):
         if not response.ok:
             print(f"⚠️ Error al enviar mensaje a {canal}: {response.text}")
         else:
-            print(f"✅ Enviado con éxito a canal {canal}")
+            print(f"✅ Enviado con éxito a canal ({canal})")
 
     except Exception as e:
         print(f"⚠️ Error general al enviar mensaje a Telegram ({canal}):", e)
