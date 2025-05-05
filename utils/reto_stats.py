@@ -1,4 +1,3 @@
-
 # utils/reto_stats.py
 
 def obtener_picks_reto():
@@ -10,7 +9,11 @@ def obtener_picks_reto():
 def seleccionar_mas_seguro(picks):
     return picks[0] if picks else None
 
-def seleccionar_paso_reto(picks, paso):
+def seleccionar_paso(picks, paso):
     if len(picks) >= paso:
         return picks[paso - 1]
     return None
+
+def guardar_pick_generado(pick):
+    # Temporal: solo imprime el pick hasta que se defina el guardado real
+    print(f"🔸 Pick generado (dummy): {pick['jugador1']} vs {pick['jugador2']}")
