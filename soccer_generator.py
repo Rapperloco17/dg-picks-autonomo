@@ -1,31 +1,45 @@
+import json
+import os
 from utils.api_football import obtener_datos_fixture
 from utils.soccer_stats import obtener_estadisticas_fixture
+from utils.cuotas import obtener_cuotas_fixture
 from utils.analizar_partido_futbol import analizar_partido_futbol
-from utils.valor_cuota import filtrar_cuotas_con_valor
-from utils.leagues_whitelist_ids import leagues_ids
-from utils.partidos_disponibles import obtener_partidos_disponibles
-from utils.telegram import enviar_mensaje
-import datetime
+
+
+def cargar_leagues_ids():
+    ruta = os.path.join("utils", "leagues_whitelist_ids.json")
+    with open(ruta, "r", encoding="utf-8") as f:
+        return list(json.load(f).keys())
 
 
 def generar_picks_futbol():
-    hoy = datetime.datetime.now().strftime("%Y-%m-%d")
-    fixtures = obtener_partidos_disponibles(leagues_ids, hoy)
+    from utils.partidos_disponibles import obtener_partidos_disponibles
+    ligas_filtradas = cargar_leagues_ids()
+    partidos = obtener_partidos_disponibles(ligas_filtradas)
 
-    print(f"🔎 {len(fixtures)} partidos disponibles para analizar")
+    for partido in partidos:
+        fixture_id = partido['fixture']['id']
 
-    for fixture in fixtures:
-        fixture_id = fixture["fixture"]["id"]
-        datos = obtener_datos_fixture(fixture_id)
-        stats = obtener_estadisticas_fixture(fixture_id)
-        cuotas_filtradas = filtrar_cuotas_con_valor(fixture_id)
-
-        if not datos or not stats or not cuotas_filtradas:
+        datos_fixture = obtener_datos_fixture(fixture_id)
+        if not datos_fixture:
             continue
 
-        pick = analizar_partido_futbol(datos, stats, cuotas_filtradas)
+        stats = obtener_estadisticas_fixture(fixture_id)
+        if not stats:
+            continue
+
+        cuotas = obtener_cuotas_fixture(fixture_id)
+        if not cuotas:
+            continue
+
+        pick = analizar_partido_futbol(datos_fixture, stats, cuotas)
 
         if pick:
-            mensaje = f"⚽️ *{pick['partido']}*\n\nPick: {pick['pick']}\nCuota: {pick['cuota']}\nMotivo: {pick['motivo']}\n\n✅ Valor detectado en la cuota"
-            enviar_mensaje(mensaje, canal="futbol")
+            print(f"✅ PICK GENERADO: {pick['pick']} | Cuota: {pick['cuota']} | Motivo: {pick['motivo']}")
+        else:
+            print(f"❌ Sin valor en el partido: {partido['teams']['home']['name']} vs {partido['teams']['away']['name']}")
+
+
+if __name__ == "__main__":
+    generar_picks_futbol()
 
