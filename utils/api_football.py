@@ -1,41 +1,51 @@
 import requests
+import os
 
-API_FOOTBALL_KEY = "178b66e41ba9d4d3b8549f096ef1e377"  # Tu API Key real
-API_FOOTBALL_HOST = "https://v3.football.api-sports.io"
+API_KEY = os.getenv("API_FOOTBALL_KEY", "178b66e41ba9d4d3b8549f096ef1e377")  # tu API key real
 
 HEADERS = {
-    "x-apisports-key": API_FOOTBALL_KEY
+    "x-apisports-key": API_KEY
 }
 
+BASE_URL = "https://v3.football.api-sports.io"
+
+
 def obtener_partidos_de_liga(liga_id, fecha, temporada):
-    url = f"{API_FOOTBALL_HOST}/fixtures"
+    url = f"{BASE_URL}/fixtures"
     params = {
         "league": liga_id,
         "season": temporada,
         "date": fecha
     }
 
-    try:
-        response = requests.get(url, headers=HEADERS, params=params)
-        data = response.json()
+    response = requests.get(url, headers=HEADERS, params=params)
+    data = response.json()
 
-        if response.status_code != 200 or "response" not in data:
-            print("⚠️ Error en respuesta de API-Football:", data)
-            return []
+    if data.get("errors"):
+        raise Exception(f"API error: {data['errors']}")
 
-        partidos = data["response"]
-        partidos_filtrados = []
+    partidos = []
 
-        for partido in partidos:
-            partidos_filtrados.append({
-                "fixture": partido["fixture"],
-                "teams": partido["teams"],
-                "league": partido["league"]
-            })
+    for item in data.get("response", []):
+        fixture = item["fixture"]
+        league = item["league"]
+        teams = item["teams"]
 
-        return partidos_filtrados
+        partido = {
+            "fixture": {
+                "id": fixture["id"],
+                "date": fixture["date"]
+            },
+            "league": {
+                "id": league["id"],
+                "season": league["season"]
+            },
+            "teams": {
+                "home": {"name": teams["home"]["name"], "id": teams["home"]["id"]},
+                "away": {"name": teams["away"]["name"], "id": teams["away"]["id"]}
+            }
+        }
 
-    except Exception as e:
-        print(f"❌ Error al obtener partidos de liga {liga_id}: {str(e)}")
-        return []
+        partidos.append(partido)
 
+    return partidos
