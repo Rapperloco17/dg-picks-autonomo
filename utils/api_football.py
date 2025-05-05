@@ -8,6 +8,7 @@ HEADERS = {
 
 BASE_URL = "https://v3.football.api-sports.io"
 
+
 def obtener_partidos_de_liga(liga_id, fecha, temporada):
     url = f"{BASE_URL}/fixtures"
     params = {
@@ -23,7 +24,6 @@ def obtener_partidos_de_liga(liga_id, fecha, temporada):
         raise Exception(f"API error: {data['errors']}")
 
     partidos = []
-
     for item in data.get("response", []):
         fixture = item["fixture"]
         league = item["league"]
@@ -47,4 +47,26 @@ def obtener_partidos_de_liga(liga_id, fecha, temporada):
         partidos.append(partido)
 
     return partidos
+
+
+def obtener_datos_fixture(fixture_id):
+    url = f"{BASE_URL}/fixtures/statistics"
+    params = {
+        "fixture": fixture_id
+    }
+
+    response = requests.get(url, headers=HEADERS, params=params)
+    data = response.json()
+
+    if data.get("errors"):
+        raise Exception(f"API error: {data['errors']}")
+
+    estadisticas = {}
+    for equipo in data.get("response", []):
+        team_name = equipo["team"]["name"]
+        for stat in equipo.get("statistics", []):
+            estadisticas[f"{team_name}_{stat['type']}"] = stat["value"]
+
+    return estadisticas
+
 
