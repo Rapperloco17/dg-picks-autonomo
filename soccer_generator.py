@@ -1,43 +1,47 @@
+
 import json
-from utils.partidos_disponibles import obtener_partidos_disponibles
-from utils.api_football import obtener_datos_fixture
+import os
+from datetime import datetime
+from utils.api_football import obtener_partidos_de_liga
 from utils.soccer_stats import obtener_estadisticas_fixture
-from utils.cuotas import obtener_cuotas_fixture
 from utils.analizar_partido_futbol import analizar_partido_futbol
 from utils.telegram import enviar_mensaje
 
-def generar_picks_soccer():
-    print("🔍 Buscando partidos de fútbol...")
+def generar_picks_futbol():
+    from utils.leagues_whitelist_ids import leagues_ids
+    from utils.league_seasons import seasons_by_league
+    from utils.partidos_disponibles import obtener_fechas_disponibles
 
-    partidos = obtener_partidos_disponibles()
-    print(f"📅 Total de partidos encontrados: {len(partidos)}")
+    fecha_actual = datetime.utcnow().strftime('%Y-%m-%d')
+    fechas = obtener_fechas_disponibles(dias=2)
 
-    for fixture in partidos:
-        fixture_id = fixture["fixture"]["id"]
-        nombre_partido = f'{fixture["teams"]["home"]["name"]} vs {fixture["teams"]["away"]["name"]}'
-        print(f"\n⚽ Analizando: {nombre_partido} (ID: {fixture_id})")
+    todos_los_picks = []
 
-        datos = obtener_datos_fixture(fixture_id)
-        stats = obtener_estadisticas_fixture(fixture_id)
-        cuotas = obtener_cuotas_fixture(fixture_id)
+    for fecha in fechas:
+        for liga in leagues_ids:
+            temporada = seasons_by_league.get(str(liga), 2024)
+            try:
+                partidos = obtener_partidos_de_liga(liga, fecha, temporada)
+            except Exception as e:
+                print(f"Error al obtener partidos: {str(e)}")
+                continue
 
-        if not datos or not stats or not cuotas:
-            print("⚠️ Datos incompletos. Se omite el partido.")
-            continue
+            for partido in partidos:
+                try:
+                    fixture_id = partido["fixture"]["id"]
+                    stats, cuotas = obtener_estadisticas_fixture(fixture_id)
+                    pick = analizar_partido_futbol(partido, stats, cuotas)
 
-        pick = analizar_partido_futbol(datos, stats, cuotas)
+                    if pick:
+                        todos_los_picks.append(pick)
+                        print(f"✅ PICK: {pick['partido']} | {pick['pick']} | Cuota: {pick['cuota']}")
+                        enviar_mensaje(f"PICK DETECTADO 🎯\n\n📍 {pick['partido']}\n💡 {pick['pick']}\n💰 Cuota: {pick['cuota']}\n📊 Motivo: {pick['motivo']}\n\n✅ Valor detectado en la cuota.")
 
-        if pick:
-            mensaje = (
-                f"📊 *Pick de Fútbol Detectado:*\n\n"
-                f"📍 Partido: {nombre_partido}\n"
-                f"✅ Apuesta: *{pick['pick']}*\n"
-                f"💡 Motivo: {pick['motivo']}\n"
-                f"💸 Cuota: {pick['cuota']}\n\n"
-                f"📘 Análisis automatizado por DG Picks\n"
-                f"✅ Valor detectado en la cuota"
-            )
-            enviar_mensaje(mensaje, canal="VIP")
+                except Exception as e:
+                    print(f"Error procesando fixture {fixture_id}: {str(e)}")
+
+    with open("output/picks_futbol.json", "w", encoding="utf-8") as f:
+        json.dump(todos_los_picks, f, indent=4, ensure_ascii=False)
 
 if __name__ == "__main__":
-    generar_picks_soccer()
+    generar_picks_futbol()
