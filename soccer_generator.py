@@ -1,42 +1,38 @@
+import os
 from utils.partidos_disponibles import obtener_partidos_disponibles
-from utils.analizar_partido_futbol import analizar_partido_futbol
-from utils.formato import formatear_pick
-from utils.telegram import enviar_telegram
-from utils.reto_stats import guardar_pick_generado
-from datetime import datetime
+from analysis.analizar_partido import analizar_partido
+import json
 
-def generar_picks_soccer(fecha_hoy: str):
-    print(f"📅 Fecha actual: {fecha_hoy}")
-    
-    ligas = [2, 3, 39, 61, 78, 135, 140, 253, 262, 88, 94, 203, 1439]  # Ejemplo de whitelist reducida
+print("⚙️ Ejecutando soccer_generator.py...")
 
-    for liga_id in ligas:
-        print(f"\n🔍 Analizando liga {liga_id} - temporada 2024")
+partidos = obtener_partidos_disponibles()
 
-        partidos = obtener_partidos_disponibles(liga_id=liga_id, fecha=fecha_hoy, temporada=2024)
+if not partidos:
+    print("🚫 No se encontraron partidos para analizar hoy.")
+else:
+    print(f"✅ Partidos listos para análisis: {len(partidos)}")
+    resultados = []
 
-        for partido in partidos:
-            print(f"➡️ {partido['homeTeam']} vs {partido['awayTeam']}")
+    for partido in partidos:
+        local = partido['teams']['home']['name']
+        visitante = partido['teams']['away']['name']
+        fecha = partido['fixture']['date']
+        print(f"➡️ Analizando: {local} vs {visitante} | Fecha: {fecha}")
 
-            resultado = analizar_partido_futbol(partido)
-
-            if resultado["valor"]:
-                print(f"✅ Pick encontrado: {resultado['pick']}")
-                mensaje = formatear_pick(
-                    deporte="fútbol",
-                    tipo_apuesta=resultado["tipo"],
-                    pick=resultado["pick"],
-                    cuota=resultado["cuota"],
-                    valor=resultado["valor"],
-                    motivo=resultado["motivo"],
-                    equipos=f"{partido['homeTeam']} vs {partido['awayTeam']}",
-                    fecha=fecha_hoy
-                )
-                enviar_telegram(mensaje, canal="VIP")
-                guardar_pick_generado("fútbol", resultado)
-
+        try:
+            pick = analizar_partido(partido)
+            if pick:
+                resultados.append(pick)
+                print(f"✅ Pick generado: {pick['pick']} | Cuota: {pick['odds']}")
             else:
-                print(f"❌ Sin valor en este partido: {resultado['motivo']}")
+                print("⚠️ No se encontró pick con valor en este partido.")
+        except Exception as e:
+            print(f"❌ Error al analizar {local} vs {visitante}: {e}")
 
-
-
+    if resultados:
+        os.makedirs("output", exist_ok=True)
+        with open("output/picks_futbol.json", "w", encoding="utf-8") as f:
+            json.dump(resultados, f, ensure_ascii=False, indent=4)
+        print(f"📁 Picks guardados en output/picks_futbol.json")
+    else:
+        print("⚠️ No se generaron picks con valor hoy.")
