@@ -8,7 +8,6 @@ HEADERS = {
 
 BASE_URL = "https://v3.football.api-sports.io"
 
-
 def obtener_partidos_de_liga(liga_id, fecha, temporada):
     url = f"{BASE_URL}/fixtures"
     params = {
@@ -48,7 +47,6 @@ def obtener_partidos_de_liga(liga_id, fecha, temporada):
 
     return partidos
 
-
 def obtener_datos_fixture(fixture_id):
     url = f"{BASE_URL}/fixtures/statistics"
     params = {
@@ -68,5 +66,6 @@ def obtener_datos_fixture(fixture_id):
             estadisticas[f"{team_name}_{stat['type']}"] = stat["value"]
 
     return estadisticas
+
 
 
