@@ -1,14 +1,12 @@
 import requests
-import os
 
-API_KEY = os.getenv("API_FOOTBALL_KEY", "178b66e41ba9d4d3b8549f096ef1e377")  # tu API key real
+API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
 
 HEADERS = {
     "x-apisports-key": API_KEY
 }
 
 BASE_URL = "https://v3.football.api-sports.io"
-
 
 def obtener_partidos_de_liga(liga_id, fecha, temporada):
     url = f"{BASE_URL}/fixtures"
@@ -49,3 +47,4 @@ def obtener_partidos_de_liga(liga_id, fecha, temporada):
         partidos.append(partido)
 
     return partidos
+
