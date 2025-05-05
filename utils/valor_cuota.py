@@ -1,25 +1,15 @@
-def evaluar_valor_cuota(probabilidad_implied, cuota_real):
+def filtrar_cuotas_con_valor(cuotas):
     """
-    Evalúa si una cuota tiene valor en función de la probabilidad implícita estimada
-    y la cuota real ofrecida por la casa de apuestas.
-
-    :param probabilidad_implied: Probabilidad estimada (por ejemplo, 0.60 para 60%)
-    :param cuota_real: Cuota decimal ofrecida (por ejemplo, 2.10)
-    :return: True si tiene valor esperado positivo, False si no
+    Filtra una lista de picks con base en el atributo "valor".
+    Solo conserva las que tienen valor = True y cuota entre 1.50 y 3.50.
     """
-    if cuota_real <= 1:
-        return False
+    cuotas_filtradas = []
 
-    valor_esperado = (cuota_real * probabilidad_implied) - 1
-    return valor_esperado > 0
+    for cuota in cuotas:
+        valor = cuota.get("valor", False)
+        cuota_num = float(cuota.get("cuota", 0))
 
-def calcular_valor_apuesta(probabilidad, cuota):
-    """
-    Calcula el valor esperado de una apuesta.
-    Valor = (probabilidad * cuota) - 1
+        if valor and 1.50 <= cuota_num <= 3.50:
+            cuotas_filtradas.append(cuota)
 
-    :param probabilidad: Probabilidad estimada del evento (0.0 a 1.0)
-    :param cuota: Cuota decimal ofrecida por la casa
-    :return: Valor esperado (float), puede ser positivo o negativo
-    """
-    return (probabilidad * cuota) - 1
+    return cuotas_filtradas
