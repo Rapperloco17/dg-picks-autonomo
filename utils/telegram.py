@@ -1,17 +1,15 @@
 import requests
 
-# Token del bot y chat IDs oficiales
-BOT_TOKEN = "7520899056:AAHaS2Id5BGa9HlrX6WJY6FKhCnZsADTOFA"
+BOT_TOKEN = "7520899056:AAHaS2Id5BGa9HlrX6YWJFX6hCnZsADTOFA"
 
-# Canales oficiales
 CHAT_IDS = {
     "VIP": -1001285733813,
     "RETO": -1002453760512,
     "FREE": "@dgpickspro17",
-    "ADMIN": 7450739156  # usuario administrador
+    "ADMIN": 7450739156
 }
 
-def enviar_telegram(mensaje, canal="VIP"):
+def enviar_mensaje(mensaje, canal="VIP"):
     """
     Envía un mensaje a un canal de Telegram según la clave especificada: VIP, FREE, RETO, ADMIN
     """
@@ -29,9 +27,9 @@ def enviar_telegram(mensaje, canal="VIP"):
 
         response = requests.post(url, data=data)
         if not response.ok:
-            print(f"⚠️ Error al enviar mensaje a {canal}: {response.text}")
+            print(f"🛑 Error al enviar mensaje a {canal}: {response.text}")
         else:
             print(f"✅ Enviado con éxito a canal ({canal})")
 
     except Exception as e:
-        print(f"⚠️ Error general al enviar mensaje a Telegram ({canal}):", e)
+        print(f"🛑 Error general al enviar mensaje a Telegram ({canal}):", e)
