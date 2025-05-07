@@ -1,46 +1,42 @@
-
-# utils/cuotas.py
-
 import requests
+from utils.api_football import HEADERS, BASE_URL
 
-API_KEY = "137992569bc2352366c01e6928577b2d"
-BASE_URL = "https://api.the-odds-api.com/v4/sports"
+BOOKMAKER_BET365_ID = 6
 
-def obtener_cuota_bet365(deporte, mercado="h2h"):
-    """
-    Obtiene la cuota para un evento del deporte y mercado especificado desde Bet365
-    """
-    deportes = {
-        "mlb": "baseball_mlb",
-        "nba": "basketball_nba",
-        "futbol": "soccer_mexico_liga_mx",
-        "tenis": "tennis_atp"
-    }
 
-    deporte_codigo = deportes.get(deporte.lower())
-    if not deporte_codigo:
-        return None
-
-    url = f"{BASE_URL}/{deporte_codigo}/odds"
+def obtener_cuota_fixture(fixture_id, market):
+    url = f"{BASE_URL}/odds"
     params = {
-        "apiKey": API_KEY,
-        "regions": "us",
-        "markets": mercado,
-        "bookmakers": "bet365"
+        "fixture": fixture_id,
+        "market": market
     }
+    response = requests.get(url, headers=HEADERS, params=params)
+    data = response.json()
 
-    try:
-        response = requests.get(url, params=params)
-        data = response.json()
-
-        if not data or "bookmakers" not in data[0]:
-            return None
-
-        cuota = data[0]["bookmakers"][0]["markets"][0]["outcomes"][0]["price"]
-        return cuota
-    except Exception as e:
-        print(f"Error al obtener cuota: {e}")
+    if not data.get("response"):
         return None
 
-def validar_valor_cuota(cuota, min_valor=1.70, max_valor=2.20):
-    return cuota is not None and min_valor <= cuota <= max_valor
+    odds_data = data["response"][0]
+    bookmakers = odds_data.get("bookmakers", [])
+
+    cuota = None
+
+    # Intentar primero con Bet365 si está disponible
+    for bookmaker in bookmakers:
+        if bookmaker["id"] == BOOKMAKER_BET365_ID:
+            for option in bookmaker["bets"]:
+                if option["name"].lower() == market.lower():
+                    if option["values"]:
+                        cuota = float(option["values"][0]["odd"])
+                        return cuota
+
+    # Si no hay Bet365, usar la primera disponible
+    for bookmaker in bookmakers:
+        for option in bookmaker["bets"]:
+            if option["name"].lower() == market.lower():
+                if option["values"]:
+                    cuota = float(option["values"][0]["odd"])
+                    return cuota
+
+    return None
+
