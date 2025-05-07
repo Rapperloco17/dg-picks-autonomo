@@ -23,20 +23,23 @@ def obtener_cuota_fixture(fixture_id, market):
 
     # Intentar primero con Bet365 si está disponible
     for bookmaker in bookmakers:
-        if bookmaker["id"] == BOOKMAKER_BET365_ID:
-            for option in bookmaker["bets"]:
-                if option["name"].lower() == market.lower():
-                    if option["values"]:
-                        cuota = float(option["values"][0]["odd"])
+        if bookmaker.get("id") == BOOKMAKER_BET365_ID:
+            for option in bookmaker.get("bets", []):
+                if option.get("name", "").lower() == market.lower():
+                    values = option.get("values")
+                    if values:
+                        cuota = float(values[0].get("odd", 0))
                         return cuota
 
     # Si no hay Bet365, usar la primera disponible
     for bookmaker in bookmakers:
-        for option in bookmaker["bets"]:
-            if option["name"].lower() == market.lower():
-                if option["values"]:
-                    cuota = float(option["values"][0]["odd"])
+        for option in bookmaker.get("bets", []):
+            if option.get("name", "").lower() == market.lower():
+                values = option.get("values")
+                if values:
+                    cuota = float(values[0].get("odd", 0))
                     return cuota
 
     return None
+
 
