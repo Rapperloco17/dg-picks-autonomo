@@ -1,18 +1,16 @@
 [
     {
-        "partido": "Arsenal vs Chelsea",
-        "mercado": "Over 2.5 goles",
+        "partido": "Real Madrid vs Barcelona",
+        "pick": "Over 2.5 goles",
         "cuota": 1.85,
-        "valor": true,
-        "motivo": "Promedio de goles alto en ambos equipos",
-        "timestamp": "2025-05-10T21:07:51.226540"
+        "motivo": "Promedio alto de goles y defensas vulnerables",
+        "fecha_generacion": "2025-05-10T21:15:59.784699"
     },
     {
-        "partido": "Real Madrid vs Barcelona",
-        "mercado": "Ambos anotan",
-        "cuota": 1.75,
-        "valor": true,
-        "motivo": "Ambos equipos con alto promedio de goles",
-        "timestamp": "2025-05-10T21:07:51.226549"
+        "partido": "Juventus vs Milan",
+        "pick": "Ambos anotan",
+        "cuota": 1.95,
+        "motivo": "Historial de goles en ambos arcos y delanteras efectivas",
+        "fecha_generacion": "2025-05-10T21:15:59.784708"
     }
 ]
