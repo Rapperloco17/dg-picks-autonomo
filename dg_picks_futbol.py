@@ -1,85 +1,62 @@
-
-import requests
 import json
+from utils.api_football import obtener_partidos_de_liga
+from utils.soccer_stats import obtener_estadisticas_fixture
+from utils.cuotas import obtener_cuota_fixture
+from utils.analizar_partido_futbol import analizar_partido_futbol
+from utils.leagues_whitelist_ids import LEAGUES_WHITELIST
 from datetime import datetime
-import time
 
-# CONFIGURACIÓN
-API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
-BASE_URL = "https://v3.football.api-sports.io"
-HEADERS = {"x-apisports-key": API_KEY}
-WHITELIST = {"2", "3", "61", "78", "135", "140", "253", "262", "203", "81"}  # Ejemplo
 
-# Telegram
-BOT_TOKEN = "7520899056:AAHaS2Id5BGa9HlrX6YWJFX6hCnZsADTOFA"
-CHAT_ID = "-1001285733813"  # VIP channel
+def generar_picks_futbol():
+    hoy = datetime.now().strftime('%Y-%m-%d')
+    temporada = 2024
+    todos_los_picks = []
 
-def obtener_partidos_hoy():
-    hoy = datetime.now().strftime("%Y-%m-%d")
-    url = f"{BASE_URL}/fixtures"
-    params = {"date": hoy}
-    res = requests.get(url, headers=HEADERS, params=params)
-    data = res.json()
-    return [f for f in data["response"] if str(f["league"]["id"]) in WHITELIST]
+    print(f"\nBuscando partidos para el día {hoy}...\n")
 
-def obtener_estadisticas_fixture(fixture_id):
-    url = f"{BASE_URL}/predictions"
-    res = requests.get(url, headers=HEADERS, params={"fixture": fixture_id})
-    data = res.json()
-    if data["response"]:
-        return data["response"][0]
-    return None
+    for league_id in LEAGUES_WHITELIST:
+        try:
+            print(f"\n--- Procesando liga ID {league_id} ---")
+            partidos = obtener_partidos_de_liga(league_id, hoy, temporada)
 
-def obtener_cuotas_fixture(fixture_id):
-    url = f"{BASE_URL}/odds"
-    params = {"fixture": fixture_id, "bookmaker": 6}  # 6 = Bet365
-    res = requests.get(url, headers=HEADERS, params=params)
-    data = res.json()
-    cuotas = {}
-    for b in data.get("response", []):
-        for market in b.get("bets", []):
-            name = market["name"].lower()
-            for val in market["values"]:
-                if "over" in val["value"].lower():
-                    cuotas["over"] = float(val["odd"])
-                elif "under" in val["value"].lower():
-                    cuotas["under"] = float(val["odd"])
-                elif val["value"].lower() == "yes":
-                    cuotas["btts"] = float(val["odd"])
-    return cuotas
+            if not partidos:
+                print("Sin partidos en esta liga.")
+                continue
 
-def analizar_y_generar_picks(partido):
-    fixture_id = partido["fixture"]["id"]
-    equipos = f'{partido["teams"]["home"]["name"]} vs {partido["teams"]["away"]["name"]}'
-    stats = obtener_estadisticas_fixture(fixture_id)
-    cuotas = obtener_cuotas_fixture(fixture_id)
-    
-    if not stats or not cuotas:
-        return None
+            for partido in partidos:
+                fixture = partido["fixture"]
+                fixture_id = fixture["id"]
 
-    goles = stats["teams"]["home"]["last_5"]["goals"]["for"]["total"] + stats["teams"]["away"]["last_5"]["goals"]["for"]["total"]
-    pick = None
+                stats = obtener_estadisticas_fixture(fixture_id)
+                cuotas = {
+                    "over_1.5": obtener_cuota_fixture(fixture_id, "Over 1.5 goals"),
+                    "over_2.5": obtener_cuota_fixture(fixture_id, "Over 2.5 goals"),
+                    "under_2.5": obtener_cuota_fixture(fixture_id, "Under 2.5 goals"),
+                    "BTTS": obtener_cuota_fixture(fixture_id, "Both Teams To Score"),
+                    "1X": obtener_cuota_fixture(fixture_id, "1X"),
+                    "X2": obtener_cuota_fixture(fixture_id, "X2"),
+                    "12": obtener_cuota_fixture(fixture_id, "12"),
+                    "ML_local": obtener_cuota_fixture(fixture_id, "Match Winner - 1"),
+                    "ML_visit": obtener_cuota_fixture(fixture_id, "Match Winner - 2"),
+                    "Empate": obtener_cuota_fixture(fixture_id, "Match Winner - X")
+                }
 
-    if goles >= 6 and cuotas.get("over", 0) >= 1.60:
-        pick = f"🔥 {equipos}\nPick: Más de 2.5 goles\nCuota: {cuotas['over']}\n✅ Promedio alto de goles"
-    elif stats["predictions"]["both_teams_to_score"]["yes"] >= 65 and cuotas.get("btts", 0) >= 1.70:
-        pick = f"⚡ {equipos}\nPick: Ambos anotan (BTTS)\nCuota: {cuotas['btts']}\n✅ Alta probabilidad BTTS"
+                pick = analizar_partido_futbol(partido, stats, cuotas)
 
-    return pick
+                if pick:
+                    print(f"\n✅ PICK DETECTADO")
+                    print(f"Partido: {pick['partido']}")
+                    print(f"Pick: {pick['pick']}")
+                    print(f"Cuota: {pick['cuota']}")
+                    print(f"Motivo: {pick['motivo']}\n")
+                    todos_los_picks.append(pick)
 
-def enviar_telegram(mensaje):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": mensaje, "parse_mode": "HTML"}
-    requests.post(url, data=payload)
+        except Exception as e:
+            print(f"Error en liga {league_id}: {str(e)}")
 
-def main():
-    partidos = obtener_partidos_hoy()
-    for p in partidos:
-        pick = analizar_y_generar_picks(p)
-        if pick:
-            enviar_telegram(pick)
-            print("✅ Enviado:", pick)
-            time.sleep(1)
+    if not todos_los_picks:
+        print("\nNo se encontraron picks con valor para hoy.\n")
+    else:
+        print(f"\n--- TOTAL PICKS DETECTADOS: {len(todos_los_picks)} ---\n")
 
-if __name__ == "__main__":
-    main()
+    return todos_los_picks
