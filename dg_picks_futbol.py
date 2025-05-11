@@ -9,7 +9,6 @@ HEADERS = {
     "x-apisports-key": API_KEY
 }
 
-# Ligas permitidas (whitelist)
 LIGAS_VALIDAS = {
     39, 61, 78, 135, 140, 2, 3, 4, 5, 16, 45, 71, 72, 135, 253, 262, 203, 88, 94, 253, 271, 1139, 1439
 }
@@ -18,15 +17,13 @@ def obtener_fixtures_hoy():
     hoy = datetime.now().strftime("%Y-%m-%d")
     url = f"{BASE_URL}/fixtures?date={hoy}"
     res = requests.get(url, headers=HEADERS)
-    data = res.json()
-    return data.get("response", [])
+    return res.json().get("response", [])
 
 def obtener_cuotas_fixture(fixture_id):
     url = f"{BASE_URL}/odds?fixture={fixture_id}"
     res = requests.get(url, headers=HEADERS)
-    data = res.json()
     odds = {}
-    for book in data.get("response", []):
+    for book in res.json().get("response", []):
         for mercado in book.get("bookmakers", []):
             for apuesta in mercado.get("bets", []):
                 nombre = apuesta.get("name", "").lower()
@@ -37,78 +34,82 @@ def obtener_cuotas_fixture(fixture_id):
 def obtener_predicciones(fixture_id):
     url = f"{BASE_URL}/predictions?fixture={fixture_id}"
     res = requests.get(url, headers=HEADERS)
-    data = res.json()
-    if data.get("response"):
-        return data["response"][0]
+    if res.json().get("response"):
+        return res.json()["response"][0]
     return {}
 
-def generar_pick(fixture, cuotas, pred):
+def generar_pick_completo(fixture, cuotas, pred):
     local = fixture["teams"]["home"]["name"]
     visita = fixture["teams"]["away"]["name"]
     matchup = f"{local} vs {visita}"
+    resultado = {
+        "partido": matchup,
+        "cuotas": cuotas,
+        "prediccion_api": pred.get("predictions", {}).get("winner", {}).get("name", "Sin datos"),
+        "estadisticas": {
+            "promedio_goles": pred.get("predictions", {}).get("goals", {}).get("total", 0),
+            "prob_btts": pred.get("predictions", {}).get("both_teams_to_score", {}).get("yes", "0%"),
+            "forma_local": pred.get("teams", {}).get("home", {}).get("last_5", {}).get("form", ""),
+            "forma_visitante": pred.get("teams", {}).get("away", {}).get("last_5", {}).get("form", "")
+        }
+    }
+    # lógica de pick
+    goles = resultado["estadisticas"]["promedio_goles"]
+    btts = resultado["estadisticas"]["prob_btts"]
+    pick = None
+    if goles > 2.5 and "over 2.5" in cuotas:
+        pick = {
+            "pick": "Over 2.5 goles",
+            "cuota": cuotas["over 2.5"],
+            "motivo": "Promedio de goles alto y equipos ofensivos"
+        }
+    elif isinstance(btts, str) and int(btts.replace("%", "")) >= 65 and "both teams to score" in cuotas:
+        pick = {
+            "pick": "Ambos anotan",
+            "cuota": cuotas["both teams to score"],
+            "motivo": "Probabilidad alta de BTTS según API"
+        }
+    if pick:
+        resultado["pick_generado"] = pick
+    return resultado
 
-    pred_ganador = pred.get("predictions", {}).get("winner", {}).get("name", "")
-    win_percent = pred.get("predictions", {}).get("winner", {}).get("percent", 0)
-    goles = pred.get("predictions", {}).get("goals", {}).get("total", 0)
-    recomendacion = pred.get("predictions", {}).get("advice", "")
-
-    picks = []
-    if win_percent and int(win_percent) >= 60:
-        if pred_ganador == local and "home" in cuotas:
-            picks.append((matchup, f"Gana {local}", cuotas["home"], recomendacion))
-        elif pred_ganador == visita and "away" in cuotas:
-            picks.append((matchup, f"Gana {visita}", cuotas["away"], recomendacion))
-    if goles:
-        if goles > 2.5 and "over 2.5" in cuotas:
-            picks.append((matchup, "Over 2.5 goles", cuotas["over 2.5"], recomendacion))
-        elif goles <= 2.5 and "under 2.5" in cuotas:
-            picks.append((matchup, "Under 2.5 goles", cuotas["under 2.5"], recomendacion))
-    return picks
-
-# Flujo principal
 print("\n🔍 Buscando partidos del día...")
 fixtures = obtener_fixtures_hoy()
-picks_generados = []
-todos_partidos = []
+todos_resultados = []
 
 for partido in fixtures:
     liga_id = partido["league"]["id"]
-    liga_nombre = partido["league"]["name"]
     if liga_id not in LIGAS_VALIDAS:
         continue
-
     fixture_id = partido["fixture"]["id"]
-    home = partido["teams"]["home"]["name"]
-    away = partido["teams"]["away"]["name"]
-    print(f"📝 {liga_nombre}: {home} vs {away}")
-
     try:
         cuotas = obtener_cuotas_fixture(fixture_id)
         pred = obtener_predicciones(fixture_id)
-        picks = generar_pick(partido, cuotas, pred)
-        picks_generados.extend(picks)
-        if picks:
-            todos_partidos.extend([
-                {
-                    "partido": f"{home} vs {away}",
-                    "mercado": pick[1],
-                    "cuota": pick[2],
-                    "motivo": pick[3],
-                    "fecha_generacion": datetime.now().isoformat()
-                }
-                for pick in picks
-            ])
+        resultado = generar_pick_completo(partido, cuotas, pred)
+
+        print(f"\n📊 Partido: {resultado['partido']}")
+        print("📈 Cuotas:")
+        for k, v in resultado['cuotas'].items():
+            print(f"   - {k}: {v}")
+        print(f"📉 Predicción API: {resultado['prediccion_api']}")
+        print("📊 Estadísticas:")
+        for k, v in resultado['estadisticas'].items():
+            print(f"   - {k}: {v}")
+        if "pick_generado" in resultado:
+            print(f"\n✅ Pick generado: {resultado['pick_generado']['pick']} @ {resultado['pick_generado']['cuota']}")
+            print(f"🧠 Motivo: {resultado['pick_generado']['motivo']}")
+        else:
+            print("❌ No se generó pick con valor")
+
+        todos_resultados.append(resultado)
         time.sleep(1.2)
+
     except Exception as e:
-        print(f"❌ Error con fixture {fixture_id}: {e}")
+        print(f"❌ Error en fixture {fixture_id}: {e}")
 
-print("\n🎯 Picks Generados:")
-for pick in picks_generados:
-    print(f"\nPartido: {pick[0]}\nPick: {pick[1]} @ {pick[2]}\nJustificación: {pick[3]}\n✅ Valor detectado")
-
-# Guardar todos los picks válidos detectados
+# Guardar resultados
 with open("output/picks_futbol.json", "w", encoding="utf-8") as f:
-    json.dump(todos_partidos, f, indent=4, ensure_ascii=False)
+    json.dump(todos_resultados, f, indent=4, ensure_ascii=False)
 
-if not picks_generados:
-    print("\n⚠️ No se encontraron picks con valor para hoy.")
+print("\n✅ Análisis completo finalizado. Resultados guardados en picks_futbol.json")
+
