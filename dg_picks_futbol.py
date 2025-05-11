@@ -24,7 +24,7 @@ LIGAS_WHITELIST = {
 # === FUNCIONES ===
 def obtener_fixtures_hoy():
     hoy = datetime.now().strftime("%Y-%m-%d")
-    url = f"{BASE_URL}/fixtures?date={hoy}"
+    url = f"{BASE_URL}/fixtures?date={hoy}&status=NS"
     response = requests.get(url, headers=HEADERS)
     data = response.json()
     return data.get("response", [])
@@ -138,4 +138,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
