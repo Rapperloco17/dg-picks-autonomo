@@ -73,9 +73,11 @@ def analizar_fixture(fixture):
         print(f"\U0001F4CA Forma Visitante: {forma_visitante}")
 
         goals_data = pred.get("predictions", {}).get("goals", {})
-        goles_home = goals_data.get("home", 0) or 0
-        goles_away = goals_data.get("away", 0) or 0
-        total_goles_esperados = float(goles_home) + float(goles_away)
+        goles_home_raw = goals_data.get("home")
+        goles_away_raw = goals_data.get("away")
+        goles_home = float(goles_home_raw) if goles_home_raw not in [None, '', '-', 'null'] else 0.0
+        goles_away = float(goles_away_raw) if goles_away_raw not in [None, '', '-', 'null'] else 0.0
+        total_goles_esperados = goles_home + goles_away
         print(f"\U0001F4A3 Goles esperados: {home} {goles_home} + {away} {goles_away} = {total_goles_esperados:.2f}")
 
         tendencia_goles = ""
@@ -88,10 +90,58 @@ def analizar_fixture(fixture):
         else:
             tendencia_goles = "Tendencia: Under 2.5"
 
-        if float(goles_home) >= 0.9 and float(goles_away) >= 0.9:
+        if goles_home >= 0.9 and goles_away >= 0.9:
             tendencia_goles += " | Probable BTTS ✅"
         print(tendencia_goles)
 
+        # === CÓRNERS Y TARJETAS ===
+        corners_home = corners_away = cards_home = cards_away = 0
+        found_corners = found_cards = False
+
+        for stat in stats:
+            team = stat.get("team", {}).get("name", "").lower().strip()
+            for s in stat.get("statistics", []):
+                tipo = s.get("type", "").lower()
+                val = s.get("value")
+                if val is None: continue
+                if "corner" in tipo:
+                    found_corners = True
+                    if home.lower() in team:
+                        corners_home = val
+                    elif away.lower() in team:
+                        corners_away = val
+                elif "yellow" in tipo or "red" in tipo:
+                    found_cards = True
+                    if home.lower() in team:
+                        cards_home += val
+                    elif away.lower() in team:
+                        cards_away += val
+
+        total_corners_avg = corners_home + corners_away
+        total_cards_avg = cards_home + cards_away
+
+        print(f"\n📊 CÓRNERS & TARJETAS – {home} vs {away}")
+        if found_corners:
+            print(f"Corners: {home} ({corners_home}) + {away} ({corners_away}) = Total {total_corners_avg}")
+            if total_corners_avg >= 9:
+                print("✅ PICK sugerido: Over 9.5 corners – Equipos con promedio alto")
+        else:
+            print("⚠️ No se encontraron datos de corners")
+
+        if found_cards:
+            print(f"Tarjetas: {home} ({cards_home}) + {away} ({cards_away}) = Total {total_cards_avg}")
+            referee_info = fixture["fixture"].get("referee") or "Desconocido"
+            referee_avg_cards = 4.8  # TODO: usar promedio real del árbitro si está disponible
+            print(f"Árbitro: {referee_info} – Promedio de tarjetas: {referee_avg_cards}")
+            if total_cards_avg >= 4.5:
+                if referee_avg_cards >= 4.5:
+                    print("✅ PICK sugerido: Over 4.5 tarjetas – Equipos y árbitro con tendencia alta")
+                else:
+                    print("✅ PICK sugerido: Over 4.5 tarjetas – Equipos con tendencia alta")
+        else:
+            print("⚠️ No se encontraron datos de tarjetas")
+
+        # === CUOTAS ===
         markets = cuotas.get("bookmakers", [{}])[0].get("bets", [])
         cuota_ov25, cuota_btts, cuota_1x = None, None, None
 
@@ -110,11 +160,31 @@ def analizar_fixture(fixture):
         print(f"\U0001F522 Cuota Ambos anotan: {cuota_btts}")
         print(f"\U0001F522 Cuota 1X: {cuota_1x}")
 
-        # ... (resto del análisis sigue igual)
+        # === PICK PRINCIPAL ===
+        pick = None
+        motivo = ""
+        if cuota_ov25 and float(cuota_ov25) >= 1.70 and goles_home >= 1.2 and goles_away >= 1.2:
+            pick = "Over 2.5 goles"
+            motivo = "Promedio de goles alto"
+        elif cuota_btts and float(cuota_btts) >= 1.70 and "w" in forma_local.lower() and "w" in forma_visitante.lower():
+            pick = "Ambos anotan"
+            motivo = "Buena forma y ataque de ambos"
+        elif cuota_1x and float(cuota_1x) >= 1.50 and "w" in forma_local.lower():
+            pick = "1X (Local o empate)"
+            motivo = "Local en buena forma"
 
-        # Aquí irían los bloques de corners, tarjetas y pick final (ya integrados previamente)
-
-        return None  # Temporal mientras se completa el bloque final
+        if pick:
+            print(f"\u2705 PICK: {pick} | Motivo: {motivo}")
+            return {
+                "partido": f"{home} vs {away}",
+                "pick": pick,
+                "cuota": cuota_ov25 or cuota_btts or cuota_1x,
+                "motivo": motivo,
+                "fecha_generacion": datetime.now().isoformat()
+            }
+        else:
+            print("\u274C No se generó pick con valor.")
+            return None
 
     except Exception as e:
         print(f"\u274C Error en fixture {fixture_id}: {e}")
