@@ -36,7 +36,11 @@ def obtener_estadisticas_equipo(team_id, league_id):
 def obtener_cuotas(fixture_id):
     url = f"{BASE_URL}/odds?fixture={fixture_id}"
     res = requests.get(url, headers=HEADERS).json()
-    return res.get("response", [{}])[0]
+    data = res.get("response", [])
+    if not data:
+        print("❌ No hay cuotas disponibles para este partido.")
+        return {}
+    return data[0]
 
 def analizar_fixture(fixture):
     fixture_id = fixture["fixture"]["id"]
@@ -57,25 +61,40 @@ def analizar_fixture(fixture):
     stats_away = obtener_estadisticas_equipo(away_id, liga_id)
     cuotas = obtener_cuotas(fixture_id)
 
+    # Predicción de marcador
     marcador = pred.get("predictions", {}).get("score", {}).get("fulltime", {})
-    print(f"🧠 Marcador estimado: {home_name} {marcador.get('home')} - {marcador.get('away')} {away_name}")
-    
+    g1 = marcador.get("home")
+    g2 = marcador.get("away")
+    if g1 is not None and g2 is not None:
+        print(f"🧠 Marcador estimado (API): {home_name} {g1} - {g2} {away_name}")
+    else:
+        # Estimación propia por goles promedio
+        goles_home = stats_home.get("goals", {}).get("average", {}).get("home")
+        goles_away = stats_away.get("goals", {}).get("average", {}).get("away")
+        try:
+            gh = float(goles_home or 0)
+            ga = float(goles_away or 0)
+            est_home = round(gh * 1.1)
+            est_away = round(ga * 1.0)
+            print(f"🧠 Marcador estimado (DG Picks): {home_name} {est_home} - {est_away} {away_name}")
+        except:
+            print("🧠 Marcador estimado: No disponible")
+
+    # Predicción de ganador
     winner = pred.get("predictions", {}).get("winner", {}).get("name")
     print(f"📊 Predicción de ganador: {winner if winner else 'Empate probable'}")
 
+    # Estadísticas clave
     print("🔍 Estadísticas comparadas:")
-    goles_home = stats_home.get("goals", {}).get("average", {}).get("home")
-    goles_away = stats_away.get("goals", {}).get("average", {}).get("away")
     print(f"➡️ Goles promedio: {home_name} (local) {goles_home} | {away_name} (visita) {goles_away}")
-
     tiros_home = stats_home.get("shots", {})
     tiros_away = stats_away.get("shots", {})
     print(f"🎯 Tiros: {home_name} {tiros_home} | {away_name} {tiros_away}")
-
     posesion_home = stats_home.get("biggest", {}).get("ball_possession")
     posesion_away = stats_away.get("biggest", {}).get("ball_possession")
     print(f"📈 Posesión estimada: {home_name}: {posesion_home} | {away_name}: {posesion_away}")
 
+    # Cuotas
     markets = cuotas.get("bookmakers", [{}])[0].get("bets", [])
     cuota_over25 = cuota_btts = cuota_1x = None
     for m in markets:
@@ -91,12 +110,14 @@ def analizar_fixture(fixture):
 
     print(f"💸 Cuotas: Over 2.5: {cuota_over25} | BTTS: {cuota_btts} | 1X: {cuota_1x}")
 
-    if cuota_over25 and goles_home and goles_away:
-        try:
-            if float(cuota_over25) >= 1.70 and float(goles_home) >= 1.2 and float(goles_away) >= 1.2:
-                print(f"✅ PICK: Over 2.5 goles @ {cuota_over25} – Buen promedio de goles de ambos.")
-        except:
-            pass
+    # Pick sugerido
+    try:
+        gh = float(goles_home or 0)
+        ga = float(goles_away or 0)
+        if cuota_over25 and float(cuota_over25) >= 1.70 and gh >= 1.2 and ga >= 1.2:
+            print(f"✅ PICK: Over 2.5 goles @ {cuota_over25} – Promedio alto de goles detectado")
+    except:
+        pass
 
 def main():
     print("🔎 Analizando partidos de hoy...")
