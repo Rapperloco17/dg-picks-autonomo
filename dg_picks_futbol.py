@@ -59,7 +59,13 @@ def analizar_fixture(fixture):
     pred = obtener_prediccion(fixture_id)
     stats_home = obtener_estadisticas_equipo(home_id, liga_id)
     stats_away = obtener_estadisticas_equipo(away_id, liga_id)
-    cuotas = obtener_cuotas(fixture_id)
+
+    if not stats_home or not stats_away:
+        print("⚠️ No se encontraron estadísticas para uno de los equipos.")
+        return
+    if "goals" not in stats_home or "goals" not in stats_away:
+        print("⚠️ Estadísticas incompletas: sin promedio de goles.")
+        return
 
     goles_home = stats_home.get("goals", {}).get("average", {}).get("home")
     goles_away = stats_away.get("goals", {}).get("average", {}).get("away")
@@ -69,7 +75,6 @@ def analizar_fixture(fixture):
     except:
         gh, ga = 0, 0
 
-    # Predicción de marcador
     marcador = pred.get("predictions", {}).get("score", {}).get("fulltime", {})
     g1 = marcador.get("home")
     g2 = marcador.get("away")
@@ -77,7 +82,7 @@ def analizar_fixture(fixture):
 
     if g1 is not None and g2 is not None and (g1, g2) != (0, 0):
         print(f"🧠 Marcador estimado (API): {home_name} {g1} - {g2} {away_name}")
-    elif winner and winner.lower() != "draw":
+    elif winner and winner.lower() != "draw" and gh > 0 and ga > 0:
         est_home = round(gh * 1.1)
         est_away = round(ga * 1.0)
         print(f"🧠 Marcador estimado (DG Picks): {home_name} {est_home} - {est_away} {away_name}")
@@ -90,12 +95,12 @@ def analizar_fixture(fixture):
     print(f"➡️ Goles promedio: {home_name} (local) {goles_home or 'N/D'} | {away_name} (visita) {goles_away or 'N/D'}")
     tiros_home = stats_home.get("shots", {})
     tiros_away = stats_away.get("shots", {})
-    print(f"🎯 Tiros: {home_name} {tiros_home if tiros_home else 'N/D'} | {away_name} {tiros_away if tiros_away else 'N/D'}")
+    print(f"🎯 Tiros: {home_name} {tiros_home or 'N/D'} | {away_name} {tiros_away or 'N/D'}")
     posesion_home = stats_home.get("biggest", {}).get("ball_possession") or "N/D"
     posesion_away = stats_away.get("biggest", {}).get("ball_possession") or "N/D"
     print(f"📈 Posesión estimada: {home_name}: {posesion_home} | {away_name}: {posesion_away}")
 
-    # Cuotas
+    cuotas = obtener_cuotas(fixture_id)
     markets = cuotas.get("bookmakers", [{}])[0].get("bets", [])
     cuota_over25 = cuota_btts = cuota_1x = None
     for m in markets:
@@ -111,7 +116,6 @@ def analizar_fixture(fixture):
 
     print(f"💸 Cuotas: Over 2.5: {cuota_over25} | BTTS: {cuota_btts} | 1X: {cuota_1x}")
 
-    # Pick sugerido
     if cuota_over25 and gh >= 1.2 and ga >= 1.2:
         try:
             if float(cuota_over25) >= 1.70:
