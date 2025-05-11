@@ -1,6 +1,7 @@
 import requests
 from datetime import datetime
 import time
+import json
 
 API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
 BASE_URL = "https://v3.football.api-sports.io"
@@ -13,7 +14,6 @@ LIGAS_VALIDAS = {
     39, 61, 78, 135, 140, 2, 3, 4, 5, 16, 45, 71, 72, 135, 253, 262, 203, 88, 94, 253, 271, 1139, 1439
 }
 
-# Funciones auxiliares
 def obtener_fixtures_hoy():
     hoy = datetime.now().strftime("%Y-%m-%d")
     url = f"{BASE_URL}/fixtures?date={hoy}"
@@ -69,25 +69,46 @@ def generar_pick(fixture, cuotas, pred):
 print("\n🔍 Buscando partidos del día...")
 fixtures = obtener_fixtures_hoy()
 picks_generados = []
+todos_partidos = []
 
 for partido in fixtures:
     liga_id = partido["league"]["id"]
+    liga_nombre = partido["league"]["name"]
     if liga_id not in LIGAS_VALIDAS:
         continue
 
     fixture_id = partido["fixture"]["id"]
+    home = partido["teams"]["home"]["name"]
+    away = partido["teams"]["away"]["name"]
+    print(f"📝 {liga_nombre}: {home} vs {away}")
+
     try:
         cuotas = obtener_cuotas_fixture(fixture_id)
         pred = obtener_predicciones(fixture_id)
         picks = generar_pick(partido, cuotas, pred)
         picks_generados.extend(picks)
+        if picks:
+            todos_partidos.extend([
+                {
+                    "partido": f"{home} vs {away}",
+                    "mercado": pick[1],
+                    "cuota": pick[2],
+                    "motivo": pick[3],
+                    "fecha_generacion": datetime.now().isoformat()
+                }
+                for pick in picks
+            ])
         time.sleep(1.2)
     except Exception as e:
         print(f"❌ Error con fixture {fixture_id}: {e}")
 
 print("\n🎯 Picks Generados:")
-for m, pick, cuota, razon in picks_generados:
-    print(f"\nPartido: {m}\nPick: {pick} @ {cuota}\nJustificación: {razon}\n✅ Valor detectado")
+for pick in picks_generados:
+    print(f"\nPartido: {pick[0]}\nPick: {pick[1]} @ {pick[2]}\nJustificación: {pick[3]}\n✅ Valor detectado")
+
+# Guardar todos los picks válidos detectados
+with open("output/picks_futbol.json", "w", encoding="utf-8") as f:
+    json.dump(todos_partidos, f, indent=4, ensure_ascii=False)
 
 if not picks_generados:
     print("\n⚠️ No se encontraron picks con valor para hoy.")
