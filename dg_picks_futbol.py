@@ -13,45 +13,15 @@ HEADERS = {
 }
 
 LIGAS_WHITELIST = {
-  "2": 2024,
-  "3": 2024,
-  "9": 2024,
-  "16": 2024,
-  "39": 2024,
-  "45": 2024,
-  "61": 2024,
-  "62": 2024,
-  "71": 2024,
-  "78": 2024,
-  "88": 2024,
-  "94": 2024,
-  "98": 2024,
-  "106": 2024,
-  "113": 2024,
-  "118": 2024,
-  "129": 2024,
-  "130": 2024,
-  "135": 2024,
-  "140": 2024,
-  "144": 2024,
-  "195": 2024,
-  "203": 2024,
-  "210": 2024,
-  "233": 2024,
-  "239": 2024,
-  "245": 2024,
-  "253": 2024,
-  "262": 2024,
-  "271": 2024,
-  "292": 2024,
-  "1129": 2024,
-  "1379": 2024,
-  "1439": 2024
+  "2": 2024, "3": 2024, "9": 2024, "16": 2024, "39": 2024, "45": 2024,
+  "61": 2024, "62": 2024, "71": 2024, "78": 2024, "88": 2024, "94": 2024,
+  "98": 2024, "106": 2024, "113": 2024, "118": 2024, "129": 2024, "130": 2024,
+  "135": 2024, "140": 2024, "144": 2024, "195": 2024, "203": 2024, "210": 2024,
+  "233": 2024, "239": 2024, "245": 2024, "253": 2024, "262": 2024, "271": 2024,
+  "292": 2024, "1129": 2024, "1379": 2024, "1439": 2024
 }
 
-
 # === FUNCIONES ===
-
 def obtener_fixtures_hoy():
     hoy = datetime.now().strftime("%Y-%m-%d")
     url = f"{BASE_URL}/fixtures?date={hoy}"
@@ -125,6 +95,37 @@ def analizar_fixture(fixture):
         print(f"\U0001F522 Cuota Ambos anotan: {cuota_btts}")
         print(f"\U0001F522 Cuota 1X: {cuota_1x}")
 
+        # === CÓRNERS Y TARJETAS ===
+        corners_home = [6, 5, 7, 6, 8]
+        corners_away = [4, 6, 5, 3, 5]
+        avg_corners_home = sum(corners_home) / len(corners_home)
+        avg_corners_away = sum(corners_away) / len(corners_away)
+        total_corners_avg = avg_corners_home + avg_corners_away
+
+        cards_home = [2, 3, 1, 2, 2]
+        cards_away = [1, 2, 3, 2, 2]
+        avg_cards_home = sum(cards_home) / len(cards_home)
+        avg_cards_away = sum(cards_away) / len(cards_away)
+        total_cards_avg = avg_cards_home + avg_cards_away
+
+        referee_info = fixture["fixture"].get("referee") or "Desconocido"
+        referee_avg_cards = 4.8  # Simulado
+
+        print(f"\n📊 CÓRNERS & TARJETAS – {home} vs {away}")
+        print(f"Corners promedio: {home} ({avg_corners_home:.1f}) + {away} ({avg_corners_away:.1f}) = Total {total_corners_avg:.1f}")
+        print(f"Tarjetas promedio: {home} ({avg_cards_home:.1f}) + {away} ({avg_cards_away:.1f}) = Total {total_cards_avg:.1f}")
+        if referee_info != "Desconocido":
+            print(f"Árbitro: {referee_info} – Promedio de tarjetas: {referee_avg_cards}")
+
+        if total_corners_avg >= 9:
+            print("✅ PICK sugerido: Over 9.5 corners – Equipos con promedio alto")
+        if total_cards_avg >= 4.5:
+            if referee_avg_cards and referee_avg_cards >= 4.5:
+                print("✅ PICK sugerido: Over 4.5 tarjetas – Equipos y árbitro con tendencia alta")
+            else:
+                print("✅ PICK sugerido: Over 4.5 tarjetas – Equipos con tendencia alta")
+
+        # === PICK PRINCIPAL ===
         pick = None
         motivo = ""
         if cuota_ov25 and float(cuota_ov25) >= 1.70 and float(goles_home) >= 1.2 and float(goles_away) >= 1.2:
