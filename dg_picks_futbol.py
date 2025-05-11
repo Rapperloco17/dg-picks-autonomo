@@ -1,68 +1,142 @@
+# Archivo unificado: dg_picks_futbol.py
+
+import requests
 import json
 from datetime import datetime
-from utils.api_football import obtener_partidos_de_liga, obtener_estadisticas_fixture, obtener_prediccion_fixture, obtener_cuotas_fixture
-from utils.leagues_whitelist import leagues_ids
 
-print("🔍 Buscando partidos del día...")
+# === CONFIGURACION ===
+API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
+BASE_URL = "https://v3.football.api-sports.io"
+HEADERS = {
+    "x-rapidapi-key": API_KEY,
+    "x-rapidapi-host": "v3.football.api-sports.io"
+}
 
-fecha_hoy = datetime.utcnow().strftime("%Y-%m-%d")
+LIGAS_WHITELIST = {
+    "2": True, "3": True, "39": True, "61": True, "78": True, "88": True,
+    "94": True, "135": True, "140": True, "143": True, "203": True,
+    "253": True, "262": True, "271": True, "1139": True, "1439": True
+}
 
-partidos_del_dia = []
+# === FUNCIONES ===
 
-for league_id in leagues_ids:
+def obtener_fixtures_hoy():
+    hoy = datetime.now().strftime("%Y-%m-%d")
+    url = f"{BASE_URL}/fixtures?date={hoy}"
+    response = requests.get(url, headers=HEADERS)
+    data = response.json()
+    return data.get("response", [])
+
+def obtener_prediccion_fixture(fixture_id):
+    url = f"{BASE_URL}/predictions?fixture={fixture_id}"
+    response = requests.get(url, headers=HEADERS)
+    data = response.json()
+    return data.get("response", [{}])[0]
+
+def obtener_estadisticas_fixture(fixture_id):
+    url = f"{BASE_URL}/fixtures/statistics?fixture={fixture_id}"
+    response = requests.get(url, headers=HEADERS)
+    data = response.json()
+    return data.get("response", [])
+
+def obtener_cuotas_fixture(fixture_id):
+    url = f"{BASE_URL}/odds?fixture={fixture_id}"
+    response = requests.get(url, headers=HEADERS)
+    data = response.json()
+    return data.get("response", [{}])[0]
+
+def analizar_fixture(fixture):
+    fixture_id = fixture["fixture"]["id"]
+    liga_id = str(fixture["league"]["id"])
+    home = fixture["teams"]["home"]["name"]
+    away = fixture["teams"]["away"]["name"]
+    print(f"\n\U0001F4C5 Partido: {home} vs {away} (Liga {liga_id})")
+
+    if liga_id not in LIGAS_WHITELIST:
+        print("\u274C Liga no permitida.")
+        return None
+
     try:
-        partidos = obtener_partidos_de_liga(league_id, fecha_hoy, 2024)
-        partidos_del_dia.extend(partidos)
-    except Exception as e:
-        print(f"❌ Error al obtener partidos de liga {league_id}: {e}")
-
-print(f"✅ Se encontraron {len(partidos_del_dia)} partidos en {len(leagues_ids)} ligas autorizadas")
-
-picks_generados = []
-
-for partido in partidos_del_dia:
-    try:
-        fixture_id = partido["fixture"]["id"]
-        nombre_partido = f"{partido['teams']['home']['name']} vs {partido['teams']['away']['name']}"
-        print(f"\n⚽ Partido: {nombre_partido}")
-
-        cuotas = obtener_cuotas_fixture(fixture_id, "1x2")
-        prediccion = obtener_prediccion_fixture(fixture_id)
+        pred = obtener_prediccion_fixture(fixture_id)
         stats = obtener_estadisticas_fixture(fixture_id)
+        cuotas = obtener_cuotas_fixture(fixture_id)
 
-        prediccion_equipo = prediccion.get("winner", {}).get("name", "-")
-        print(f"🔮 Predicción API: {prediccion_equipo}")
+        pred_api = pred.get("predictions", {}).get("winner", {}).get("name", "?")
+        print(f"\u2728 Predicción API: {pred_api}")
 
-        print("📊 Estadísticas:")
-        print("- promedio_goles:", stats.get("promedio_goles"))
-        print("- prob_btts:", stats.get("prob_btts"))
-        print("- forma_local:", stats.get("forma_local"))
-        print("- forma_visitante:", stats.get("forma_visitante"))
-        print("- tarjetas:", stats.get("tarjetas"))
-        print("- corners:", stats.get("corners"))
+        stats_team = pred.get("teams", {})
+        forma_local = stats_team.get("home", {}).get("last_5", {}).get("form", "")
+        forma_visitante = stats_team.get("away", {}).get("last_5", {}).get("form", "")
+        print(f"\U0001F4CA Forma Local: {forma_local}")
+        print(f"\U0001F4CA Forma Visitante: {forma_visitante}")
 
-        print("💸 Cuotas:")
-        for key, value in cuotas.items():
-            print(f"- {key}: {value}")
+        promedio_goles = pred.get("comparisons", {}).get("goals", {})
+        goles_home = promedio_goles.get("home", "0")
+        goles_away = promedio_goles.get("away", "0")
+        print(f"\U0001F4A3 Promedio de Goles: {goles_home} vs {goles_away}")
 
-        # Ejemplo básico de lógica
-        if stats.get("promedio_goles", 0) > 3 and cuotas.get("over_2.5", 0) >= 1.70:
-            pick = {
-                "partido": nombre_partido,
-                "pick": "Over 2.5 goles",
-                "cuota": cuotas.get("over_2.5"),
-                "motivo": "Promedio alto de goles y cuota aceptable",
-                "fecha_generacion": datetime.utcnow().isoformat()
+        markets = cuotas.get("bookmakers", [{}])[0].get("bets", [])
+        cuota_ov25, cuota_btts, cuota_1x = None, None, None
+
+        for market in markets:
+            nombre = market.get("name", "").lower()
+            if "over/under 2.5" in nombre:
+                cuota_ov25 = market["values"][0]["odd"]
+            if "both teams to score" in nombre:
+                cuota_btts = market["values"][0]["odd"]
+            if "double chance" in nombre:
+                for val in market["values"]:
+                    if val["value"] == "1X":
+                        cuota_1x = val["odd"]
+
+        print(f"\U0001F522 Cuota Over 2.5: {cuota_ov25}")
+        print(f"\U0001F522 Cuota Ambos anotan: {cuota_btts}")
+        print(f"\U0001F522 Cuota 1X: {cuota_1x}")
+
+        pick = None
+        motivo = ""
+        if cuota_ov25 and float(cuota_ov25) >= 1.70 and float(goles_home) >= 1.2 and float(goles_away) >= 1.2:
+            pick = "Over 2.5 goles"
+            motivo = "Promedio de goles alto"
+        elif cuota_btts and float(cuota_btts) >= 1.70 and "W" in forma_local and "W" in forma_visitante:
+            pick = "Ambos anotan"
+            motivo = "Buena forma y ataque de ambos"
+        elif cuota_1x and float(cuota_1x) >= 1.50 and "W" in forma_local:
+            pick = "1X (Local o empate)"
+            motivo = "Local en buena forma"
+
+        if pick:
+            print(f"\u2705 PICK: {pick} | Motivo: {motivo}")
+            return {
+                "partido": f"{home} vs {away}",
+                "pick": pick,
+                "cuota": cuota_ov25 or cuota_btts or cuota_1x,
+                "motivo": motivo,
+                "fecha_generacion": datetime.now().isoformat()
             }
-            picks_generados.append(pick)
-            print("✅ Pick generado con valor")
         else:
-            print("❌ No se generó pick con valor")
+            print("\u274C No se generó pick con valor.")
+            return None
 
     except Exception as e:
-        print(f"❌ Error en fixture {fixture_id}: {e}")
+        print(f"\u274C Error en fixture {fixture_id}: {e}")
+        return None
 
-with open("output/picks_futbol.json", "w", encoding="utf-8") as f:
-    json.dump(picks_generados, f, indent=2, ensure_ascii=False)
+# === PROCESO PRINCIPAL ===
+def main():
+    print("\U0001F50D Buscando partidos del día...")
+    fixtures = obtener_fixtures_hoy()
+    picks = []
 
-print("\n📥 Análisis finalizado. Picks guardados en output/picks_futbol.json")
+    for fixture in fixtures:
+        pick = analizar_fixture(fixture)
+        if pick:
+            picks.append(pick)
+
+    with open("output/picks_futbol.json", "w", encoding="utf-8") as f:
+        json.dump(picks, f, ensure_ascii=False, indent=4)
+
+    print("\n\U0001F3AF Análisis finalizado. Picks guardados en output/picks_futbol.json")
+
+if __name__ == "__main__":
+    main()
