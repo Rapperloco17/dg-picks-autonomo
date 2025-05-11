@@ -1,1 +1,16 @@
-
+[
+    {
+        "partido": "Napoli vs Genoa",
+        "pick": "Over 2.5 goles",
+        "cuota": 1.88,
+        "motivo": "Ambos equipos con promedio alto de goles y defensas irregulares. Predicción API: Napoli.",
+        "fecha_generacion": "2025-05-11T02:06:22.335379"
+    },
+    {
+        "partido": "Real Betis vs Osasuna",
+        "pick": "1X",
+        "cuota": 1.42,
+        "motivo": "Betis sólido en casa y Osasuna con racha negativa. Predicción API: Betis.",
+        "fecha_generacion": "2025-05-11T02:06:22.335389"
+    }
+]
