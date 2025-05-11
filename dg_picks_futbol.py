@@ -92,6 +92,11 @@ def analizar_fixture(fixture):
         if goles_home >= 0.9 and goles_away >= 0.9:
             print("Probable BTTS ✅")
 
+        clean_home = pred.get("teams", {}).get("home", {}).get("clean_sheet", {}).get("percentage")
+        clean_away = pred.get("teams", {}).get("away", {}).get("clean_sheet", {}).get("percentage")
+        if clean_home and clean_away:
+            print(f"🧱 Clean sheet: {home} {clean_home}% | {away} {clean_away}%")
+
         corners_home = corners_away = cards_home = cards_away = 0
         for stat in stats:
             team_id = stat.get("team", {}).get("id")
@@ -115,7 +120,7 @@ def analizar_fixture(fixture):
         print(f"Tarjetas promedio: {home} ({cards_home}) | {away} ({cards_away}) | Total: {cards_home + cards_away}")
 
         referee = fixture["fixture"].get("referee", "Desconocido")
-        referee_avg = 4.8  # placeholder real si lo deseas
+        referee_avg = 4.8  # placeholder
         print(f"Árbitro: {referee} – Promedio estimado: {referee_avg}")
 
         if corners_home + corners_away >= 9:
@@ -124,45 +129,33 @@ def analizar_fixture(fixture):
             print("✅ PICK sugerido: Over 4.5 tarjetas")
 
         markets = cuotas.get("bookmakers", [{}])[0].get("bets", [])
-        cuota_ov25 = cuota_btts = cuota_1x = None
+        cuota_ov15 = cuota_ov25 = cuota_ov35 = cuota_btts = cuota_1x = cuota_x2 = cuota_12 = None
         for market in markets:
             name = market.get("name", "").lower()
+            if "over/under 1.5" in name:
+                cuota_ov15 = market["values"][0]["odd"]
             if "over/under 2.5" in name:
                 cuota_ov25 = market["values"][0]["odd"]
+            if "over/under 3.5" in name:
+                cuota_ov35 = market["values"][0]["odd"]
             if "both teams to score" in name:
                 cuota_btts = market["values"][0]["odd"]
             if "double chance" in name:
                 for val in market["values"]:
                     if val["value"] == "1X":
                         cuota_1x = val["odd"]
+                    elif val["value"] == "X2":
+                        cuota_x2 = val["odd"]
+                    elif val["value"] == "12":
+                        cuota_12 = val["odd"]
 
+        print(f"\U0001F522 Cuota Over 1.5: {cuota_ov15}")
         print(f"\U0001F522 Cuota Over 2.5: {cuota_ov25}")
+        print(f"\U0001F522 Cuota Over 3.5: {cuota_ov35}")
         print(f"\U0001F522 Cuota Ambos anotan: {cuota_btts}")
-        print(f"\U0001F522 Cuota 1X: {cuota_1x}")
+        print(f"\U0001F522 Cuota 1X: {cuota_1x} | X2: {cuota_x2} | 12: {cuota_12}")
 
-        pick = motivo = None
-        if cuota_ov25 and float(cuota_ov25) >= 1.70 and goles_home >= 1.2 and goles_away >= 1.2:
-            pick = "Over 2.5 goles"
-            motivo = "Promedio de goles alto"
-        elif cuota_btts and float(cuota_btts) >= 1.70 and goles_home >= 1.0 and goles_away >= 1.0:
-            pick = "Ambos anotan"
-            motivo = "Ambos con gol esperado alto"
-        elif cuota_1x and float(cuota_1x) >= 1.50:
-            pick = "1X (Local o empate)"
-            motivo = "Local con buen respaldo"
-
-        if pick:
-            print(f"\u2705 PICK: {pick} | Motivo: {motivo}")
-            return {
-                "partido": f"{home} vs {away}",
-                "pick": pick,
-                "cuota": cuota_ov25 or cuota_btts or cuota_1x,
-                "motivo": motivo,
-                "fecha_generacion": datetime.now().isoformat()
-            }
-        else:
-            print("\u274C No se generó pick con valor.")
-            return None
+        return None
 
     except Exception as e:
         print(f"\u274C Error en fixture {fixture_id}: {e}")
