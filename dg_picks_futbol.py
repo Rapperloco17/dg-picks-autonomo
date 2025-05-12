@@ -63,9 +63,6 @@ def analizar_fixture(fixture):
     if not stats_home or not stats_away:
         print("⚠️ No se encontraron estadísticas para uno de los equipos.")
         return
-    if "goals" not in stats_home or "goals" not in stats_away:
-        print("⚠️ Estadísticas incompletas: sin promedio de goles.")
-        return
 
     goles_home = stats_home.get("goals", {}).get("average", {}).get("home")
     goles_away = stats_away.get("goals", {}).get("average", {}).get("away")
@@ -82,7 +79,7 @@ def analizar_fixture(fixture):
 
     if g1 is not None and g2 is not None and (g1, g2) != (0, 0):
         print(f"🧠 Marcador estimado (API): {home_name} {g1} - {g2} {away_name}")
-    elif winner and winner.lower() != "draw" and gh > 0 and ga > 0:
+    elif gh > 0 or ga > 0:
         est_home = round(gh * 1.1)
         est_away = round(ga * 1.0)
         print(f"🧠 Marcador estimado (DG Picks): {home_name} {est_home} - {est_away} {away_name}")
