@@ -1,83 +1,88 @@
 import os
 import json
 import pandas as pd
+from collections import defaultdict
 
-JSON_DIR = "historial"
-OUTPUT_JSON = "output/team_stats_global.json"
+CARPETA_HISTORIAL = "historial"
+SALIDA_JSON = "output/team_stats_global.json"
+SALIDA_EXCEL = "output/team_stats_global.xlsx"
+os.makedirs("output", exist_ok=True)
 
+# 1. Combinar todos los archivos JSON
+partidos_totales = []
+for archivo in os.listdir(CARPETA_HISTORIAL):
+    if archivo.startswith("resultados_") and archivo.endswith(".json"):
+        with open(os.path.join(CARPETA_HISTORIAL, archivo), encoding="utf-8") as f:
+            try:
+                data = json.load(f)
+                if isinstance(data, list):
+                    partidos_totales.extend(data)
+                    print(f"✅ Cargado: {archivo} ({len(data)} partidos)")
+            except Exception as e:
+                print(f"❌ Error cargando {archivo}: {e}")
 
-def calcular_estadisticas(json_path):
-    with open(json_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+# 2. Calcular estadísticas por equipo
+equipos = defaultdict(lambda: {
+    "PJ": 0, "GF": 0, "GC": 0, "BTTS": 0, "Over_2.5": 0,
+    "Victorias": 0, "Empates": 0, "Derrotas": 0, "Forma": []
+})
 
-    partidos = pd.DataFrame(data)
+for partido in partidos_totales:
+    try:
+        loc = partido["equipo_local"]
+        vis = partido["equipo_visitante"]
+        gl = int(partido["goles_local"])
+        gv = int(partido["goles_visitante"])
 
-    equipos = {}
-    for _, row in partidos.iterrows():
-        local = row["equipo_local"]
-        visitante = row["equipo_visitante"]
+        for equipo, gf, gc in [(loc, gl, gv), (vis, gv, gl)]:
+            equipos[equipo]["PJ"] += 1
+            equipos[equipo]["GF"] += gf
+            equipos[equipo]["GC"] += gc
+            if gf > 0 and gc > 0:
+                equipos[equipo]["BTTS"] += 1
+            if gf + gc >= 3:
+                equipos[equipo]["Over_2.5"] += 1
 
-        if local not in equipos:
-            equipos[local] = {
-                "partidos": 0, "goles_favor": 0, "goles_contra": 0, "victorias": 0,
-                "empates": 0, "derrotas": 0, "btts": 0, "over_2_5": 0
-            }
-        if visitante not in equipos:
-            equipos[visitante] = {
-                "partidos": 0, "goles_favor": 0, "goles_contra": 0, "victorias": 0,
-                "empates": 0, "derrotas": 0, "btts": 0, "over_2_5": 0
-            }
-
-        # Resultado
-        gf_local = row["goles_local"]
-        gf_visitante = row["goles_visitante"]
-
-        equipos[local]["partidos"] += 1
-        equipos[visitante]["partidos"] += 1
-        equipos[local]["goles_favor"] += gf_local
-        equipos[local]["goles_contra"] += gf_visitante
-        equipos[visitante]["goles_favor"] += gf_visitante
-        equipos[visitante]["goles_contra"] += gf_local
-
-        if gf_local > gf_visitante:
-            equipos[local]["victorias"] += 1
-            equipos[visitante]["derrotas"] += 1
-        elif gf_local < gf_visitante:
-            equipos[visitante]["victorias"] += 1
-            equipos[local]["derrotas"] += 1
+        if gl > gv:
+            equipos[loc]["Victorias"] += 1
+            equipos[vis]["Derrotas"] += 1
+            equipos[loc]["Forma"].append("W")
+            equipos[vis]["Forma"].append("L")
+        elif gv > gl:
+            equipos[vis]["Victorias"] += 1
+            equipos[loc]["Derrotas"] += 1
+            equipos[vis]["Forma"].append("W")
+            equipos[loc]["Forma"].append("L")
         else:
-            equipos[local]["empates"] += 1
-            equipos[visitante]["empates"] += 1
+            equipos[loc]["Empates"] += 1
+            equipos[vis]["Empates"] += 1
+            equipos[loc]["Forma"].append("D")
+            equipos[vis]["Forma"].append("D")
 
-        if gf_local > 0 and gf_visitante > 0:
-            equipos[local]["btts"] += 1
-            equipos[visitante]["btts"] += 1
+    except Exception as e:
+        print(f"⚠️ Partido con error: {e}")
 
-        if (gf_local + gf_visitante) > 2:
-            equipos[local]["over_2_5"] += 1
-            equipos[visitante]["over_2_5"] += 1
+# 3. Guardar como JSON y Excel
+resumen = []
+for nombre, stats in equipos.items():
+    pj = stats["PJ"] or 1  # evitar división por cero
+    resumen.append({
+        "Equipo": nombre,
+        "PJ": stats["PJ"],
+        "GF": round(stats["GF"] / pj, 2),
+        "GC": round(stats["GC"] / pj, 2),
+        "%BTTS": round(stats["BTTS"] / pj * 100, 1),
+        "%Over2.5": round(stats["Over_2.5"] / pj * 100, 1),
+        "W": stats["Victorias"],
+        "D": stats["Empates"],
+        "L": stats["Derrotas"],
+        "Forma": ''.join(stats["Forma"][-5:])
+    })
 
-    return equipos
+# Guardar archivos
+with open(SALIDA_JSON, "w", encoding="utf-8") as f:
+    json.dump(resumen, f, ensure_ascii=False, indent=2)
 
+pd.DataFrame(resumen).to_excel(SALIDA_EXCEL, index=False)
 
-if __name__ == "__main__":
-    print("📊 Generando dataset global desde JSON...")
-
-    todos_equipos = {}
-    for archivo in os.listdir(JSON_DIR):
-        if archivo.endswith(".json") and archivo.startswith("resultados_"):
-            ruta = os.path.join(JSON_DIR, archivo)
-            print(f"✅ Procesando {archivo}...")
-            equipos = calcular_estadisticas(ruta)
-            for nombre, datos in equipos.items():
-                if nombre not in todos_equipos:
-                    todos_equipos[nombre] = datos
-                else:
-                    for key in datos:
-                        todos_equipos[nombre][key] += datos[key]
-
-    os.makedirs("output", exist_ok=True)
-    with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
-        json.dump(todos_equipos, f, indent=2, ensure_ascii=False)
-
-    print(f"✅ Archivo guardado: {OUTPUT_JSON}")
+print(f"✅ Historial generado: {SALIDA_JSON} y {SALIDA_EXCEL}")
