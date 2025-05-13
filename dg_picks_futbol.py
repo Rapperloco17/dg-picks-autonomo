@@ -3,20 +3,24 @@ import os
 from datetime import datetime
 from collections import defaultdict
 
-# Ruta de resultados por liga
 RUTA_RESULTADOS = "historial"
 
-# Obtener todos los archivos de resultados
+# 1. Cargar partidos de todos los archivos .json
+
 def cargar_resultados():
     resultados = []
     for archivo in os.listdir(RUTA_RESULTADOS):
-        if archivo.endswith(".json") and archivo.startswith("resultados_"):
+        if archivo.startswith("resultados_") and archivo.endswith(".json"):
             with open(os.path.join(RUTA_RESULTADOS, archivo), encoding="utf-8") as f:
                 datos = json.load(f)
-                resultados.extend(datos)
+                for partido in datos:
+                    # Validar formato
+                    if all(k in partido for k in ["equipo_local", "equipo_visitante", "goles_local", "goles_visitante"]):
+                        resultados.append(partido)
     return resultados
 
-# Calcular estadísticas por equipo
+# 2. Calcular estadísticas por equipo
+
 def calcular_estadisticas(resultados):
     equipos = defaultdict(lambda: {
         "partidos": 0, "goles_favor": 0, "goles_contra": 0,
@@ -30,7 +34,7 @@ def calcular_estadisticas(resultados):
         gh = partido['goles_local']
         ga = partido['goles_visitante']
 
-        for equipo, gf, gc, marcador in [(home, gh, ga, 'L'), (away, ga, gh, 'V')]:
+        for equipo, gf, gc in [(home, gh, ga), (away, ga, gh)]:
             stats = equipos[equipo]
             stats['partidos'] += 1
             stats['goles_favor'] += gf
@@ -42,7 +46,7 @@ def calcular_estadisticas(resultados):
             if gf + gc >= 3.5:
                 stats['over_3_5'] += 1
 
-        # Resultado para forma
+        # Forma reciente
         if gh > ga:
             equipos[home]['ultimos_resultados'].append('W')
             equipos[away]['ultimos_resultados'].append('L')
@@ -54,6 +58,8 @@ def calcular_estadisticas(resultados):
             equipos[away]['ultimos_resultados'].append('D')
 
     return equipos
+
+# 3. Obtener resumen por equipo
 
 def obtener_stats_equipo(equipos, nombre):
     stats = equipos.get(nombre)
@@ -69,7 +75,8 @@ def obtener_stats_equipo(equipos, nombre):
         'Forma': ''.join(stats['ultimos_resultados'][-5:])
     }
 
-# Estimación lógica de resultado
+# 4. Estimar resultado probable
+
 def estimar_partido(local, visitante, equipos):
     s1 = obtener_stats_equipo(equipos, local)
     s2 = obtener_stats_equipo(equipos, visitante)
@@ -97,7 +104,7 @@ def estimar_partido(local, visitante, equipos):
         "Forma V": s2['Forma']
     }
 
-# --- Simulación de partidos del día (puedes conectar API luego) ---
+# 🔥 Simulación de partidos a analizar (se reemplazará por API luego)
 partidos = [
     ("América", "Pumas UNAM"),
     ("Tigres", "Chivas"),
