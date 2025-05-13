@@ -3,10 +3,10 @@ import json
 import pandas as pd
 from collections import defaultdict
 
-# Ruta de los archivos históricos
+# Carpeta donde están los archivos de resultados
 HISTORIAL_DIR = "historial"
 
-# Inicializar estructuras
+# Estructura base por equipo
 team_stats = defaultdict(lambda: {
     "partidos": 0,
     "goles_a_favor": 0,
@@ -16,7 +16,7 @@ team_stats = defaultdict(lambda: {
     "derrotas": 0,
     "btts": 0,
     "over_2_5": 0,
-    "forma": []  # W / D / L
+    "forma": []  # W, D, L
 })
 
 # Leer todos los archivos .json en /historial
@@ -32,13 +32,12 @@ for filename in os.listdir(HISTORIAL_DIR):
             gl = partido["goles_local"]
             gv = partido["goles_visitante"]
 
-            # Resultado para local
+            # Local
             team_stats[local]["partidos"] += 1
             team_stats[local]["goles_a_favor"] += gl
             team_stats[local]["goles_en_contra"] += gv
             team_stats[local]["btts"] += int(gl > 0 and gv > 0)
             team_stats[local]["over_2_5"] += int(gl + gv > 2.5)
-            
             if gl > gv:
                 team_stats[local]["victorias"] += 1
                 team_stats[local]["forma"].append("W")
@@ -49,13 +48,12 @@ for filename in os.listdir(HISTORIAL_DIR):
                 team_stats[local]["derrotas"] += 1
                 team_stats[local]["forma"].append("L")
 
-            # Resultado para visitante
+            # Visitante
             team_stats[visitante]["partidos"] += 1
             team_stats[visitante]["goles_a_favor"] += gv
             team_stats[visitante]["goles_en_contra"] += gl
             team_stats[visitante]["btts"] += int(gl > 0 and gv > 0)
             team_stats[visitante]["over_2_5"] += int(gl + gv > 2.5)
-
             if gv > gl:
                 team_stats[visitante]["victorias"] += 1
                 team_stats[visitante]["forma"].append("W")
@@ -66,7 +64,7 @@ for filename in os.listdir(HISTORIAL_DIR):
                 team_stats[visitante]["derrotas"] += 1
                 team_stats[visitante]["forma"].append("L")
 
-# Convertir a formato porcentual y tabla
+# Convertir a resumen por equipo
 resumen = []
 for equipo, datos in team_stats.items():
     pj = datos["partidos"]
@@ -85,15 +83,14 @@ for equipo, datos in team_stats.items():
         "Últimos 5": "-".join(datos["forma"][-5:])
     })
 
-# Guardar como JSON y Excel
+# Guardar resultados
 os.makedirs("output", exist_ok=True)
+
+# Guardar como JSON (para el sistema)
 with open("output/team_stats_global.json", "w", encoding="utf-8") as f:
     json.dump(resumen, f, ensure_ascii=False, indent=2)
 
-# pd.DataFrame(resumen).to_excel("output/team_stats_global.xlsx", index=False)  # Desactivado en producción
+# 🚫 Comentado para evitar error en Railway
+# pd.DataFrame(resumen).to_excel("output/team_stats_global.xlsx", index=False)
 
 print("✅ Análisis por equipo generado correctamente.")
-
-
-print("✅ Análisis por equipo generado correctamente.")
-
