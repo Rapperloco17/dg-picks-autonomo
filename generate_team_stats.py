@@ -90,7 +90,10 @@ os.makedirs("output", exist_ok=True)
 with open("output/team_stats_global.json", "w", encoding="utf-8") as f:
     json.dump(resumen, f, ensure_ascii=False, indent=2)
 
-pd.DataFrame(resumen).to_excel("output/team_stats_global.xlsx", index=False)
+# pd.DataFrame(resumen).to_excel("output/team_stats_global.xlsx", index=False)  # Desactivado en producción
+
+print("✅ Análisis por equipo generado correctamente.")
+
 
 print("✅ Análisis por equipo generado correctamente.")
 
