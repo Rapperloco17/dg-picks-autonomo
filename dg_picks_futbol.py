@@ -1,104 +1,102 @@
-# dg_picks_futbol.py (integrado con análisis de fixtures y resultados históricos)
-
-import json
-import os
-import pandas as pd
-from collections import defaultdict
+# descargar_resultados_por_liga.py
 import requests
+import pandas as pd
+import json
+import time
 
-# === CONFIGURACIÓN ===
 API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
 HEADERS = {"x-apisports-key": API_KEY}
 BASE_URL = "https://v3.football.api-sports.io"
-DATA_FOLDER = "./resultados"
-ULTIMOS_PARTIDOS = 5
 
-# === Cargar resultados históricos ===
-def cargar_todos_los_resultados():
-    resultados = []
-    for archivo in os.listdir(DATA_FOLDER):
-        if archivo.endswith(".json") and archivo.startswith("resultados_"):
-            with open(os.path.join(DATA_FOLDER, archivo), encoding="utf-8") as f:
-                datos = json.load(f)
-                resultados.extend(datos)
-    return resultados
+LEAGUES = [
+    (262, "Liga MX"), (140, "La Liga"), (39, "Premier League"), (135, "Serie A"), (78, "Bundesliga"),
+    (61, "Ligue 1"), (88, "Eredivisie"), (94, "Primeira Liga"), (203, "Super Lig"), (144, "Jupiler Pro League"),
+    (179, "Scottish Premiership"), (197, "Greek Super League"), (218, "Czech First League"),
+    (222, "Swiss Super League"), (216, "Croatian HNL"), (195, "Austrian Bundesliga"),
+    (219, "Hungarian NB I"), (197, "Danish Superliga"), (196, "Norwegian Eliteserien"),
+    (239, "Swedish Allsvenskan"), (106, "Polish Ekstraklasa"), (224, "Romanian Liga I"),
+    (218, "Bulgarian First League"), (245, "Finnish Veikkausliiga"), (207, "Slovak Superliga"),
+    (2, "Champions League"), (3, "Europa League"), (848, "Conference League"),
+    (13, "Copa Libertadores"), (11, "Copa Sudamericana"),
+    (253, "MLS"), (71, "Brasileirao"), (128, "Liga Profesional Argentina"), (239, "Colombia Primera A"),
+    (274, "Liga 1 Peru"), (275, "Primera Division Chile"), (289, "FUTVE Venezuela"), (290, "Primera Paraguay"),
+    (291, "Primera Bolivia"), (292, "Primera Ecuador"), (293, "Primera Uruguay"),
+    (40, "Championship"), (141, "Segunda Division España"), (201, "Serie B Brasil"),
+    (129, "Primera Nacional Argentina"), (263, "Expansión MX")
+]
 
-def generar_estadisticas_por_equipo(resultados):
-    equipos = defaultdict(list)
-    for partido in resultados:
-        equipos[partido['local']].append(partido)
-        equipos[partido['visitante']].append(partido)
+TEMPORADA = 2024
 
-    resumen = {}
-    for equipo, partidos in equipos.items():
-        recientes = sorted(partidos, key=lambda x: x['fecha'], reverse=True)[:ULTIMOS_PARTIDOS]
-        goles_a_favor = sum(p['goles_local'] if p['local'] == equipo else p['goles_visitante'] for p in recientes)
-        goles_en_contra = sum(p['goles_visitante'] if p['local'] == equipo else p['goles_local'] for p in recientes)
-        btts = sum(p['ambos_anotan'] for p in recientes)
-        overs = sum(p['over_2_5'] for p in recientes)
-        local_juegos = [p for p in recientes if p['local'] == equipo]
-        visitante_juegos = [p for p in recientes if p['visitante'] == equipo]
-
-        resumen[equipo] = {
-            "prom_goles": goles_a_favor / len(recientes),
-            "prom_goles_recibidos": goles_en_contra / len(recientes),
-            "%BTTS": round((btts / len(recientes)) * 100, 1),
-            "%Over_2_5": round((overs / len(recientes)) * 100, 1),
-            "forma_local": sum(1 if p['resultado'] == 'local' else 0 for p in local_juegos),
-            "forma_visitante": sum(1 if p['resultado'] == 'visitante' else 0 for p in visitante_juegos),
-            "partidos_analizados": len(recientes)
-        }
-    return resumen
-
-def analizar_fixture(local, visitante, resumen_stats):
-    stats_local = resumen_stats.get(local, {})
-    stats_visitante = resumen_stats.get(visitante, {})
-
-    analisis = {
-        "equipo_local": local,
-        "equipo_visitante": visitante,
-        "local_stats": stats_local,
-        "visitante_stats": stats_visitante,
-        "recomendacion": ""
+for league_id, league_name in LEAGUES:
+    print(f"Descargando {league_name}...")
+    url = f"{BASE_URL}/fixtures"
+    params = {
+        "league": league_id,
+        "season": TEMPORADA,
+        "status": "FT"
     }
 
-    if stats_local and stats_visitante:
-        if stats_local["%Over_2_5"] > 60 and stats_visitante["%Over_2_5"] > 60:
-            analisis["recomendacion"] = "Over 2.5"
-        elif stats_local["%BTTS"] > 55 and stats_visitante["%BTTS"] > 55:
-            analisis["recomendacion"] = "Ambos anotan"
-        elif stats_local["forma_local"] >= 3 and stats_visitante["forma_visitante"] <= 1:
-            analisis["recomendacion"] = f"Gana {local}"
-        elif stats_local["forma_local"] <= 1 and stats_visitante["forma_visitante"] >= 3:
-            analisis["recomendacion"] = f"Gana {visitante}"
-        else:
-            analisis["recomendacion"] = "Sin valor claro"
-    else:
-        analisis["recomendacion"] = "Sin datos suficientes"
-
-    return analisis
-
-def obtener_fixtures_hoy():
-    url = f"{BASE_URL}/fixtures"
-    params = {"date": pd.Timestamp.now().strftime("%Y-%m-%d")}
     response = requests.get(url, headers=HEADERS, params=params)
     data = response.json()
-    return data.get("response", [])
 
-# === Flujo principal ===
-if __name__ == "__main__":
-    resultados = cargar_todos_los_resultados()
-    resumen_stats = generar_estadisticas_por_equipo(resultados)
+    partidos = []
 
-    fixtures_hoy = obtener_fixtures_hoy()
-    print(f"Partidos hoy: {len(fixtures_hoy)}")
+    for item in data.get("response", []):
+        if item['league']['id'] != league_id:
+            continue  # filtrar por seguridad si se cuela otro
 
-    picks_generados = []
-    for f in fixtures_hoy:
-        local = f['teams']['home']['name']
-        visitante = f['teams']['away']['name']
-        analisis = analizar_fixture(local, visitante, resumen_stats)
-        picks_generados.append(analisis)
+        fixture = item["fixture"]
+        teams = item["teams"]
+        goals = item["goals"]
+        stats = {s['type']: (s['value'] if s['value'] is not None else 0)
+                 for s in item.get("statistics", [{}])[0].get("statistics", [])}
 
-    for pick in picks_generados:
-        print(json.dumps(pick, indent=2, ensure_ascii=False))
+        local = teams['home']['name']
+        visitante = teams['away']['name']
+        goles_local = goals['home']
+        goles_visitante = goals['away']
+
+        partido = {
+            "fixture_id": fixture['id'],
+            "fecha": fixture['date'][:10],
+            "liga_id": league_id,
+            "liga_nombre": league_name,
+            "season": TEMPORADA,
+            "round": fixture.get('round'),
+            "local": local,
+            "visitante": visitante,
+            "goles_local": goles_local,
+            "goles_visitante": goles_visitante,
+            "posesion_local": stats.get("Ball Possession", 0),
+            "tiros_local": stats.get("Total Shots", 0),
+            "tiros_arco_local": stats.get("Shots on Goal", 0),
+            "corners_local": stats.get("Corner Kicks", 0),
+            "tarjetas_local": stats.get("Yellow Cards", 0),
+            "resultado": (
+                "local" if goles_local > goles_visitante else
+                "visitante" if goles_visitante > goles_local else "empate"
+            ),
+            "ambos_anotan": goles_local > 0 and goles_visitante > 0,
+            "over_2_5": (goles_local + goles_visitante) > 2.5,
+            "fuentes": {
+                "api": "API-FOOTBALL",
+                "fecha_descarga": pd.Timestamp.now().strftime("%Y-%m-%d")
+            }
+        }
+
+        partidos.append(partido)
+
+    if partidos:
+        json_filename = f"resultados_{league_name.replace(' ', '_').lower()}.json"
+        with open(json_filename, "w", encoding="utf-8") as f:
+            json.dump(partidos, f, ensure_ascii=False, indent=2)
+
+        df = pd.DataFrame(partidos)
+        excel_filename = f"resultados_{league_name.replace(' ', '_').lower()}.xlsx"
+        df.to_excel(excel_filename, index=False)
+
+        print(f"✅ Guardado: {json_filename} y {excel_filename}")
+    else:
+        print(f"⚠️ No hay partidos finalizados para {league_name}")
+
+    time.sleep(1.5)
