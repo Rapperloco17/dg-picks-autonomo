@@ -1,110 +1,120 @@
 import json
 import os
-import requests
 from datetime import datetime
+from collections import defaultdict
 
-API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
-HEADERS = {"x-apisports-key": API_KEY}
-BASE_URL = "https://v3.football.api-sports.io"
+# Ruta de resultados por liga
+RUTA_RESULTADOS = "historial"
 
-with open("output/team_stats_global.json", encoding="utf-8") as f:
-    TEAM_STATS = json.load(f)
+# Obtener todos los archivos de resultados
+def cargar_resultados():
+    resultados = []
+    for archivo in os.listdir(RUTA_RESULTADOS):
+        if archivo.endswith(".json") and archivo.startswith("resultados_"):
+            with open(os.path.join(RUTA_RESULTADOS, archivo), encoding="utf-8") as f:
+                datos = json.load(f)
+                resultados.extend(datos)
+    return resultados
 
-def obtener_stats_equipo(nombre):
-    for equipo in TEAM_STATS:
-        if equipo["Equipo"].lower() == nombre.lower():
-            return equipo
-    return None
+# Calcular estadísticas por equipo
+def calcular_estadisticas(resultados):
+    equipos = defaultdict(lambda: {
+        "partidos": 0, "goles_favor": 0, "goles_contra": 0,
+        "btts": 0, "over_2_5": 0, "over_3_5": 0,
+        "ultimos_resultados": []
+    })
 
-def estimar_resultado(local, visitante):
-    stats_local = obtener_stats_equipo(local)
-    stats_visitante = obtener_stats_equipo(visitante)
+    for partido in resultados:
+        home = partido['equipo_local']
+        away = partido['equipo_visitante']
+        gh = partido['goles_local']
+        ga = partido['goles_visitante']
 
-    if not stats_local or not stats_visitante:
+        for equipo, gf, gc, marcador in [(home, gh, ga, 'L'), (away, ga, gh, 'V')]:
+            stats = equipos[equipo]
+            stats['partidos'] += 1
+            stats['goles_favor'] += gf
+            stats['goles_contra'] += gc
+            if gf > 0 and gc > 0:
+                stats['btts'] += 1
+            if gf + gc >= 2.5:
+                stats['over_2_5'] += 1
+            if gf + gc >= 3.5:
+                stats['over_3_5'] += 1
+
+        # Resultado para forma
+        if gh > ga:
+            equipos[home]['ultimos_resultados'].append('W')
+            equipos[away]['ultimos_resultados'].append('L')
+        elif gh < ga:
+            equipos[home]['ultimos_resultados'].append('L')
+            equipos[away]['ultimos_resultados'].append('W')
+        else:
+            equipos[home]['ultimos_resultados'].append('D')
+            equipos[away]['ultimos_resultados'].append('D')
+
+    return equipos
+
+def obtener_stats_equipo(equipos, nombre):
+    stats = equipos.get(nombre)
+    if not stats:
+        return None
+    p = stats['partidos'] if stats['partidos'] > 0 else 1
+    return {
+        'GF': stats['goles_favor'] / p,
+        'GC': stats['goles_contra'] / p,
+        '%BTTS': (stats['btts'] / p) * 100,
+        '%Over2.5': (stats['over_2_5'] / p) * 100,
+        '%Over3.5': (stats['over_3_5'] / p) * 100,
+        'Forma': ''.join(stats['ultimos_resultados'][-5:])
+    }
+
+# Estimación lógica de resultado
+def estimar_partido(local, visitante, equipos):
+    s1 = obtener_stats_equipo(equipos, local)
+    s2 = obtener_stats_equipo(equipos, visitante)
+    if not s1 or not s2:
         return None
 
-    gf_local = stats_local["Goles a Favor"]
-    gc_local = stats_local["Goles en Contra"]
-    gf_visit = stats_visitante["Goles a Favor"]
-    gc_visit = stats_visitante["Goles en Contra"]
+    marcador = (round((s1['GF'] + s2['GC']) / 2), round((s2['GF'] + s1['GC']) / 2))
+    pick = "Empate"
+    doble = "12"
+    if marcador[0] > marcador[1]: pick = f"Gana {local}"; doble = "1X"
+    elif marcador[1] > marcador[0]: pick = f"Gana {visitante}"; doble = "X2"
 
-    btts = (stats_local["% BTTS"] + stats_visitante["% BTTS"]) / 2
-    over25 = (stats_local["% Over 2.5"] + stats_visitante["% Over 2.5"]) / 2
-    prom_goles = (gf_local + gf_visit) / 2
-
-    marcador_estimado = (round((gf_local + gc_visit) / 2), round((gf_visit + gc_local) / 2))
-
-    if marcador_estimado[0] > marcador_estimado[1]:
-        pick_ml = f"Gana {local}"
-        doble = "1X"
-    elif marcador_estimado[1] > marcador_estimado[0]:
-        pick_ml = f"Gana {visitante}"
-        doble = "X2"
-    else:
-        pick_ml = "Empate"
-        doble = "12"
-
-    if over25 >= 60:
-        pick_over = "Over 2.5"
-    elif prom_goles >= 1.8:
-        pick_over = "Over 1.5"
-    elif prom_goles >= 3.2:
-        pick_over = "Over 3.5"
-    else:
-        pick_over = "Under 2.5"
+    over = "Under 2.5"
+    if (s1['GF'] + s2['GF']) / 2 >= 1.8: over = "Over 2.5"
+    if (s1['GF'] + s2['GF']) / 2 >= 3.0: over = "Over 3.5"
 
     return {
         "partido": f"{local} vs {visitante}",
-        "Promedio Goles": round(prom_goles, 2),
-        "% BTTS": round(btts, 1),
-        "% Over 2.5": round(over25, 1),
-        "Forma Local": stats_local["Últimos 5"],
-        "Forma Visitante": stats_visitante["Últimos 5"],
-        "Marcador Estimado": f"{marcador_estimado[0]}-{marcador_estimado[1]}",
-        "Pick ML": pick_ml,
-        "Doble Oportunidad": doble,
-        "Línea Goles": pick_over,
-        "Comentario": generar_comentario(local, visitante, stats_local, stats_visitante, pick_ml, pick_over)
+        "Marcador": f"{marcador[0]}-{marcador[1]}",
+        "ML": pick,
+        "Doble": doble,
+        "Goles": over,
+        "BTTS%": round((s1['%BTTS'] + s2['%BTTS'])/2,1),
+        "Forma L": s1['Forma'],
+        "Forma V": s2['Forma']
     }
 
-def generar_comentario(local, visitante, stats_l, stats_v, pick_ml, pick_over):
-    comentario = f"{local} promedia {stats_l['Goles a Favor']} goles y {visitante} permite {stats_v['Goles en Contra']}. "
-    comentario += f"El pick '{pick_ml}' se respalda en su forma ({stats_l['Últimos 5']}) y tendencia ofensiva. "
-    comentario += f"Recomendado '{pick_over}' por el volumen de goles en ambos lados."
-    return comentario
+# --- Simulación de partidos del día (puedes conectar API luego) ---
+partidos = [
+    ("América", "Pumas UNAM"),
+    ("Tigres", "Chivas"),
+    ("León", "Toluca")
+]
 
-def obtener_partidos_del_dia():
-    hoy = datetime.today().strftime('%Y-%m-%d')
-    url = f"{BASE_URL}/fixtures?date={hoy}"
-    response = requests.get(url, headers=HEADERS)
-    data = response.json()
-    fixtures = []
-    for f in data.get("response", []):
-        local = f["teams"]["home"]["name"]
-        visitante = f["teams"]["away"]["name"]
-        fixtures.append((local, visitante))
-    return fixtures
+print("\n🔍 Análisis DG Picks")
+resultados = cargar_resultados()
+equipos = calcular_estadisticas(resultados)
 
-# -----------------------------
-# Análisis automático completo
-# -----------------------------
-partidos_del_dia = obtener_partidos_del_dia()
-
-print("\n🧠 Análisis y predicción para los partidos del día:\n")
-for local, visitante in partidos_del_dia:
-    prediccion = estimar_resultado(local, visitante)
-    if prediccion:
-        print(f"📊 {prediccion['partido']}")
-        print(f"   Promedio Goles: {prediccion['Promedio Goles']}")
-        print(f"   % BTTS: {prediccion['% BTTS']}%")
-        print(f"   % Over 2.5: {prediccion['% Over 2.5']}%")
-        print(f"   Forma {local}: {prediccion['Forma Local']}")
-        print(f"   Forma {visitante}: {prediccion['Forma Visitante']}")
-        print(f"   🎯 Marcador Estimado: {prediccion['Marcador Estimado']}")
-        print(f"   📌 Pick ML: {prediccion['Pick ML']} | Doble oportunidad: {prediccion['Doble Oportunidad']}")
-        print(f"   🔥 Línea de Goles: {prediccion['Línea Goles']}")
-        print(f"   🧠 Comentario: {prediccion['Comentario']}\n")
+for local, visitante in partidos:
+    pred = estimar_partido(local, visitante, equipos)
+    if pred:
+        print(f"\n📊 {pred['partido']}")
+        print(f"   Marcador Estimado: {pred['Marcador']}")
+        print(f"   ML: {pred['ML']} | Doble: {pred['Doble']} | Línea: {pred['Goles']}")
+        print(f"   Forma: {local}: {pred['Forma L']} | {visitante}: {pred['Forma V']}")
+        print(f"   BTTS estimado: {pred['BTTS%']}%")
     else:
-        print(f"⚠️ No hay datos suficientes para {local} vs {visitante}\n")
-
-    time.sleep(1.5)
+        print(f"\n⚠️ No hay datos suficientes para {local} vs {visitante}")
