@@ -1,102 +1,110 @@
-# descargar_resultados_por_liga.py
-import requests
-import pandas as pd
 import json
-import time
+import os
+import requests
+from datetime import datetime
 
 API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
 HEADERS = {"x-apisports-key": API_KEY}
 BASE_URL = "https://v3.football.api-sports.io"
 
-LEAGUES = [
-    (262, "Liga MX"), (140, "La Liga"), (39, "Premier League"), (135, "Serie A"), (78, "Bundesliga"),
-    (61, "Ligue 1"), (88, "Eredivisie"), (94, "Primeira Liga"), (203, "Super Lig"), (144, "Jupiler Pro League"),
-    (179, "Scottish Premiership"), (197, "Greek Super League"), (218, "Czech First League"),
-    (222, "Swiss Super League"), (216, "Croatian HNL"), (195, "Austrian Bundesliga"),
-    (219, "Hungarian NB I"), (197, "Danish Superliga"), (196, "Norwegian Eliteserien"),
-    (239, "Swedish Allsvenskan"), (106, "Polish Ekstraklasa"), (224, "Romanian Liga I"),
-    (218, "Bulgarian First League"), (245, "Finnish Veikkausliiga"), (207, "Slovak Superliga"),
-    (2, "Champions League"), (3, "Europa League"), (848, "Conference League"),
-    (13, "Copa Libertadores"), (11, "Copa Sudamericana"),
-    (253, "MLS"), (71, "Brasileirao"), (128, "Liga Profesional Argentina"), (239, "Colombia Primera A"),
-    (274, "Liga 1 Peru"), (275, "Primera Division Chile"), (289, "FUTVE Venezuela"), (290, "Primera Paraguay"),
-    (291, "Primera Bolivia"), (292, "Primera Ecuador"), (293, "Primera Uruguay"),
-    (40, "Championship"), (141, "Segunda Division España"), (201, "Serie B Brasil"),
-    (129, "Primera Nacional Argentina"), (263, "Expansión MX")
-]
+with open("output/team_stats_global.json", encoding="utf-8") as f:
+    TEAM_STATS = json.load(f)
 
-TEMPORADA = 2024
+def obtener_stats_equipo(nombre):
+    for equipo in TEAM_STATS:
+        if equipo["Equipo"].lower() == nombre.lower():
+            return equipo
+    return None
 
-for league_id, league_name in LEAGUES:
-    print(f"Descargando {league_name}...")
-    url = f"{BASE_URL}/fixtures"
-    params = {
-        "league": league_id,
-        "season": TEMPORADA,
-        "status": "FT"
+def estimar_resultado(local, visitante):
+    stats_local = obtener_stats_equipo(local)
+    stats_visitante = obtener_stats_equipo(visitante)
+
+    if not stats_local or not stats_visitante:
+        return None
+
+    gf_local = stats_local["Goles a Favor"]
+    gc_local = stats_local["Goles en Contra"]
+    gf_visit = stats_visitante["Goles a Favor"]
+    gc_visit = stats_visitante["Goles en Contra"]
+
+    btts = (stats_local["% BTTS"] + stats_visitante["% BTTS"]) / 2
+    over25 = (stats_local["% Over 2.5"] + stats_visitante["% Over 2.5"]) / 2
+    prom_goles = (gf_local + gf_visit) / 2
+
+    marcador_estimado = (round((gf_local + gc_visit) / 2), round((gf_visit + gc_local) / 2))
+
+    if marcador_estimado[0] > marcador_estimado[1]:
+        pick_ml = f"Gana {local}"
+        doble = "1X"
+    elif marcador_estimado[1] > marcador_estimado[0]:
+        pick_ml = f"Gana {visitante}"
+        doble = "X2"
+    else:
+        pick_ml = "Empate"
+        doble = "12"
+
+    if over25 >= 60:
+        pick_over = "Over 2.5"
+    elif prom_goles >= 1.8:
+        pick_over = "Over 1.5"
+    elif prom_goles >= 3.2:
+        pick_over = "Over 3.5"
+    else:
+        pick_over = "Under 2.5"
+
+    return {
+        "partido": f"{local} vs {visitante}",
+        "Promedio Goles": round(prom_goles, 2),
+        "% BTTS": round(btts, 1),
+        "% Over 2.5": round(over25, 1),
+        "Forma Local": stats_local["Últimos 5"],
+        "Forma Visitante": stats_visitante["Últimos 5"],
+        "Marcador Estimado": f"{marcador_estimado[0]}-{marcador_estimado[1]}",
+        "Pick ML": pick_ml,
+        "Doble Oportunidad": doble,
+        "Línea Goles": pick_over,
+        "Comentario": generar_comentario(local, visitante, stats_local, stats_visitante, pick_ml, pick_over)
     }
 
-    response = requests.get(url, headers=HEADERS, params=params)
+def generar_comentario(local, visitante, stats_l, stats_v, pick_ml, pick_over):
+    comentario = f"{local} promedia {stats_l['Goles a Favor']} goles y {visitante} permite {stats_v['Goles en Contra']}. "
+    comentario += f"El pick '{pick_ml}' se respalda en su forma ({stats_l['Últimos 5']}) y tendencia ofensiva. "
+    comentario += f"Recomendado '{pick_over}' por el volumen de goles en ambos lados."
+    return comentario
+
+def obtener_partidos_del_dia():
+    hoy = datetime.today().strftime('%Y-%m-%d')
+    url = f"{BASE_URL}/fixtures?date={hoy}"
+    response = requests.get(url, headers=HEADERS)
     data = response.json()
+    fixtures = []
+    for f in data.get("response", []):
+        local = f["teams"]["home"]["name"]
+        visitante = f["teams"]["away"]["name"]
+        fixtures.append((local, visitante))
+    return fixtures
 
-    partidos = []
+# -----------------------------
+# Análisis automático completo
+# -----------------------------
+partidos_del_dia = obtener_partidos_del_dia()
 
-    for item in data.get("response", []):
-        if item['league']['id'] != league_id:
-            continue  # filtrar por seguridad si se cuela otro
-
-        fixture = item["fixture"]
-        teams = item["teams"]
-        goals = item["goals"]
-        stats = {s['type']: (s['value'] if s['value'] is not None else 0)
-                 for s in item.get("statistics", [{}])[0].get("statistics", [])}
-
-        local = teams['home']['name']
-        visitante = teams['away']['name']
-        goles_local = goals['home']
-        goles_visitante = goals['away']
-
-        partido = {
-            "fixture_id": fixture['id'],
-            "fecha": fixture['date'][:10],
-            "liga_id": league_id,
-            "liga_nombre": league_name,
-            "season": TEMPORADA,
-            "round": fixture.get('round'),
-            "local": local,
-            "visitante": visitante,
-            "goles_local": goles_local,
-            "goles_visitante": goles_visitante,
-            "posesion_local": stats.get("Ball Possession", 0),
-            "tiros_local": stats.get("Total Shots", 0),
-            "tiros_arco_local": stats.get("Shots on Goal", 0),
-            "corners_local": stats.get("Corner Kicks", 0),
-            "tarjetas_local": stats.get("Yellow Cards", 0),
-            "resultado": (
-                "local" if goles_local > goles_visitante else
-                "visitante" if goles_visitante > goles_local else "empate"
-            ),
-            "ambos_anotan": goles_local > 0 and goles_visitante > 0,
-            "over_2_5": (goles_local + goles_visitante) > 2.5,
-            "fuentes": {
-                "api": "API-FOOTBALL",
-                "fecha_descarga": pd.Timestamp.now().strftime("%Y-%m-%d")
-            }
-        }
-
-        partidos.append(partido)
-
-    if partidos:
-        json_filename = f"resultados_{league_name.replace(' ', '_').lower()}.json"
-        with open(json_filename, "w", encoding="utf-8") as f:
-            json.dump(partidos, f, ensure_ascii=False, indent=2)
-
-        df = pd.DataFrame(partidos)
-        excel_filename = f"resultados_{league_name.replace(' ', '_').lower()}.xlsx"
-        df.to_excel(excel_filename, index=False)
-
-        print(f"✅ Guardado: {json_filename} y {excel_filename}")
+print("\n🧠 Análisis y predicción para los partidos del día:\n")
+for local, visitante in partidos_del_dia:
+    prediccion = estimar_resultado(local, visitante)
+    if prediccion:
+        print(f"📊 {prediccion['partido']}")
+        print(f"   Promedio Goles: {prediccion['Promedio Goles']}")
+        print(f"   % BTTS: {prediccion['% BTTS']}%")
+        print(f"   % Over 2.5: {prediccion['% Over 2.5']}%")
+        print(f"   Forma {local}: {prediccion['Forma Local']}")
+        print(f"   Forma {visitante}: {prediccion['Forma Visitante']}")
+        print(f"   🎯 Marcador Estimado: {prediccion['Marcador Estimado']}")
+        print(f"   📌 Pick ML: {prediccion['Pick ML']} | Doble oportunidad: {prediccion['Doble Oportunidad']}")
+        print(f"   🔥 Línea de Goles: {prediccion['Línea Goles']}")
+        print(f"   🧠 Comentario: {prediccion['Comentario']}\n")
     else:
-        print(f"⚠️ No hay partidos finalizados para {league_name}")
+        print(f"⚠️ No hay datos suficientes para {local} vs {visitante}\n")
 
     time.sleep(1.5)
