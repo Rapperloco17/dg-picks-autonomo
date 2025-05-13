@@ -1,15 +1,19 @@
-# dg_picks_futbol.py (con análisis de resultados históricos integrados)
+# dg_picks_futbol.py (integrado con análisis de fixtures y resultados históricos)
 
 import json
 import os
 import pandas as pd
 from collections import defaultdict
+import requests
 
 # === CONFIGURACIÓN ===
-DATA_FOLDER = "./resultados"  # Carpeta donde están los archivos resultados_<liga>.json
-ULTIMOS_PARTIDOS = 5  # Cuántos partidos considerar por equipo para estadísticas recientes
+API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
+HEADERS = {"x-apisports-key": API_KEY}
+BASE_URL = "https://v3.football.api-sports.io"
+DATA_FOLDER = "./resultados"
+ULTIMOS_PARTIDOS = 5
 
-# === Cargar todos los resultados disponibles ===
+# === Cargar resultados históricos ===
 def cargar_todos_los_resultados():
     resultados = []
     for archivo in os.listdir(DATA_FOLDER):
@@ -19,7 +23,6 @@ def cargar_todos_los_resultados():
                 resultados.extend(datos)
     return resultados
 
-# === Generar estadísticas por equipo ===
 def generar_estadisticas_por_equipo(resultados):
     equipos = defaultdict(list)
     for partido in resultados:
@@ -47,25 +50,55 @@ def generar_estadisticas_por_equipo(resultados):
         }
     return resumen
 
-# === Integración en DG Picks ===
-def analizar_fixture(fixture_equipo_local, fixture_equipo_visitante, resumen_stats):
-    stats_local = resumen_stats.get(fixture_equipo_local, {})
-    stats_visitante = resumen_stats.get(fixture_equipo_visitante, {})
+def analizar_fixture(local, visitante, resumen_stats):
+    stats_local = resumen_stats.get(local, {})
+    stats_visitante = resumen_stats.get(visitante, {})
 
     analisis = {
-        "equipo_local": fixture_equipo_local,
-        "equipo_visitante": fixture_equipo_visitante,
+        "equipo_local": local,
+        "equipo_visitante": visitante,
         "local_stats": stats_local,
-        "visitante_stats": stats_visitante
+        "visitante_stats": stats_visitante,
+        "recomendacion": ""
     }
+
+    if stats_local and stats_visitante:
+        if stats_local["%Over_2_5"] > 60 and stats_visitante["%Over_2_5"] > 60:
+            analisis["recomendacion"] = "Over 2.5"
+        elif stats_local["%BTTS"] > 55 and stats_visitante["%BTTS"] > 55:
+            analisis["recomendacion"] = "Ambos anotan"
+        elif stats_local["forma_local"] >= 3 and stats_visitante["forma_visitante"] <= 1:
+            analisis["recomendacion"] = f"Gana {local}"
+        elif stats_local["forma_local"] <= 1 and stats_visitante["forma_visitante"] >= 3:
+            analisis["recomendacion"] = f"Gana {visitante}"
+        else:
+            analisis["recomendacion"] = "Sin valor claro"
+    else:
+        analisis["recomendacion"] = "Sin datos suficientes"
+
     return analisis
 
-# === Ejemplo de uso ===
+def obtener_fixtures_hoy():
+    url = f"{BASE_URL}/fixtures"
+    params = {"date": pd.Timestamp.now().strftime("%Y-%m-%d")}
+    response = requests.get(url, headers=HEADERS, params=params)
+    data = response.json()
+    return data.get("response", [])
+
+# === Flujo principal ===
 if __name__ == "__main__":
     resultados = cargar_todos_los_resultados()
     resumen_stats = generar_estadisticas_por_equipo(resultados)
 
-    # Ejemplo: analizar un partido del fixture
-    ejemplo = analizar_fixture("Arsenal", "Chelsea", resumen_stats)
-    print(json.dumps(ejemplo, indent=2, ensure_ascii=False))
+    fixtures_hoy = obtener_fixtures_hoy()
+    print(f"Partidos hoy: {len(fixtures_hoy)}")
 
+    picks_generados = []
+    for f in fixtures_hoy:
+        local = f['teams']['home']['name']
+        visitante = f['teams']['away']['name']
+        analisis = analizar_fixture(local, visitante, resumen_stats)
+        picks_generados.append(analisis)
+
+    for pick in picks_generados:
+        print(json.dumps(pick, indent=2, ensure_ascii=False))
