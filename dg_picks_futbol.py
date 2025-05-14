@@ -4,17 +4,25 @@ import datetime
 import requests
 import re
 import glob
-import pandas as pd
 
 # Cargar API key desde variables de entorno (Railway)
 API_FOOTBALL_KEY = os.getenv("API_FOOTBALL_KEY")
 HEADERS = {"x-apisports-key": API_FOOTBALL_KEY}
 
-# Cargar lista completa de ligas desde archivo Excel
-ligas_df = pd.read_excel("historial/lista_definitiva.xlsx")
+# Lista directa de ligas importantes (52 ligas)
 LIGAS_ESPERADAS = {
-    re.sub(r"[^a-z0-9_]", "_", nombre.lower().replace(" ", "_")): lid
-    for lid, nombre in zip(ligas_df['League ID'], ligas_df['Nombre'])
+    "world_cup": 1, "uefa_champions_league": 2, "uefa_europa_league": 3, "euro_championship": 4, "copa_america": 9,
+    "copa_libertadores": 13, "copa_sudamericana": 11, "premier_league": 39, "championship": 40, "league_one": 41,
+    "laliga": 140, "laliga2": 141, "serie_a": 135, "serie_b": 136, "bundesliga": 78, "bundesliga_2": 79,
+    "ligue_1": 61, "ligue_2": 62, "eredivisie": 88, "belgian_pro_league": 144, "primeira_liga": 94,
+    "super_lig": 203, "greek_super_league": 197, "russian_premier_league": 235, "scottish_premiership": 179,
+    "austrian_bundesliga": 218, "swiss_super_league": 207, "norwegian_eliteserien": 103, "swedish_allsvenskan": 113,
+    "danish_superliga": 144, "polish_ekstraklasa": 106, "czech_liga": 119, "romanian_liga_1": 283,
+    "ukrainian_premier_league": 332, "argentina_primera": 128, "brasil_serie_a": 71, "chile_primera": 235,
+    "colombia_primera": 239, "ecuador_serie_a": 242, "uruguay_primera": 245, "mexico_liga_mx": 262,
+    "mls": 253, "costa_rica_primera": 196, "paraguay_primera": 238, "peru_liga_1": 244, "venezuela_primera": 313,
+    "a_league": 196, "j1_league": 98, "k_league": 292, "china_super_league": 169, "south_africa_psl": 233,
+    "saudi_pro_league": 307, "qatar_stars_league": 287
 }
 
 RUTA_HISTORIAL = "historial/unificados"
@@ -114,3 +122,4 @@ for partido in fixtures:
 
     except Exception as e:
         print(f"❌ Error analizando partido: {e}")
+
