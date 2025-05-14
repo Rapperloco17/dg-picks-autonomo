@@ -9,20 +9,23 @@ import glob
 API_FOOTBALL_KEY = os.getenv("API_FOOTBALL_KEY")
 HEADERS = {"x-apisports-key": API_FOOTBALL_KEY}
 
-# Lista directa de ligas importantes (52 ligas)
+# Lista REAL con las 52 ligas oficiales del archivo Excel
 LIGAS_ESPERADAS = {
-    "world_cup": 1, "uefa_champions_league": 2, "uefa_europa_league": 3, "euro_championship": 4, "copa_america": 9,
-    "copa_libertadores": 13, "copa_sudamericana": 11, "premier_league": 39, "championship": 40, "league_one": 41,
-    "laliga": 140, "laliga2": 141, "serie_a": 135, "serie_b": 136, "bundesliga": 78, "bundesliga_2": 79,
-    "ligue_1": 61, "ligue_2": 62, "eredivisie": 88, "belgian_pro_league": 144, "primeira_liga": 94,
-    "super_lig": 203, "greek_super_league": 197, "russian_premier_league": 235, "scottish_premiership": 179,
-    "austrian_bundesliga": 218, "swiss_super_league": 207, "norwegian_eliteserien": 103, "swedish_allsvenskan": 113,
-    "danish_superliga": 144, "polish_ekstraklasa": 106, "czech_liga": 119, "romanian_liga_1": 283,
-    "ukrainian_premier_league": 332, "argentina_primera": 128, "brasil_serie_a": 71, "chile_primera": 235,
-    "colombia_primera": 239, "ecuador_serie_a": 242, "uruguay_primera": 245, "mexico_liga_mx": 262,
-    "mls": 253, "costa_rica_primera": 196, "paraguay_primera": 238, "peru_liga_1": 244, "venezuela_primera": 313,
-    "a_league": 196, "j1_league": 98, "k_league": 292, "china_super_league": 169, "south_africa_psl": 233,
-    "saudi_pro_league": 307, "qatar_stars_league": 287
+    'world_cup': 1, 'uefa_champions_league': 2, 'uefa_europa_league': 3, 'euro_championship': 4,
+    'copa_america': 9, 'conmebol_sudamericana': 11, 'conmebol_libertadores': 13,
+    'concacaf_champions_league': 16, 'premier_league': 39, 'championship': 40,
+    'ligue_1': 61, 'ligue_2': 62, 'serie_a': 135, 'serie_b': 136, 'copa_do_brasil': 73,
+    'fa_cup': 45, 'bundesliga': 218, '2__bundesliga': 79, 'eredivisie': 88,
+    'primeira_liga': 94, 'eliteserien': 103, 'ekstraklasa': 106, 'allsvenskan': 113,
+    'superliga': 119, 'liga_profesional_argentina': 128, 'primera_nacional': 129,
+    'copa_argentina': 130, 'coppa_italia': 137, 'la_liga': 140, 'segunda_divisi_n': 141,
+    'copa_del_rey': 143, 'jupiler_pro_league': 144, 'primera_divisi_n': 281,
+    '_rvalsdeild': 164, 'super_league': 207, 'first_league': 172, 'premiership': 179,
+    'a_league': 188, 'super_league_1': 197, 's_per_lig': 203, 'hnl': 210,
+    'primera_a': 239, 'liga_pro': 242, 'veikkausliiga': 244, 'major_league_soccer': 253,
+    'us_open_cup': 257, 'liga_mx': 262, 'liga_de_expansi_n_mx': 263,
+    'primera_divisi_n___apertura': 268, 'nb_i': 271, 'czech_liga': 345,
+    'premier_division': 357
 }
 
 RUTA_HISTORIAL = "historial/unificados"
@@ -122,4 +125,3 @@ for partido in fixtures:
 
     except Exception as e:
         print(f"❌ Error analizando partido: {e}")
-
