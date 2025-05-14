@@ -2,21 +2,21 @@ import os
 import json
 import datetime
 import requests
-from descargar_resultados_por_liga import descargar_historial_de_ligas_top
+import re
+import glob
+import pandas as pd
 
 # Cargar API key desde variables de entorno (Railway)
 API_FOOTBALL_KEY = os.getenv("API_FOOTBALL_KEY")
 HEADERS = {"x-apisports-key": API_FOOTBALL_KEY}
 
-# Telegram (si quieres activar envío con token desde Railway también)
-# from bot import enviar_mensaje
+# Cargar lista completa de ligas desde archivo Excel
+ligas_df = pd.read_excel("historial/lista_definitiva.xlsx")
+LIGAS_ESPERADAS = {
+    re.sub(r"[^a-z0-9_]", "_", nombre.lower().replace(" ", "_")): lid
+    for lid, nombre in zip(ligas_df['League ID'], ligas_df['Nombre'])
+}
 
-# Constantes
-LIGAS_ESPERADAS = [
-    "premier_league", "laliga", "serie_a", "bundesliga", "ligue_1",
-    "argentina", "brasil", "mls", "libertadores", "sudamericana",
-    "eredivisie", "championship", "copa_america", "euro_championship"
-]
 RUTA_HISTORIAL = "historial/unificados"
 API_URL = "https://v3.football.api-sports.io"
 
@@ -24,17 +24,29 @@ API_URL = "https://v3.football.api-sports.io"
 print("\n🔍 Verificando archivos históricos...")
 faltan = []
 presentes = []
-for liga in LIGAS_ESPERADAS:
+
+for liga, liga_id in LIGAS_ESPERADAS.items():
     ruta = f"{RUTA_HISTORIAL}/resultados_{liga}.json"
     if os.path.exists(ruta):
         presentes.append(liga)
     else:
-        faltan.append(liga)
+        faltan.append((liga, liga_id))
 
+# Paso 1B: Descargar si falta algún historial
 if faltan:
-    print("\n⛔ Faltan archivos:", faltan)
-    print("📥 Descargando historial...")
-    descargar_historial_de_ligas_top()
+    print("\n📥 Faltan archivos, descargando historial desde la API...")
+    hoy = datetime.datetime.now().strftime("%Y-%m-%d")
+    for liga, liga_id in faltan:
+        try:
+            url = f"{API_URL}/fixtures?league={liga_id}&season=2024&status=FT"
+            res = requests.get(url, headers=HEADERS)
+            data = res.json().get("response", [])
+            os.makedirs(RUTA_HISTORIAL, exist_ok=True)
+            with open(f"{RUTA_HISTORIAL}/resultados_{liga}.json", "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            print(f"✅ Historial guardado: {liga} ({len(data)} partidos)")
+        except Exception as e:
+            print(f"❌ Error descargando {liga}: {e}")
 else:
     print("✅ Todos los archivos de historial están presentes.")
 
@@ -47,13 +59,14 @@ print(f"📌 {len(fixtures)} partidos encontrados.")
 
 # Paso 3: Cargar estadísticas históricas desde JSON
 historial = {}
-for liga in LIGAS_ESPERADAS:
-    ruta = f"{RUTA_HISTORIAL}/resultados_{liga}.json"
+archivos_json = glob.glob(f"{RUTA_HISTORIAL}/resultados_*.json")
+for archivo in archivos_json:
+    clave = os.path.basename(archivo).replace("resultados_", "").replace(".json", "")
     try:
-        with open(ruta, 'r', encoding='utf-8') as f:
-            historial[liga] = json.load(f)
+        with open(archivo, 'r', encoding='utf-8') as f:
+            historial[clave] = json.load(f)
     except Exception as e:
-        print(f"❌ Error cargando {liga}: {e}")
+        print(f"❌ Error cargando {clave}: {e}")
 
 # Paso 4: Analizar cada fixture
 for partido in fixtures:
@@ -62,8 +75,7 @@ for partido in fixtures:
         equipo_local = partido['teams']['home']['name']
         equipo_visita = partido['teams']['away']['name']
         liga_nombre = partido['league']['name']
-        liga_id = partido['league']['id']
-        liga_clave = liga_nombre.lower().replace(" ", "_").replace("-", "_")
+        liga_clave = re.sub(r"[^a-z0-9_]", "_", liga_nombre.lower().replace(" ", "_"))
 
         if liga_clave not in historial:
             print(f"❌ No hay historial para {liga_nombre}, se salta.")
@@ -92,17 +104,13 @@ for partido in fixtures:
         cuotas = odds_res.get("response", [])
 
         # Paso 7: Cálculo tentativo (marcador, valor, forma)
-        # Aquí conectas con tus datos históricos para sacar forma y promedios
         goles_local = 1.4  # Ejemplo simulado
         goles_visita = 1.1  # Ejemplo simulado
-
         marcador = f"{round(goles_local)} - {round(goles_visita)}"
 
         # Paso 8: Publicar (aún solo consola)
         print(f"Predicción tentativa: {marcador}")
         print(f"Tiros: {tiros}, Posesión: {posesion}, Corners: {corners}, Tarjetas: {tarjetas}")
-        # enviar_mensaje("canal_id", mensaje_formateado)  # cuando actives Telegram
 
     except Exception as e:
         print(f"❌ Error analizando partido: {e}")
-
