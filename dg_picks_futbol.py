@@ -5,7 +5,6 @@ import requests
 import re
 import glob
 import statistics
-from collections import defaultdict
 
 API_FOOTBALL_KEY = os.getenv("API_FOOTBALL_KEY")
 HEADERS = {"x-apisports-key": API_FOOTBALL_KEY}
@@ -51,6 +50,8 @@ def calcular_estadisticas_equipo(juegos, equipo_nombre, condicion):
             away = partido['teams']['away']['name']
             g_home = partido['goals']['home']
             g_away = partido['goals']['away']
+            if g_home is None or g_away is None:
+                continue
 
             if condicion == 'local' and home == equipo_nombre:
                 goles_favor.append(g_home)
@@ -70,13 +71,16 @@ def calcular_estadisticas_equipo(juegos, equipo_nombre, condicion):
     if total == 0:
         return None
 
-    return {
-        'juegos': total,
-        'goles_favor': round(statistics.mean(goles_favor), 2) if goles_favor else 0,
-        'goles_contra': round(statistics.mean(goles_contra), 2) if goles_contra else 0,
-        'btts_pct': round((btts / total) * 100, 1),
-        'over25_pct': round((overs / total) * 100, 1)
-    }
+    try:
+        return {
+            'juegos': total,
+            'goles_favor': round(statistics.mean(goles_favor), 2),
+            'goles_contra': round(statistics.mean(goles_contra), 2),
+            'btts_pct': round((btts / total) * 100, 1),
+            'over25_pct': round((overs / total) * 100, 1)
+        }
+    except:
+        return None
 
 # Obtener partidos del día
 hoy = datetime.datetime.now().strftime("%Y-%m-%d")
