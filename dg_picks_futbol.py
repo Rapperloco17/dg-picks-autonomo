@@ -67,12 +67,15 @@ def calcular_estadisticas_equipo(juegos, equipo_nombre, condicion):
             continue
 
     total = len(goles_favor)
+    if total == 0:
+        return None
+
     return {
         'juegos': total,
         'goles_favor': round(statistics.mean(goles_favor), 2) if goles_favor else 0,
         'goles_contra': round(statistics.mean(goles_contra), 2) if goles_contra else 0,
-        'btts_pct': round((btts / total) * 100, 1) if total else 0,
-        'over25_pct': round((overs / total) * 100, 1) if total else 0
+        'btts_pct': round((btts / total) * 100, 1),
+        'over25_pct': round((overs / total) * 100, 1)
     }
 
 # Obtener partidos del día
@@ -88,7 +91,6 @@ for partido in fixtures:
         home = partido['teams']['home']['name']
         away = partido['teams']['away']['name']
 
-        # Buscar el JSON correspondiente
         liga_clave = re.sub(r"[^a-z0-9_]", "_", lname.lower().replace(" ", "_"))
         if liga_clave not in historial:
             continue
@@ -97,9 +99,10 @@ for partido in fixtures:
         stats_home = calcular_estadisticas_equipo(historial_liga, home, 'local')
         stats_away = calcular_estadisticas_equipo(historial_liga, away, 'visitante')
 
-        # Lógica de análisis entre conservadora y moderada
-        condiciones = []
+        if not stats_home or not stats_away:
+            continue
 
+        condiciones = []
         if stats_home['over25_pct'] >= 65 and stats_away['over25_pct'] >= 60:
             condiciones.append('Over 2.5')
         if stats_home['btts_pct'] >= 60 and stats_away['btts_pct'] >= 60:
