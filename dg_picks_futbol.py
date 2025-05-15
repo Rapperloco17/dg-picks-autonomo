@@ -65,18 +65,63 @@ def calcular_stats_equipo(juegos, equipo, condicion):
 # Generar justificación basada en datos
 def generar_justificacion(home, stats_home, stats_away):
     frases = []
+
     if stats_home['gf'] >= 1.8:
-        frases.append(f"{home} llega con un promedio ofensivo alto jugando en casa.")
+        frases += [
+            f"{home} está mostrando un poder ofensivo notable como local.",
+            f"{home} promedia más de 1.8 goles por juego en casa, lo que lo convierte en un rival temible.",
+            f"La línea ofensiva de {home} ha sido consistente y peligrosa en su estadio."
+        ]
+
     if stats_away['gc'] >= 1.6:
-        frases.append("El visitante ha concedido muchos goles fuera de casa en sus últimos encuentros.")
+        frases += [
+            "El visitante ha mostrado debilidades defensivas en sus salidas recientes.",
+            "La defensa del visitante ha recibido demasiados goles lejos de casa.",
+            "El equipo visitante sufre en defensa cuando juega fuera de su estadio."
+        ]
+
     if stats_home['forma'].count('G') >= 3:
-        frases.append(f"{home} ha ganado la mayoría de sus últimos partidos como local.")
+        frases += [
+            f"{home} viene en buena racha como local, ganando la mayoría de sus últimos partidos.",
+            f"La racha positiva en casa es un respaldo sólido para {home}.",
+            f"{home} ha convertido su estadio en una fortaleza en los últimos encuentros."
+        ]
+
     if stats_home['btts_pct'] >= 65 or stats_away['btts_pct'] >= 65:
-        frases.append("Ambos equipos tienen alta incidencia de BTTS, lo que sugiere un partido abierto.")
+        frases += [
+            "La tendencia de ambos equipos indica alta probabilidad de que ambos marquen.",
+            "El mercado de BTTS cobra sentido con estos equipos por su estilo abierto.",
+            "Ambos equipos suelen involucrarse en partidos con goles en ambas porterías."
+        ]
+
     if stats_home['over25_pct'] >= 65 and stats_away['over25_pct'] >= 65:
-        frases.append("El promedio de goles combinados es alto, con tendencia clara al Over 2.5.")
+        frases += [
+            "El promedio de goles en sus encuentros sugiere un partido de más de 2.5 goles.",
+            "La línea de Over 2.5 tiene valor considerando el rendimiento ofensivo de ambos.",
+            "Ambos conjuntos superan el 65% de Over 2.5 en sus juegos recientes."
+        ]
+
+    if stats_home['gc'] <= 1.0 and stats_away['gf'] <= 1.0:
+        frases += [
+            "Ambos equipos han mostrado solidez defensiva, lo que sugiere un duelo cerrado.",
+            "Pocos goles encajados por el local y escasa producción ofensiva del visitante podrían frenar el ritmo del partido."
+        ]
+
+    if stats_home['gf'] >= 1.5 and stats_home['forma'].count('P') == 0:
+        frases += [
+            f"{home} ha evitado derrotas y mantiene su eficacia ofensiva en casa.",
+            f"El rendimiento de {home} sin derrotas recientes y con goles lo hacen destacar."
+        ]
+
+    if stats_away['forma'].count('P') >= 3:
+        frases += [
+            "El visitante acumula varias derrotas recientes, lo que lo hace vulnerable.",
+            "La forma actual del visitante deja dudas sobre su competitividad."
+        ]
+
     if not frases:
         return "Valor detectado según forma y cuota disponible."
+
     return random.choice(frases)
 
 # Obtener partidos del día
@@ -147,4 +192,3 @@ for partido in fixtures:
 
     except Exception as e:
         print(f"❌ Error en análisis del fixture: {e}")
-
