@@ -5,6 +5,7 @@ import requests
 import re
 import glob
 import statistics
+import random
 
 API_FOOTBALL_KEY = os.getenv("API_FOOTBALL_KEY")
 HEADERS = {"x-apisports-key": API_FOOTBALL_KEY}
@@ -61,6 +62,23 @@ def calcular_stats_equipo(juegos, equipo, condicion):
         'over25_pct': round(over25 / total * 100, 1)
     }
 
+# Generar justificación basada en datos
+def generar_justificacion(home, stats_home, stats_away):
+    frases = []
+    if stats_home['gf'] >= 1.8:
+        frases.append(f"{home} llega con un promedio ofensivo alto jugando en casa.")
+    if stats_away['gc'] >= 1.6:
+        frases.append("El visitante ha concedido muchos goles fuera de casa en sus últimos encuentros.")
+    if stats_home['forma'].count('G') >= 3:
+        frases.append(f"{home} ha ganado la mayoría de sus últimos partidos como local.")
+    if stats_home['btts_pct'] >= 65 or stats_away['btts_pct'] >= 65:
+        frases.append("Ambos equipos tienen alta incidencia de BTTS, lo que sugiere un partido abierto.")
+    if stats_home['over25_pct'] >= 65 and stats_away['over25_pct'] >= 65:
+        frases.append("El promedio de goles combinados es alto, con tendencia clara al Over 2.5.")
+    if not frases:
+        return "Valor detectado según forma y cuota disponible."
+    return random.choice(frases)
+
 # Obtener partidos del día
 hoy = datetime.datetime.now().strftime("%Y-%m-%d")
 res = requests.get(f"{API_URL}/fixtures?date={hoy}", headers=HEADERS)
@@ -114,6 +132,7 @@ for partido in fixtures:
         # Pick sugerido
         pick = f"Gana {home}" if stats_home['gf'] >= 1.5 and stats_away['gc'] >= 1.5 else None
         if pick:
+            justificacion = generar_justificacion(home, stats_home, stats_away)
             mensaje = f"\n⚽ *{home} vs {away}* ({lname})\n"
             mensaje += f"\n✅ *Pick sugerido:* {pick}"
             if cuota:
@@ -122,9 +141,10 @@ for partido in fixtures:
             mensaje += f"\n📊 Forma {away}: {stats_away['forma']} | Prom. {stats_away['gf']} GF / {stats_away['gc']} GC"
             mensaje += f"\n\n📉 Córners: {corners_local} / {corners_away}"
             mensaje += f"\n🟨 Tarjetas: {tarjetas_local} / {tarjetas_away}"
-            mensaje += f"\n\n🧠 Justificación: Local fuerte en casa, buena forma, visitante concede."
+            mensaje += f"\n\n🧠 {justificacion}"
             mensaje += f"\n✅ Valor detectado en la cuota"
             print(mensaje)
 
     except Exception as e:
         print(f"❌ Error en análisis del fixture: {e}")
+
