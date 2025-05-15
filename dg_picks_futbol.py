@@ -23,10 +23,9 @@ for archivo in archivos_json:
     except Exception as e:
         print(f"❌ Error cargando {clave}: {e}")
 
-# Extrae forma y promedio de goles, corners, tarjetas
+# Forma y goles
 def calcular_stats_equipo(juegos, equipo, condicion):
-    gf, gc, btts, over25, corners, corners_concedidos, tarjetas = [], [], 0, 0, [], [], []
-    resultados = []
+    gf, gc, btts, over25, resultados = [], [], 0, 0, []
     for partido in juegos[-20:]:
         try:
             h = partido['teams']['home']['name']
@@ -41,20 +40,12 @@ def calcular_stats_equipo(juegos, equipo, condicion):
                 if g_h > 0 and g_a > 0: btts += 1
                 if (g_h + g_a) >= 2.5: over25 += 1
                 resultados.append('G' if g_h > g_a else 'E' if g_h == g_a else 'P')
-                stats = partido.get('statistics', {})
-                corners.append(stats.get('home_corners', 0))
-                corners_concedidos.append(stats.get('away_corners', 0))
-                tarjetas.append(stats.get('home_cards', 0))
             elif condicion == 'visitante' and a == equipo:
                 gf.append(g_a)
                 gc.append(g_h)
                 if g_h > 0 and g_a > 0: btts += 1
                 if (g_h + g_a) >= 2.5: over25 += 1
                 resultados.append('G' if g_a > g_h else 'E' if g_a == g_h else 'P')
-                stats = partido.get('statistics', {})
-                corners.append(stats.get('away_corners', 0))
-                corners_concedidos.append(stats.get('home_corners', 0))
-                tarjetas.append(stats.get('away_cards', 0))
         except:
             continue
 
@@ -67,10 +58,7 @@ def calcular_stats_equipo(juegos, equipo, condicion):
         'gf': round(statistics.mean(gf), 2),
         'gc': round(statistics.mean(gc), 2),
         'btts_pct': round(btts / total * 100, 1),
-        'over25_pct': round(over25 / total * 100, 1),
-        'corners': round(statistics.mean(corners), 2) if corners else 0,
-        'concedidos': round(statistics.mean(corners_concedidos), 2) if corners_concedidos else 0,
-        'tarjetas': round(statistics.mean(tarjetas), 2) if tarjetas else 0
+        'over25_pct': round(over25 / total * 100, 1)
     }
 
 # Obtener partidos del día
@@ -96,7 +84,7 @@ for partido in fixtures:
         if not stats_home or not stats_away:
             continue
 
-        # Obtener cuota ML local desde API
+        # Cuota real
         odds_url = f"{API_URL}/odds?fixture={fixture_id}&bookmaker=1"
         odds_res = requests.get(odds_url, headers=HEADERS).json()
         cuota = None
@@ -108,7 +96,21 @@ for partido in fixtures:
                         for v in bet['values']:
                             if v['value'] == 'Home':
                                 cuota = v['odd']
-        
+
+        # Stats actuales (corners, tarjetas)
+        corners_local = corners_away = tarjetas_local = tarjetas_away = 0
+        stats_url = f"{API_URL}/fixtures/statistics?fixture={fixture_id}"
+        stats_res = requests.get(stats_url, headers=HEADERS).json()
+        for equipo in stats_res.get("response", []):
+            nombre = equipo['team']['name']
+            stats = {s['type']: s['value'] for s in equipo['statistics']}
+            if nombre == home:
+                corners_local = stats.get("Corner Kicks", 0)
+                tarjetas_local = stats.get("Yellow Cards", 0)
+            elif nombre == away:
+                corners_away = stats.get("Corner Kicks", 0)
+                tarjetas_away = stats.get("Yellow Cards", 0)
+
         # Pick sugerido
         pick = f"Gana {home}" if stats_home['gf'] >= 1.5 and stats_away['gc'] >= 1.5 else None
         if pick:
@@ -118,12 +120,11 @@ for partido in fixtures:
                 mensaje += f"\n💰 Cuota: @ {cuota}"
             mensaje += f"\n\n📊 Forma {home}: {stats_home['forma']} | Prom. {stats_home['gf']} GF / {stats_home['gc']} GC"
             mensaje += f"\n📊 Forma {away}: {stats_away['forma']} | Prom. {stats_away['gf']} GF / {stats_away['gc']} GC"
-            mensaje += f"\n\n📉 Córners: {stats_home['corners']} / {stats_away['corners']}"
-            mensaje += f"\n📉 Córners concedidos: {stats_home['concedidos']} / {stats_away['concedidos']}"
-            mensaje += f"\n🟨 Tarjetas: {stats_home['tarjetas']} / {stats_away['tarjetas']}"
+            mensaje += f"\n\n📉 Córners: {corners_local} / {corners_away}"
+            mensaje += f"\n🟨 Tarjetas: {tarjetas_local} / {tarjetas_away}"
             mensaje += f"\n\n🧠 Justificación: Local fuerte en casa, buena forma, visitante concede."
             mensaje += f"\n✅ Valor detectado en la cuota"
             print(mensaje)
+
     except Exception as e:
         print(f"❌ Error en análisis del fixture: {e}")
-
