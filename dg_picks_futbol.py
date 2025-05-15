@@ -135,66 +135,16 @@ for f in fixtures_raw:
     if status_fixture in ['NS', 'TBD'] and fecha_fixture == hoy:
         fixtures.append(f)
 
+if not fixtures:
+    print("📭 No hay partidos disponibles hoy con status 'NS' o 'TBD'.")
+
 for partido in fixtures:
     try:
-        lid = partido['league']['id']
         lname = partido['league']['name']
-        fixture_id = partido['fixture']['id']
-        home = partido['teams']['home']['name']
-        away = partido['teams']['away']['name']
-
         liga_clave = re.sub(r"[^a-z0-9_]", "_", lname.lower().replace(" ", "_"))
+        print(f"🔍 Liga detectada: {liga_clave}")
         if liga_clave not in historial:
+            print(f"⚠️ Liga {liga_clave} no está en el historial. Se omite.")
             continue
-
-        historial_liga = historial[liga_clave]
-        stats_home = calcular_stats_equipo(historial_liga, home, 'local')
-        stats_away = calcular_stats_equipo(historial_liga, away, 'visitante')
-        if not stats_home or not stats_away:
-            continue
-
-        # Cuota real
-        odds_url = f"{API_URL}/odds?fixture={fixture_id}&bookmaker=1"
-        odds_res = requests.get(odds_url, headers=HEADERS).json()
-        cuota = None
-        for bk in odds_res.get('response', []):
-            markets = bk.get('bookmakers', [])
-            for m in markets:
-                for bet in m.get('bets', []):
-                    if bet['name'] == 'Match Winner':
-                        for v in bet['values']:
-                            if v['value'] == 'Home':
-                                cuota = v['odd']
-
-        # Stats actuales (corners, tarjetas)
-        corners_local = corners_away = tarjetas_local = tarjetas_away = 0
-        stats_url = f"{API_URL}/fixtures/statistics?fixture={fixture_id}"
-        stats_res = requests.get(stats_url, headers=HEADERS).json()
-        for equipo in stats_res.get("response", []):
-            nombre = equipo['team']['name']
-            stats = {s['type']: s['value'] for s in equipo['statistics']}
-            if nombre == home:
-                corners_local = stats.get("Corner Kicks", 0)
-                tarjetas_local = stats.get("Yellow Cards", 0)
-            elif nombre == away:
-                corners_away = stats.get("Corner Kicks", 0)
-                tarjetas_away = stats.get("Yellow Cards", 0)
-
-        # Pick sugerido
-        pick = f"Gana {home}" if stats_home['gf'] >= 1.5 and stats_away['gc'] >= 1.5 else None
-        if pick:
-            justificacion = generar_justificacion(home, stats_home, stats_away)
-            mensaje = f"\n⚽ *{home} vs {away}* ({lname})\n"
-            mensaje += f"\n✅ *Pick sugerido:* {pick}"
-            if cuota:
-                mensaje += f"\n💰 Cuota: @ {cuota}"
-            mensaje += f"\n\n📊 Forma {home}: {stats_home['forma']} | Prom. {stats_home['gf']} GF / {stats_home['gc']} GC"
-            mensaje += f"\n📊 Forma {away}: {stats_away['forma']} | Prom. {stats_away['gf']} GF / {stats_away['gc']} GC"
-            mensaje += f"\n\n📉 Córners: {corners_local} / {corners_away}"
-            mensaje += f"\n🟨 Tarjetas: {tarjetas_local} / {tarjetas_away}"
-            mensaje += f"\n\n🧠 {justificacion}"
-            mensaje += f"\n✅ Valor detectado en la cuota"
-            print(mensaje)
-
-    except Exception as e:
         print(f"❌ Error en análisis del fixture: {e}")
+
