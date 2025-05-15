@@ -127,7 +127,13 @@ def generar_justificacion(home, stats_home, stats_away):
 # Obtener partidos del día
 hoy = datetime.datetime.now().strftime("%Y-%m-%d")
 res = requests.get(f"{API_URL}/fixtures?date={hoy}", headers=HEADERS)
-fixtures = res.json().get("response", [])
+fixtures_raw = res.json().get("response", [])
+fixtures = []
+for f in fixtures_raw:
+    fecha_fixture = f['fixture']['date'][:10]
+    status_fixture = f['fixture']['status']['short']
+    if status_fixture in ['NS', 'TBD'] and fecha_fixture == hoy:
+        fixtures.append(f)
 
 for partido in fixtures:
     try:
