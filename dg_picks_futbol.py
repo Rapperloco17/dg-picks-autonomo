@@ -22,6 +22,7 @@ for archivo in archivos_json:
         with open(archivo, 'r', encoding='utf-8') as f:
             historial[clave] = json.load(f)
     except Exception as e:
+        print(f"❌ Error procesando el fixture: {e}")
         print(f"❌ Error cargando {clave}: {e}")
 
 # Forma y goles
@@ -145,6 +146,7 @@ for partido in fixtures:
     if liga_clave not in historial:
         print(f"⚠️ Liga {liga_clave} no está en el historial. Se omite.")
         continue
+
     try:
         lname = partido['league']['name']
         liga_clave = re.sub(r"[^a-z0-9_]", "_", lname.lower().replace(" ", "_"))
@@ -153,4 +155,3 @@ for partido in fixtures:
             print(f"⚠️ Liga {liga_clave} no está en el historial. Se omite.")
             continue
         print(f"❌ Error en análisis del fixture: {e}")
-
