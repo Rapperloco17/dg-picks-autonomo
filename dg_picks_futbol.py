@@ -139,6 +139,12 @@ if not fixtures:
     print("📭 No hay partidos disponibles hoy con status 'NS' o 'TBD'.")
 
 for partido in fixtures:
+    lname = partido['league']['name']
+    liga_clave = re.sub(r"[^a-z0-9_]", "_", lname.lower().replace(" ", "_"))
+    print(f"🔍 Liga detectada: {liga_clave}")
+    if liga_clave not in historial:
+        print(f"⚠️ Liga {liga_clave} no está en el historial. Se omite.")
+        continue
     try:
         lname = partido['league']['name']
         liga_clave = re.sub(r"[^a-z0-9_]", "_", lname.lower().replace(" ", "_"))
