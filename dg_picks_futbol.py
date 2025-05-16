@@ -122,4 +122,3 @@ for fixture in fixtures:
     print(f"Over 2.5 %: {equipo_local} = {over_local}%, {equipo_visita} = {over_visita}%")
     print("✅ Análisis completo para este partido
 ")
-
