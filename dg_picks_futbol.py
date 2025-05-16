@@ -33,7 +33,8 @@ data = response.json()
 fixtures = [f for f in data.get("response", []) if f["fixture"]["status"]["short"] == "NS"]
 
 # --- Mostrar SOLO partidos en ligas activas con historial ---
-print("📆 Partidos válidos en ligas activas con historial:\n")
+print("📆 Partidos válidos en ligas activas con historial:
+")
 for f in fixtures:
     lid = f["league"]["id"]
     if lid in historico_por_liga:
@@ -43,6 +44,12 @@ for f in fixtures:
         print(f"{local} vs {visita} — {liga} (ID: {lid})")
 
 # --- Analizar partidos válidos con historial ---
+import unicodedata
+
+def normalizar(nombre):
+    nombre = nombre.lower().replace(".", "").replace("'", "").replace("-", "").replace("’", "")
+    nombre = unicodedata.normalize("NFKD", nombre).encode("ascii", "ignore").decode("utf-8")
+    return nombre.replace(" ", "")
 hay_partidos_validos = False
 
 for fixture in fixtures:
@@ -54,8 +61,10 @@ for fixture in fixtures:
     equipo_visita = fixture["teams"]["away"]["name"]
     partidos = historico_por_liga[league_id]["response"]
 
-    prev_local = [p for p in partidos if equipo_local in (p["teams"]["home"]["name"], p["teams"]["away"]["name"])]
-    prev_visita = [p for p in partidos if equipo_visita in (p["teams"]["home"]["name"], p["teams"]["away"]["name"])]
+    equipo_local_norm = normalizar(equipo_local)
+    prev_local = [p for p in partidos if equipo_local_norm in normalizar(p["teams"]["home"]["name"]) or equipo_local_norm in normalizar(p["teams"]["away"]["name"]) ]["home"]["name"], p["teams"]["away"]["name"])]
+    equipo_visita_norm = normalizar(equipo_visita)
+    prev_visita = [p for p in partidos if equipo_visita_norm in normalizar(p["teams"]["home"]["name"]) or equipo_visita_norm in normalizar(p["teams"]["away"]["name"]) ]["home"]["name"], p["teams"]["away"]["name"])]
 
     def calcular_promedios(partidos, equipo):
         gf, gc = [], []
