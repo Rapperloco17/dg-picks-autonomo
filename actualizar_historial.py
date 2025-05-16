@@ -53,7 +53,7 @@ for liga_id in ligas_validas:
         historial.sort(key=lambda x: x["fixture"]["date"])  # Ordenar por fecha
         with open(archivo, "w", encoding="utf-8") as f:
             json.dump(historial, f, ensure_ascii=False, indent=2)
-        print(f"✅ Historial actualizado para {liga_nombre} (ID: {liga_id})
+        print(f"✅ Historial actualizado para {liga_nombre} (ID: {liga_id})")
 ")
 ")
     else:
@@ -61,5 +61,3 @@ for liga_id in ligas_validas:
 ")
 
 print("🟢 Proceso de actualización completado.")
-
-
