@@ -32,14 +32,17 @@ response = requests.get(url, headers=headers)
 data = response.json()
 fixtures = [f for f in data.get("response", []) if f["fixture"]["status"]["short"] == "NS"]
 
-# --- Mostrar TODOS los partidos del día ---
-print(f"\n📆 Partidos del día ({fecha_hoy}): {len(fixtures)} encontrados\n")
+# --- Mostrar SOLO partidos en ligas activas con historial ---
+print(f"
+📆 Partidos válidos en ligas activas con historial:
+")
 for f in fixtures:
     lid = f["league"]["id"]
-    liga = f["league"]["name"]
-    local = f["teams"]["home"]["name"]
-    visita = f["teams"]["away"]["name"]
-    print(f"{local} vs {visita} — Liga: {liga} (ID: {lid})")
+    if lid in historico_por_liga:
+        local = f["teams"]["home"]["name"]
+        visita = f["teams"]["away"]["name"]
+        liga = f["league"]["name"]
+        print(f"{local} vs {visita} — {liga} (ID: {lid})")
 
 # --- Analizar partidos válidos con historial ---
 hay_partidos_validos = False
@@ -141,3 +144,4 @@ for fixture in fixtures:
 # --- Mensaje si no hubo partidos válidos ---
 if not hay_partidos_validos:
     print("⚠️ Hoy no hubo partidos válidos con historial para analizar.")
+
