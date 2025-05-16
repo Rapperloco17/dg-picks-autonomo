@@ -30,7 +30,7 @@ fecha_hoy = datetime.now().strftime("%Y-%m-%d")
 url = f"https://v3.football.api-sports.io/fixtures?date={fecha_hoy}"
 response = requests.get(url, headers=headers)
 data = response.json()
-fixtures = data.get("response", [])
+fixtures = [f for f in data.get("response", []) if f["fixture"]["status"]["short"] == "NS"]
 
 # --- Mostrar TODOS los partidos del día ---
 print(f"\n📆 Partidos del día ({fecha_hoy}): {len(fixtures)} encontrados\n")
