@@ -74,4 +74,52 @@ for fixture in fixtures:
     print(f"Promedio goles {equipo_local}: {gf_local} GF / {gc_local} GC")
     print(f"Promedio goles {equipo_visita}: {gf_visita} GF / {gc_visita} GC")
 
-# 🔄 Próximo paso: cálculo BTTS, Over 2.5, forma reciente y predicción de pick
+# 🔄 Análisis adicional: forma reciente, BTTS y Over 2.5
+    def calcular_forma(partidos, equipo):
+        ultimos = [p for p in partidos if (
+            p["teams"]["home"]["name"] == equipo or p["teams"]["away"]["name"] == equipo
+        ) and p["goals"]["home"] is not None and p["goals"]["away"] is not None][-5:]
+        puntos = 0
+        for p in ultimos:
+            local = p["teams"]["home"]["name"]
+            visita = p["teams"]["away"]["name"]
+            gl = p["goals"]["home"]
+            gv = p["goals"]["away"]
+            if equipo == local and gl > gv:
+                puntos += 3
+            elif equipo == visita and gv > gl:
+                puntos += 3
+            elif gl == gv:
+                puntos += 1
+        return puntos
+
+    def calcular_btts_over(partidos, equipo):
+        btts_count = 0
+        over_count = 0
+        jugados = 0
+        for p in partidos:
+            gl = p["goals"]["home"]
+            gv = p["goals"]["away"]
+            if gl is None or gv is None:
+                continue
+            jugados += 1
+            if gl > 0 and gv > 0:
+                btts_count += 1
+            if (gl + gv) >= 3:
+                over_count += 1
+        btts_pct = round((btts_count / jugados) * 100, 1) if jugados else 0
+        over_pct = round((over_count / jugados) * 100, 1) if jugados else 0
+        return btts_pct, over_pct
+
+    forma_local = calcular_forma(prev_local, equipo_local)
+    forma_visita = calcular_forma(prev_visita, equipo_visita)
+    btts_local, over_local = calcular_btts_over(prev_local, equipo_local)
+    btts_visita, over_visita = calcular_btts_over(prev_visita, equipo_visita)
+
+    print(f"Forma reciente {equipo_local}: {forma_local} pts (últimos 5)")
+    print(f"Forma reciente {equipo_visita}: {forma_visita} pts (últimos 5)")
+    print(f"BTTS %: {equipo_local} = {btts_local}%, {equipo_visita} = {btts_visita}%")
+    print(f"Over 2.5 %: {equipo_local} = {over_local}%, {equipo_visita} = {over_visita}%")
+    print("✅ Análisis completo para este partido
+")
+
