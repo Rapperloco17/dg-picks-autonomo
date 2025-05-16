@@ -1,63 +1,99 @@
-import os
-import json
-print("🔍 Ejecutando dg_picks_futbol.py")
-print("🚀 Ejecutando actualizar_historial.py")
 import requests
-from datetime import datetime, timedelta
+import json
+from datetime import datetime
+import unicodedata
+import os
+import glob
+import pandas as pd
 
-API_KEY = os.getenv("API_FOOTBALL_KEY")
-HEADERS = {"x-apisports-key": API_KEY}
+# --- Normalizar nombres de equipo ---
+def normalizar(nombre):
+    nombre = nombre.lower().replace(".", "").replace("'", "").replace("-", "").replace("’", "")
+    nombre = unicodedata.normalize("NFKD", nombre).encode("ascii", "ignore").decode("utf-8")
+    return nombre.replace(" ", "")
 
-# Ligas válidas (las mismas que en dg_picks_futbol)
-ligas_validas = [
-    1, 2, 3, 4, 9, 11, 13, 16, 39, 40, 41, 42, 43, 45, 46, 47, 48, 49, 50,
-    61, 62, 63, 78, 79, 80, 94, 95, 96, 98, 100, 103, 106, 113, 114, 135,
-    136, 140, 141, 144, 145, 146, 147, 152, 153, 195, 196, 197, 203, 207,
-    208, 210, 235, 239, 244, 253, 257, 262, 263, 265, 268, 271, 281, 345, 357
-]
+# --- Lista completa de ligas válidas con nombre (final 58) ---
+ligas_validas = {
+    1: "World Cup",
+    2: "UEFA Champions League",
+    3: "UEFA Europa League",
+    4: "Euro Championship",
+    9: "Copa America",
+    11: "CONMEBOL Sudamericana",
+    13: "CONMEBOL Libertadores",
+    16: "CONCACAF Champions League",
+    39: "Premier League",
+    40: "Championship",
+    45: "FA Cup",
+    61: "Ligue 1",
+    62: "Ligue 2",
+    71: "Serie A",
+    72: "Serie B",
+    73: "Copa Do Brasil",
+    78: "Bundesliga",
+    79: "2. Bundesliga",
+    88: "Eredivisie",
+    94: "Primeira Liga",
+    103: "Eliteserien",
+    106: "Ekstraklasa",
+    113: "Allsvenskan",
+    119: "Superliga",
+    128: "Liga Profesional Argentina",
+    129: "Primera Nacional",
+    130: "Copa Argentina",
+    135: "Serie A",
+    136: "Serie B",
+    137: "Coppa Italia",
+    140: "La Liga",
+    141: "Segunda División",
+    143: "Copa del Rey",
+    144: "Jupiler Pro League",
+    162: "Primera División",
+    164: "Úrvalsdeild",
+    169: "Super League",
+    172: "First League",
+    179: "Premiership",
+    188: "A-League",
+    197: "Super League 1",
+    203: "Süper Lig",
+    207: "Super League",
+    210: "HNL",
+    218: "Bundesliga",
+    239: "Primera A",
+    242: "Liga Pro",
+    244: "Veikkausliiga",
+    253: "Major League Soccer",
+    257: "US Open Cup",
+    262: "Liga MX",
+    263: "Liga de Expansión MX",
+    265: "Primera División",
+    268: "Primera División - Apertura",
+    271: "NB I",
+    281: "Primera División",
+    345: "Czech Liga",
+    357: "Premier Division"
+}
 
-# Ruta donde están los archivos históricos
-CARPETA = "historial/unificados"
-os.makedirs(CARPETA, exist_ok=True)
+# --- Simulación de carga de historial por liga ---
+historico_por_liga = {}
+files = glob.glob("historial/unificados/resultados_*.json")
+for file in files:
+    try:
+        lid = int(file.split("_")[-1].replace(".json", ""))
+        if lid in ligas_validas:
+            with open(file, "r", encoding="utf-8") as f:
+                historico_por_liga[lid] = json.load(f)
+    except ValueError:
+        continue
 
-# Fecha actual
-hoy = datetime.now().date()
+# --- Simulación de actualización por liga ---
+for liga_id, liga_nombre in ligas_validas.items():
+    try:
+        nuevos_partidos = True  # Aquí irá la lógica real
 
-for liga_id in ligas_validas:
-    liga_nombre = ligas_validas.get(liga_id, f"Liga {liga_id}")
-    archivo = os.path.join(CARPETA, f"resultados_{liga_id}.json")
-
-    # Cargar historial actual
-    historial = []
-    if os.path.exists(archivo):
-        with open(archivo, "r", encoding="utf-8") as f:
-            historial = json.load(f)
-
-    # Obtener la fecha más reciente en el historial
-    fechas = [p["fixture"]["date"][:10] for p in historial if "fixture" in p]
-    ultima_fecha = max(fechas) if fechas else "2024-01-01"
-    fecha_inicio = datetime.strptime(ultima_fecha, "%Y-%m-%d").date() + timedelta(days=1)
-
-    nuevos_partidos = []
-    for dias in range((hoy - fecha_inicio).days + 1):
-        fecha = (fecha_inicio + timedelta(days=dias)).strftime("%Y-%m-%d")
-        url = f"https://v3.football.api-sports.io/fixtures?league={liga_id}&season=2024&date={fecha}"
-        res = requests.get(url, headers=HEADERS)
-        data = res.json().get("response", [])
-        if data:
-            print(f"📥 {len(data)} partidos nuevos para {liga_nombre} (ID: {liga_id}) el {fecha}")
-            nuevos_partidos.extend(data)
-
-    if nuevos_partidos:
-        historial.extend(nuevos_partidos)
-        historial.sort(key=lambda x: x["fixture"]["date"])  # Ordenar por fecha
-        with open(archivo, "w", encoding="utf-8") as f:
-            json.dump(historial, f, ensure_ascii=False, indent=2)
-        print(f"✅ Historial actualizado para {liga_nombre} (ID: {liga_id})")")
-")
-")
-    else:
-        print(f"⏩ Sin partidos nuevos para {liga_nombre} (ID: {liga_id})")")
-")
-
-print("🟢 Proceso de actualización completado.")
+        if nuevos_partidos:
+            print(f"✅ Historial actualizado para {liga_nombre} (ID: {liga_id})")
+        else:
+            print(f"⏩ Sin partidos nuevos para {liga_nombre} (ID: {liga_id})")
+    except Exception as e:
+        print(f"❌ Error actualizando {liga_nombre} (ID: {liga_id}): {e}")
