@@ -33,9 +33,7 @@ data = response.json()
 fixtures = [f for f in data.get("response", []) if f["fixture"]["status"]["short"] == "NS"]
 
 # --- Mostrar SOLO partidos en ligas activas con historial ---
-print(f"
-📆 Partidos válidos en ligas activas con historial:
-")
+print("📆 Partidos válidos en ligas activas con historial:\n")
 for f in fixtures:
     lid = f["league"]["id"]
     if lid in historico_por_liga:
