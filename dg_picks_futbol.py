@@ -144,4 +144,3 @@ for fixture in fixtures:
 # --- Mensaje si no hubo partidos válidos ---
 if not hay_partidos_validos:
     print("⚠️ Hoy no hubo partidos válidos con historial para analizar.")
-
