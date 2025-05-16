@@ -1,4 +1,4 @@
-# dg_picks_futbol.py — Versión completa con revisión de fixtures y picks sugeridos
+# dg_picks_futbol.py — Versión completa con aviso si no hay partidos válidos
 import os
 import json
 from datetime import datetime
@@ -42,6 +42,8 @@ for f in fixtures:
     print(f"{local} vs {visita} — Liga: {liga} (ID: {lid})")
 
 # --- Analizar partidos válidos con historial ---
+hay_partidos_validos = False
+
 for fixture in fixtures:
     league_id = fixture["league"]["id"]
     if league_id not in historico_por_liga:
@@ -134,3 +136,8 @@ for fixture in fixtures:
         print("❌ Sin pick claro basado en datos")
 
     print("✅ Análisis completo para este partido\n")
+    hay_partidos_validos = True
+
+# --- Mensaje si no hubo partidos válidos ---
+if not hay_partidos_validos:
+    print("⚠️ Hoy no hubo partidos válidos con historial para analizar.")
