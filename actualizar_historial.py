@@ -55,6 +55,7 @@ for liga_id in ligas_validas:
             json.dump(historial, f, ensure_ascii=False, indent=2)
         print(f"✅ Historial actualizado para {liga_nombre} (ID: {liga_id})
 ")
+")
     else:
         print(f"⏩ Sin partidos nuevos para {liga_nombre} (ID: {liga_id})
 ")
