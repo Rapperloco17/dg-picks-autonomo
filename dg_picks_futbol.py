@@ -1,40 +1,38 @@
-# dg_picks_futbol.py — Versión completa con aviso si no hay partidos válidos
-import os
+import requests
 import json
 from datetime import datetime
-import requests
+import unicodedata
 
-# --- Lista definitiva de League IDs válidos ---
-ligas_activas_ids = [
-    1, 2, 3, 4, 9, 11, 13, 16, 39, 40, 61, 62, 71, 72, 73, 45, 78, 79, 88,
-    94, 103, 106, 113, 119, 128, 129, 130, 135, 136, 137, 140, 141, 143,
-    144, 162, 164, 169, 172, 179, 188, 197, 203, 207, 210, 218, 239, 242,
-    244, 253, 257, 262, 263, 265, 268, 271, 281, 345, 357
-]
+# --- Normalizar nombres de equipo ---
+def normalizar(nombre):
+    nombre = nombre.lower().replace(".", "").replace("'", "").replace("-", "").replace("’", "")
+    nombre = unicodedata.normalize("NFKD", nombre).encode("ascii", "ignore").decode("utf-8")
+    return nombre.replace(" ", "")
 
-# --- Cargar historiales locales ---
-historial_folder = "historial/unificados"
+# --- Cargar historial por liga ---
 historico_por_liga = {}
+import os
+import glob
+files = glob.glob("historial/unificados/resultados_*.json")
+for file in files:
+    lid = int(file.split("_")[-1].replace(".json", ""))
+    with open(file, "r", encoding="utf-8") as f:
+        historico_por_liga[lid] = json.load(f)
 
-for league_id in ligas_activas_ids:
-    archivo = f"resultados_{league_id}.json"
-    ruta_json = os.path.join(historial_folder, archivo)
-    if os.path.exists(ruta_json):
-        with open(ruta_json, "r", encoding="utf-8") as f:
-            historico_por_liga[league_id] = json.load(f)
-
-# --- Obtener partidos del día desde API-Football ---
-API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
-headers = {"x-apisports-key": API_KEY}
+# --- Fecha actual ---
 fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+
+# --- Obtener partidos del día desde API ---
 url = f"https://v3.football.api-sports.io/fixtures?date={fecha_hoy}"
+headers = {
+    "x-apisports-key": "TU_API_KEY_AQUI"
+}
 response = requests.get(url, headers=headers)
 data = response.json()
 fixtures = [f for f in data.get("response", []) if f["fixture"]["status"]["short"] == "NS"]
 
-# --- Mostrar SOLO partidos en ligas activas con historial ---
 print("📆 Partidos válidos en ligas activas con historial:\n")
-")
+partidos_validos = []
 for f in fixtures:
     lid = f["league"]["id"]
     if lid in historico_por_liga:
@@ -42,112 +40,97 @@ for f in fixtures:
         visita = f["teams"]["away"]["name"]
         liga = f["league"]["name"]
         print(f"{local} vs {visita} — {liga} (ID: {lid})")
+        partidos_validos.append((f, lid))
 
-# --- Analizar partidos válidos con historial ---
-import unicodedata
+if not partidos_validos:
+    print("⚠️ Hoy no hubo partidos válidos con historial para analizar.")
+    exit()
 
-def normalizar(nombre):
-    nombre = nombre.lower().replace(".", "").replace("'", "").replace("-", "").replace("’", "")
-    nombre = unicodedata.normalize("NFKD", nombre).encode("ascii", "ignore").decode("utf-8")
-    return nombre.replace(" ", "")
-hay_partidos_validos = False
+# --- Funciones para cálculo ---
+def calcular_promedios(partidos, equipo):
+    gf = gc = 0
+    for p in partidos:
+        if equipo in p["teams"]["home"]["name"]:
+            gf += p["goals"]["home"]
+            gc += p["goals"]["away"]
+        else:
+            gf += p["goals"]["away"]
+            gc += p["goals"]["home"]
+    pj = len(partidos)
+    return round(gf / pj, 2), round(gc / pj, 2)
 
-for fixture in fixtures:
-    league_id = fixture["league"]["id"]
-    if league_id not in historico_por_liga:
-        continue
+def calcular_forma(partidos, equipo):
+    puntos = 0
+    for p in partidos[-5:]:
+        home = p["teams"]["home"]["name"]
+        away = p["teams"]["away"]["name"]
+        gh = p["goals"]["home"]
+        ga = p["goals"]["away"]
+        if equipo in home:
+            if gh > ga:
+                puntos += 3
+            elif gh == ga:
+                puntos += 1
+        elif equipo in away:
+            if ga > gh:
+                puntos += 3
+            elif gh == ga:
+                puntos += 1
+    return puntos
 
+def calcular_bttover(partidos, equipo):
+    btts = over = 0
+    for p in partidos:
+        g1 = p["goals"]["home"]
+        g2 = p["goals"]["away"]
+        if g1 >= 0 and g2 >= 0:
+            if g1 >= 2 or g2 >= 2:
+                over += 1
+            if g1 > 0 and g2 > 0:
+                btts += 1
+    total = len(partidos)
+    return round((btts / total) * 100, 1), round((over / total) * 100, 1)
+
+# --- Análisis ---
+for fixture, lid in partidos_validos:
     equipo_local = fixture["teams"]["home"]["name"]
     equipo_visita = fixture["teams"]["away"]["name"]
-    partidos = historico_por_liga[league_id]["response"]
+    partidos = historico_por_liga[lid]
 
     equipo_local_norm = normalizar(equipo_local)
-    prev_local = [p for p in partidos if equipo_local_norm in normalizar(p["teams"]["home"]["name"]) or equipo_local_norm in normalizar(p["teams"]["away"]["name"]) ]["home"]["name"], p["teams"]["away"]["name"])]
     equipo_visita_norm = normalizar(equipo_visita)
-    prev_visita = [p for p in partidos if equipo_visita_norm in normalizar(p["teams"]["home"]["name"]) or equipo_visita_norm in normalizar(p["teams"]["away"]["name"]) ]["home"]["name"], p["teams"]["away"]["name"])]
 
-    def calcular_promedios(partidos, equipo):
-        gf, gc = [], []
-        for p in partidos:
-            h, a = p["teams"]["home"]["name"], p["teams"]["away"]["name"]
-            gh, ga = p["goals"]["home"], p["goals"]["away"]
-            if h == equipo:
-                gf.append(gh)
-                gc.append(ga)
-            elif a == equipo:
-                gf.append(ga)
-                gc.append(gh)
-        return round(sum(gf)/len(gf), 2), round(sum(gc)/len(gc), 2)
+    prev_local = [p for p in partidos if equipo_local_norm in normalizar(p["teams"]["home"]["name"]) or equipo_local_norm in normalizar(p["teams"]["away"]["name"]) ]
+    prev_visita = [p for p in partidos if equipo_visita_norm in normalizar(p["teams"]["home"]["name"]) or equipo_visita_norm in normalizar(p["teams"]["away"]["name"]) ]
 
-    def calcular_forma(partidos, equipo):
-        ultimos = [p for p in partidos if (
-            p["teams"]["home"]["name"] == equipo or p["teams"]["away"]["name"] == equipo
-        ) and p["goals"]["home"] is not None and p["goals"]["away"] is not None][-5:]
-        puntos = 0
-        for p in ultimos:
-            h = p["teams"]["home"]["name"]
-            a = p["teams"]["away"]["name"]
-            gh = p["goals"]["home"]
-            ga = p["goals"]["away"]
-            if equipo == h and gh > ga:
-                puntos += 3
-            elif equipo == a and ga > gh:
-                puntos += 3
-            elif ga == gh:
-                puntos += 1
-        return puntos
+    if not prev_local or not prev_visita:
+        print(f"⚠️ Sin historial suficiente para: {equipo_local} o {equipo_visita}\n")
+        continue
 
-    def calcular_btts_over(partidos, equipo):
-        btts_count = 0
-        over_count = 0
-        jugados = 0
-        for p in partidos:
-            gh = p["goals"]["home"]
-            ga = p["goals"]["away"]
-            if gh is None or ga is None:
-                continue
-            jugados += 1
-            if gh > 0 and ga > 0:
-                btts_count += 1
-            if (gh + ga) >= 3:
-                over_count += 1
-        btts_pct = round((btts_count / jugados) * 100, 1) if jugados else 0
-        over_pct = round((over_count / jugados) * 100, 1) if jugados else 0
-        return btts_pct, over_pct
-
-    gf_local, gc_local = calcular_promedios(prev_local, equipo_local)
-    gf_visita, gc_visita = calcular_promedios(prev_visita, equipo_visita)
-    forma_local = calcular_forma(prev_local, equipo_local)
-    forma_visita = calcular_forma(prev_visita, equipo_visita)
-    btts_local, over_local = calcular_btts_over(prev_local, equipo_local)
-    btts_visita, over_visita = calcular_btts_over(prev_visita, equipo_visita)
+    gf_l, gc_l = calcular_promedios(prev_local, equipo_local)
+    gf_v, gc_v = calcular_promedios(prev_visita, equipo_visita)
+    forma_l = calcular_forma(prev_local, equipo_local)
+    forma_v = calcular_forma(prev_visita, equipo_visita)
+    btts_l, over_l = calcular_bttover(prev_local, equipo_local)
+    btts_v, over_v = calcular_bttover(prev_visita, equipo_visita)
 
     print(f"\n📊 {equipo_local} vs {equipo_visita}")
-    print(f"Promedio goles {equipo_local}: {gf_local} GF / {gc_local} GC")
-    print(f"Promedio goles {equipo_visita}: {gf_visita} GF / {gc_visita} GC")
-    print(f"Forma reciente {equipo_local}: {forma_local} pts (últimos 5)")
-    print(f"Forma reciente {equipo_visita}: {forma_visita} pts (últimos 5)")
-    print(f"BTTS %: {equipo_local} = {btts_local}%, {equipo_visita} = {btts_visita}%")
-    print(f"Over 2.5 %: {equipo_local} = {over_local}%, {equipo_visita} = {over_visita}%")
+    print(f"Promedio goles {equipo_local}: {gf_l} GF / {gc_l} GC")
+    print(f"Promedio goles {equipo_visita}: {gf_v} GF / {gc_v} GC")
+    print(f"Forma reciente {equipo_local}: {forma_l} pts (últimos 5)")
+    print(f"Forma reciente {equipo_visita}: {forma_v} pts (últimos 5)")
+    print(f"BTTS %: {equipo_local} = {btts_l}%, {equipo_visita} = {btts_v}%")
+    print(f"Over 2.5 %: {equipo_local} = {over_l}%, {equipo_visita} = {over_v}%")
 
-    sugerencia = None
-    if btts_local > 60 and btts_visita > 60:
+    sugerencia = "Sin pick claro basado en datos"
+    if btts_l > 60 and btts_v > 60:
         sugerencia = "Ambos anotan (BTTS)"
-    elif over_local > 60 and over_visita > 60:
+    elif over_l > 60 and over_v > 60:
         sugerencia = "Over 2.5 goles"
-    elif gf_local > 1.5 and gc_visita > 1.2:
+    elif gf_l > 1.5 and gc_v > 1.2:
         sugerencia = f"Gana {equipo_local}"
-    elif gf_visita > 1.5 and gc_local > 1.2:
+    elif gf_v > 1.5 and gc_l > 1.2:
         sugerencia = f"Gana {equipo_visita}"
 
-    if sugerencia:
-        print(f"🎯 Pick sugerido: {sugerencia}")
-    else:
-        print("❌ Sin pick claro basado en datos")
-
+    print(f"🎯 Pick sugerido: {sugerencia}")
     print("✅ Análisis completo para este partido\n")
-    hay_partidos_validos = True
-
-# --- Mensaje si no hubo partidos válidos ---
-if not hay_partidos_validos:
-    print("⚠️ Hoy no hubo partidos válidos con historial para analizar.")
