@@ -57,7 +57,7 @@ for liga_id in ligas_validas:
 ")
 ")
     else:
-        print(f"⏩ Sin partidos nuevos para {liga_nombre} (ID: {liga_id})
+        print(f"⏩ Sin partidos nuevos para {liga_nombre} (ID: {liga_id})")
 ")
 
 print("🟢 Proceso de actualización completado.")
