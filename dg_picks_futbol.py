@@ -67,14 +67,6 @@ for fixture in fixtures:
         prom_contra = round(sum(goles_en_contra)/len(goles_en_contra), 2) if goles_en_contra else 0
         return prom_favor, prom_contra
 
-    gf_local, gc_local = calcular_promedios(prev_local, equipo_local)
-    gf_visita, gc_visita = calcular_promedios(prev_visita, equipo_visita)
-
-    print(f"\n📊 {equipo_local} vs {equipo_visita}")
-    print(f"Promedio goles {equipo_local}: {gf_local} GF / {gc_local} GC")
-    print(f"Promedio goles {equipo_visita}: {gf_visita} GF / {gc_visita} GC")
-
-# 🔄 Análisis adicional: forma reciente, BTTS y Over 2.5
     def calcular_forma(partidos, equipo):
         ultimos = [p for p in partidos if (
             p["teams"]["home"]["name"] == equipo or p["teams"]["away"]["name"] == equipo
@@ -111,14 +103,18 @@ for fixture in fixtures:
         over_pct = round((over_count / jugados) * 100, 1) if jugados else 0
         return btts_pct, over_pct
 
+    gf_local, gc_local = calcular_promedios(prev_local, equipo_local)
+    gf_visita, gc_visita = calcular_promedios(prev_visita, equipo_visita)
     forma_local = calcular_forma(prev_local, equipo_local)
     forma_visita = calcular_forma(prev_visita, equipo_visita)
     btts_local, over_local = calcular_btts_over(prev_local, equipo_local)
     btts_visita, over_visita = calcular_btts_over(prev_visita, equipo_visita)
 
+    print(f"\n📊 {equipo_local} vs {equipo_visita}")
+    print(f"Promedio goles {equipo_local}: {gf_local} GF / {gc_local} GC")
+    print(f"Promedio goles {equipo_visita}: {gf_visita} GF / {gc_visita} GC")
     print(f"Forma reciente {equipo_local}: {forma_local} pts (últimos 5)")
     print(f"Forma reciente {equipo_visita}: {forma_visita} pts (últimos 5)")
     print(f"BTTS %: {equipo_local} = {btts_local}%, {equipo_visita} = {btts_visita}%")
     print(f"Over 2.5 %: {equipo_local} = {over_local}%, {equipo_visita} = {over_visita}%")
-    print("✅ Análisis completo para este partido
-")
+    print("✅ Análisis completo para este partido\n")
