@@ -1,5 +1,7 @@
 import os
 import json
+print("🔍 Ejecutando dg_picks_futbol.py")
+print("🚀 Ejecutando actualizar_historial.py")
 import requests
 from datetime import datetime, timedelta
 
