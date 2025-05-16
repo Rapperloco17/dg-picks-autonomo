@@ -117,4 +117,20 @@ for fixture in fixtures:
     print(f"Forma reciente {equipo_visita}: {forma_visita} pts (últimos 5)")
     print(f"BTTS %: {equipo_local} = {btts_local}%, {equipo_visita} = {btts_visita}%")
     print(f"Over 2.5 %: {equipo_local} = {over_local}%, {equipo_visita} = {over_visita}%")
+    # 🔮 Generación de pick sugerido
+    sugerencia = None
+    if btts_local > 60 and btts_visita > 60:
+        sugerencia = "Ambos anotan (BTTS)"
+    elif over_local > 60 and over_visita > 60:
+        sugerencia = "Over 2.5 goles"
+    elif gf_local > 1.5 and gc_visita > 1.2:
+        sugerencia = f"Gana {equipo_local}"
+    elif gf_visita > 1.5 and gc_local > 1.2:
+        sugerencia = f"Gana {equipo_visita}"
+
+    if sugerencia:
+        print(f"🎯 Pick sugerido: {sugerencia}")
+    else:
+        print("🎯 Sin pick claro basado en datos")
+
     print("✅ Análisis completo para este partido\n")
