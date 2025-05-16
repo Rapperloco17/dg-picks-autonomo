@@ -2,6 +2,9 @@ import requests
 import json
 from datetime import datetime
 import unicodedata
+import os
+import glob
+import pandas as pd
 
 # --- Normalizar nombres de equipo ---
 def normalizar(nombre):
@@ -9,15 +12,85 @@ def normalizar(nombre):
     nombre = unicodedata.normalize("NFKD", nombre).encode("ascii", "ignore").decode("utf-8")
     return nombre.replace(" ", "")
 
+# --- Lista oficial de ligas válidas con nombre ---
+ligas_validas = {
+    1: "World Cup",
+    2: "UEFA Champions League",
+    3: "UEFA Europa League",
+    4: "Euro Championship",
+    9: "Copa America",
+    11: "CONMEBOL Sudamericana",
+    13: "CONMEBOL Libertadores",
+    16: "CONCACAF Champions League",
+    39: "Premier League",
+    40: "Championship",
+    41: "FA Cup",
+    42: "League One",
+    43: "League Two",
+    45: "EFL Trophy",
+    46: "National League",
+    47: "Premier League Cup",
+    48: "FA Trophy",
+    49: "Professional Development League",
+    50: "Premier League 2 Division One",
+    61: "Ligue 1",
+    62: "Ligue 2",
+    63: "National",
+    78: "Bundesliga",
+    79: "2. Bundesliga",
+    80: "3. Liga",
+    94: "Major League Soccer",
+    95: "USL Championship",
+    96: "US Open Cup",
+    98: "Premier League International Cup",
+    100: "MLS Next Pro",
+    103: "NISA",
+    106: "USL League Two",
+    113: "First Division A",
+    114: "First Division B",
+    135: "Serie A",
+    136: "Serie B",
+    140: "La Liga",
+    141: "Segunda División",
+    144: "Pro League",
+    145: "Challenger Pro League",
+    146: "Super Lig",
+    147: "1. Lig",
+    152: "Eredivisie",
+    153: "Eerste Divisie",
+    195: "Primeira Liga",
+    196: "Liga 3",
+    197: "Liga Portugal 2",
+    203: "Superliga",
+    207: "J1 League",
+    208: "J2 League",
+    210: "Egyptian Premier League",
+    235: "Brasileirão",
+    239: "Venezuelan Primera Division",
+    244: "Campeonato Brasileiro Série B",
+    253: "Major League Soccer",
+    257: "US Open Cup",
+    262: "Liga MX",
+    263: "Liga de Expansión MX",
+    265: "Primera División",
+    268: "Primera División - Apertura",
+    271: "NB I",
+    281: "Primera División",
+    345: "Czech Liga",
+    357: "Premier Division"
+}
+
 # --- Cargar historial por liga ---
 historico_por_liga = {}
-import os
-import glob
 files = glob.glob("historial/unificados/resultados_*.json")
 for file in files:
-    lid = int(file.split("_")[-1].replace(".json", ""))
-    with open(file, "r", encoding="utf-8") as f:
-        historico_por_liga[lid] = json.load(f)
+    try:
+        lid = int(file.split("_")[-1].replace(".json", ""))
+        if lid in ligas_validas:
+            with open(file, "r", encoding="utf-8") as f:
+                historico_por_liga[lid] = json.load(f)
+    except ValueError:
+        continue
 
 # --- Fecha actual ---
 fecha_hoy = datetime.now().strftime("%Y-%m-%d")
@@ -31,14 +104,14 @@ response = requests.get(url, headers=headers)
 data = response.json()
 fixtures = [f for f in data.get("response", []) if f["fixture"]["status"]["short"] == "NS"]
 
-print("📆 Partidos válidos en ligas activas con historial:\n")
+print("🗖️ Partidos válidos en ligas activas con historial:\n")
 partidos_validos = []
 for f in fixtures:
     lid = f["league"]["id"]
     if lid in historico_por_liga:
         local = f["teams"]["home"]["name"]
         visita = f["teams"]["away"]["name"]
-        liga = f["league"]["name"]
+        liga = ligas_validas.get(lid, "Liga Desconocida")
         print(f"{local} vs {visita} — {liga} (ID: {lid})")
         partidos_validos.append((f, lid))
 
@@ -117,8 +190,8 @@ for fixture, lid in partidos_validos:
     print(f"\n📊 {equipo_local} vs {equipo_visita}")
     print(f"Promedio goles {equipo_local}: {gf_l} GF / {gc_l} GC")
     print(f"Promedio goles {equipo_visita}: {gf_v} GF / {gc_v} GC")
-    print(f"Forma reciente {equipo_local}: {forma_l} pts (últimos 5)")
-    print(f"Forma reciente {equipo_visita}: {forma_v} pts (últimos 5)")
+    print(f"Forma reciente {equipo_local}: {forma_l} pts (\u00faltimos 5)")
+    print(f"Forma reciente {equipo_visita}: {forma_v} pts (\u00faltimos 5)")
     print(f"BTTS %: {equipo_local} = {btts_l}%, {equipo_visita} = {btts_v}%")
     print(f"Over 2.5 %: {equipo_local} = {over_l}%, {equipo_visita} = {over_v}%")
 
