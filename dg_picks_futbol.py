@@ -167,8 +167,8 @@ for fixture, lid in partidos_validos:
     equipo_local_norm = normalizar(equipo_local)
     equipo_visita_norm = normalizar(equipo_visita)
 
-    prev_local = [p for p in partidos if equipo_local_norm in normalizar(p["teams"]["home"]["name"]) or equipo_local_norm in normalizar(p["teams"]["away"]["name"])]
-    prev_visita = [p for p in partidos if equipo_visita_norm in normalizar(p["teams"]["home"]["name"]) or equipo_visita_norm in normalizar(p["teams"]["away"]["name"])]
+    prev_local = [p for p in partidos if equipo_local_norm == normalizar(p["teams"]["home"]["name"]) or equipo_local_norm == normalizar(p["teams"]["away"]["name"])]
+    prev_visita = [p for p in partidos if equipo_visita_norm == normalizar(p["teams"]["home"]["name"]) or equipo_visita_norm == normalizar(p["teams"]["away"]["name"])]
 
     if not prev_local or not prev_visita:
         print(f"⚠️ Sin historial suficiente para: {equipo_local} o {equipo_visita}\n")
@@ -198,6 +198,9 @@ for fixture, lid in partidos_validos:
         sugerencia = f"Gana {equipo_local}"
     elif gf_v > 1.5 and gc_l > 1.2:
         sugerencia = f"Gana {equipo_visita}"
+
+    print(f"🎯 Pick sugerido: {sugerencia}")
+    print("✅ Análisis completo para este partido\n")
 
     print(f"🎯 Pick sugerido: {sugerencia}")
     print("✅ Análisis completo para este partido\n")
