@@ -1,48 +1,94 @@
-
-import json
 import os
 import requests
+import json
 from datetime import datetime
 
-# Diccionario actualizado de ID de liga a nombre de archivo
+# Cargar API Key desde entorno Railway
+API_KEY = os.getenv("API_FOOTBALL_KEY")
+
+# Diccionario de ligas con ID y nombre de archivo json
 LEAGUE_ID_TO_FILENAME = {
-    1: "world_cup", 2: "uefa_champions_league", 3: "uefa_europa_league", 4: "euro_championship", 9: "copa_america",
-    11: "conmebol_sudamericana", 13: "conmebol_libertadores", 16: "concacaf_champions_league",
-    39: "premier_league", 40: "championship", 61: "ligue_1", 62: "ligue_2",
-    71: "serie_a_brasil", 72: "serie_b_brasil", 73: "copa_do_brasil",
-    45: "fa_cup", 78: "bundesliga", 79: "2_bundesliga", 88: "eredivisie",
-    94: "primeira_liga", 103: "eliteserien", 106: "ekstraklasa", 113: "allsvenskan", 119: "superliga_dinamarca",
-    128: "liga_profesional_argentina", 129: "primera_nacional", 130: "copa_argentina",
-    135: "serie_a_italia", 136: "serie_b_italia", 137: "coppa_italia",
-    140: "la_liga", 141: "segunda_division", 143: "copa_del_rey",
-    144: "jupiler_pro_league", 162: "primera_division_cr", 164: "urvalsdeild", 169: "super_league_china",
-    172: "first_league_bulgaria", 179: "premiership_scotland", 188: "a_league",
-    197: "super_league_1_greece", 203: "super_lig", 207: "super_league_suiza", 210: "hnl_croacia",
-    218: "bundesliga_austria", 239: "primera_a_colombia", 242: "liga_pro_ecuador",
-    244: "veikkausliiga", 253: "mls", 257: "us_open_cup",
-    262: "liga_mx", 263: "liga_expansion_mx", 265: "primera_division_chile", 268: "primera_division_apertura_uru",
-    271: "nb_i", 281: "primera_division_peru", 345: "czech_liga", 357: "premier_division_irlanda"
+    1: "resultados_world_cup.json",
+    2: "resultados_uefa_champions_league.json",
+    3: "resultados_uefa_europa_league.json",
+    4: "resultados_euro_championship.json",
+    9: "resultados_copa_america.json",
+    11: "resultados_conmebol_sudamericana.json",
+    13: "resultados_conmebol_libertadores.json",
+    16: "resultados_concacaf_champions_league.json",
+    39: "resultados_premier_league.json",
+    40: "resultados_championship.json",
+    61: "resultados_ligue_1.json",
+    62: "resultados_ligue_2.json",
+    71: "resultados_serie_a.json",
+    72: "resultados_serie_b.json",
+    73: "resultados_copa_do_brasil.json",
+    45: "resultados_fa_cup.json",
+    78: "resultados_bundesliga.json",
+    79: "resultados_2_bundesliga.json",
+    88: "resultados_eredivisie.json",
+    94: "resultados_primeira_liga.json",
+    103: "resultados_eliteserien.json",
+    106: "resultados_ekstraklasa.json",
+    113: "resultados_allsvenskan.json",
+    119: "resultados_superliga.json",
+    128: "resultados_liga_profesional_argentina.json",
+    129: "resultados_primera_nacional.json",
+    130: "resultados_copa_argentina.json",
+    135: "resultados_serie_a_italy.json",
+    136: "resultados_serie_b_italy.json",
+    137: "resultados_coppa_italia.json",
+    140: "resultados_la_liga.json",
+    141: "resultados_segunda_división.json",
+    143: "resultados_copa_del_rey.json",
+    144: "resultados_jupiler_pro_league.json",
+    162: "resultados_primera_división_costa_rica.json",
+    164: "resultados_urvalsdeild.json",
+    169: "resultados_super_league_china.json",
+    172: "resultados_first_league.json",
+    179: "resultados_premiership.json",
+    188: "resultados_a_league.json",
+    197: "resultados_super_league_1.json",
+    203: "resultados_super_lig.json",
+    207: "resultados_super_league_switzerland.json",
+    210: "resultados_hnl.json",
+    218: "resultados_bundesliga_austria.json",
+    239: "resultados_primera_a.json",
+    242: "resultados_liga_pro.json",
+    244: "resultados_veikkausliiga.json",
+    253: "resultados_major_league_soccer.json",
+    257: "resultados_us_open_cup.json",
+    262: "resultados_liga_mx.json",
+    263: "resultados_liga_de_expansión_mx.json",
+    265: "resultados_primera_división_chile.json",
+    268: "resultados_primera_división_apertura.json",
+    271: "resultados_nb_i.json",
+    281: "resultados_primera_división_peru.json",
+    345: "resultados_czech_liga.json",
+    357: "resultados_premier_division_ireland.json"
 }
 
+def obtener_partidos_hoy(api_key, league_ids):
+    hoy = datetime.now().strftime("%Y-%m-%d")
+    url = "https://v3.football.api-sports.io/fixtures"
+    headers = {"x-apisports-key": api_key}
 
+    partidos = []
+    for league_id in league_ids:
+        params = {"league": league_id, "season": 2024, "date": hoy}
+        response = requests.get(url, headers=headers, params=params)
+        data = response.json()
+        if data.get("response"):
+            partidos.extend(data["response"])
 
-print("Diccionario de ligas cargado correctamente")
+    return partidos
 
-
-# Cargar historial por liga (solo una vez al inicio)
-def cargar_historial():
-    historial = {}
-    carpeta = "historial/unificados"
-    for archivo in os.listdir(carpeta):
-        if archivo.endswith(".json"):
-            liga = archivo.replace("resultados_", "").replace(".json", "")
-            with open(os.path.join(carpeta, archivo), encoding="utf-8") as f:
-                historial[liga] = json.load(f)
-    return historial
-
-# Calcular promedios por equipo
 def calcular_stats(equipo, partidos):
-    goles_favor, goles_contra, btts, over25 = [], [], [], []
+    goles_favor = []
+    goles_contra = []
+    btts = []
+    over25 = []
+
     for p in partidos:
         local = p.get("equipo_local")
         visitante = p.get("equipo_visitante")
@@ -54,9 +100,11 @@ def calcular_stats(equipo, partidos):
 
         if equipo == local or equipo == visitante:
             if equipo == local:
-                gf, gc = goles_local, goles_visitante
+                gf = goles_local
+                gc = goles_visitante
             else:
-                gf, gc = goles_visitante, goles_local
+                gf = goles_visitante
+                gc = goles_local
 
             goles_favor.append(gf)
             goles_contra.append(gc)
@@ -75,43 +123,7 @@ def calcular_stats(equipo, partidos):
         "over25_pct": 100 * sum(over25) / total
     }
 
-# Analizar partido usando historial
-def analizar_fixture(fixture, historial):
-    fixture_id = fixture['fixture']['id']
-    liga_id = fixture['league']['id']
-    fecha = fixture['fixture']['date'][:10]
-    nombre_liga = fixture['league']['name']
-
-    equipo_local = fixture['teams']['home']['name']
-    equipo_visitante = fixture['teams']['away']['name']
-
-    print(f"\n\U0001F4C4 Analizando: {equipo_local} vs {equipo_visitante} (Fixture ID: {fixture_id})")
-
-    # Buscar historial por liga
-    partidos_liga = historial.get(str(liga_id)) or historial.get(nombre_liga.lower().replace(" ", "_"))
-    if not partidos_liga:
-        print("\u274C No se encontró historial para esta liga")
-        return
-
-    # Calcular stats
-    stats_local = calcular_stats(equipo_local, partidos_liga)
-    stats_visitante = calcular_stats(equipo_visitante, partidos_liga)
-
-    print("  \U0001F4CA Stats Local:", stats_local)
-    print("  \U0001F4CA Stats Visitante:", stats_visitante)
-
-    # Condiciones para sugerir pick
-    if stats_local['btts_pct'] > 60 and stats_visitante['btts_pct'] > 50:
-        print(f"\u2705 Pick sugerido: Ambos Anotan (valor detectado)")
-    elif stats_local['over25_pct'] > 60 and stats_visitante['over25_pct'] > 60:
-        print(f"\u2705 Pick sugerido: Over 2.5 goles (valor detectado)")
-    else:
-        print(f"\u274C No hay suficiente respaldo estadístico para un pick.")
-
-# MAIN
 if __name__ == "__main__":
-    fixtures = obtener_partidos_hoy()
-    historial = cargar_historial()
-
-    for fixture in fixtures:
-        analizar_fixture(fixture, historial)
+    print("📊 Obteniendo partidos válidos de hoy...")
+    fixtures = obtener_partidos_hoy(API_KEY, LEAGUE_ID_TO_FILENAME.keys())
+    print(f"🔎 Se encontraron {len(fixtures)} partidos para analizar hoy.")
