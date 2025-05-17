@@ -5,11 +5,9 @@ from datetime import datetime
 
 API_KEY = os.getenv("API_FOOTBALL_KEY") or "178b66e41ba9d4d3b8549f096ef1e377"
 BASE_URL = "https://v3.football.api-sports.io"
-HEADERS = {
-    "x-apisports-key": API_KEY
-}
+HEADERS = {"x-apisports-key": API_KEY}
 
-LIGAS_VALIDAS = {
+LIGAS_VALIDAS = [
     1: "resultados_world_cup.json",
     2: "resultados_uefa_champions_league.json",
     3: "resultados_uefa_europa_league.json",
@@ -68,74 +66,78 @@ LIGAS_VALIDAS = {
     281: "resultados_primera_división_peru.json",
     345: "resultados_czech_liga.json",
     357: "resultados_premier_division_ireland.json"
-}
 
-def obtener_fixtures_hoy():
+]
+
+def obtener_partidos_del_dia():
     hoy = datetime.utcnow().strftime("%Y-%m-%d")
     url = f"{BASE_URL}/fixtures?date={hoy}"
     try:
-        response = requests.get(url, headers=HEADERS, timeout=10)
+        response = requests.get(url, headers=HEADERS, timeout=20)
         response.raise_for_status()
         data = response.json()
-        fixtures = data.get("response", [])
-        print(f"\n✅ Se encontraron {len(fixtures)} partidos para analizar hoy.\n")
-        return [f for f in fixtures if f['league']['id'] in LIGAS_VALIDAS]
-    except requests.RequestException as e:
-        print(f"\n❌ Error al obtener partidos: {e}\n")
+        return [f for f in data.get("response", []) if f["league"]["id"] in LIGAS_VALIDAS]
+    except Exception as e:
+        print(f"❌ Error al obtener fixtures: {e}")
         return []
 
-def sugerir_ganador_local_vs_visita(stats_local, stats_visitante):
-    gf_local = stats_local.get("goles_favor", 0)
-    gc_local = stats_local.get("goles_contra", 0)
-    gf_visita = stats_visitante.get("goles_favor", 0)
-    gc_visita = stats_visitante.get("goles_contra", 0)
+def obtener_detalles_fixture(fixture_id):
+    try:
+        url = f"{BASE_URL}/fixtures?id={fixture_id}"
+        r = requests.get(url, headers=HEADERS, timeout=20)
+        r.raise_for_status()
+        return r.json().get("response", [])[0]
+    except Exception as e:
+        return {"error": str(e), "fixture_id": fixture_id}
 
-    if gf_local - gf_visita > 0.4 and gc_local < gc_visita:
-        return "🟢 Gana Local"
-    elif gf_visita - gf_local > 0.4 and gc_visita < gc_local:
-        return "🔵 Gana Visitante"
-    elif abs(gf_local - gf_visita) <= 0.3 and abs(gc_local - gc_visita) <= 0.3:
-        return "🟡 Posible Empate"
-    else:
-        return "🔴 Sin sugerencia"
+def analizar_partido(f):
+    fid = f["fixture"]["id"]
+    lid = f["league"]["id"]
+    local = f["teams"]["home"]["name"]
+    visitante = f["teams"]["away"]["name"]
+    liga = f["league"]["name"]
 
-def analizar_fixture(fixture):
-    local = fixture['teams']['home']['name']
-    visitante = fixture['teams']['away']['name']
-    lid = fixture['league']['id']
-    nombre_liga = LIGAS_VALIDAS.get(lid, "Liga")
-    fid = fixture['fixture']['id']
+    detalle = obtener_detalles_fixture(fid)
+    if "error" in detalle:
+        print(f"❌ Error al obtener detalles para {fid}: {detalle['error']}")
+        return
 
-    stats_local = {
-        "juegos": 180,
-        "goles_favor": round(1.6 + 0.5 * (hash(local) % 3), 2),
-        "goles_contra": round(1.2 + 0.3 * (hash(local[::-1]) % 2), 2),
-        "btts_pct": 58.3,
-        "over25_pct": 62.7
-    }
-    stats_visitante = {
-        "juegos": 180,
-        "goles_favor": round(1.3 + 0.5 * (hash(visitante) % 3), 2),
-        "goles_contra": round(1.4 + 0.3 * (hash(visitante[::-1]) % 2), 2),
-        "btts_pct": 54.1,
-        "over25_pct": 51.3
-    }
+    pred = detalle.get("predictions", {})
+    stats = detalle.get("statistics", [])
+    goles_esperados = detalle.get("goals", {})
 
-    pick = sugerir_ganador_local_vs_visita(stats_local, stats_visitante)
+    # Promedios
+    tiros_local = tarjetas_local = corners_local = 0
+    tiros_visita = tarjetas_visita = corners_visita = 0
 
-    print(f"\n⚔️ {local} vs {visitante} (Fixture ID: {fid}, Liga: {nombre_liga})")
-    print(f"🔷 Stats Local: GF: {stats_local['goles_favor']}, GC: {stats_local['goles_contra']}, BTTS: {stats_local['btts_pct']}%, Over 2.5: {stats_local['over25_pct']}%")
-    print(f"🔶 Stats Visitante: GF: {stats_visitante['goles_favor']}, GC: {stats_visitante['goles_contra']}, BTTS: {stats_visitante['btts_pct']}%, Over 2.5: {stats_visitante['over25_pct']}%")
-    print(f"🎯 Pick sugerido: {pick}")
+    for equipo_stats in stats:
+        equipo = equipo_stats.get("team", {}).get("name", "")
+        for stat in equipo_stats.get("statistics", []):
+            if equipo == local:
+                if stat["type"] == "Shots on Goal": tiros_local = stat["value"] or 0
+                if stat["type"] == "Total Corners": corners_local = stat["value"] or 0
+                if stat["type"] == "Yellow Cards": tarjetas_local += stat["value"] or 0
+            elif equipo == visitante:
+                if stat["type"] == "Shots on Goal": tiros_visita = stat["value"] or 0
+                if stat["type"] == "Total Corners": corners_visita = stat["value"] or 0
+                if stat["type"] == "Yellow Cards": tarjetas_visita += stat["value"] or 0
+
+    print(f"\n📊 {local} vs {visitante} — Liga: {liga} (Fixture ID: {fid})")
+    print(f"🎯 Predicción ML: {pred.get('winner', {}).get('name', 'Sin dato')} — Local: {pred.get('percent', {}).get('home', '-')}, Empate: {pred.get('percent', {}).get('draw', '-')}, Visitante: {pred.get('percent', {}).get('away', '-')}")
+    print(f"🔢 Goles esperados: {goles_esperados.get('home', '-')} - {goles_esperados.get('away', '-')}")
+    print(f"🎯 Tiros al arco: {local} {tiros_local} | {visitante} {tiros_visita}")
+    print(f"🟨 Tarjetas: {local} {tarjetas_local} | {visitante} {tarjetas_visita}")
+    print(f"🏁 Corners: {local} {corners_local} | {visitante} {corners_visita}")
 
 def main():
-    print("\n🚀 Obteniendo partidos válidos de hoy...")
-    fixtures = obtener_fixtures_hoy()
-    for f in fixtures:
-        analizar_fixture(f)
+    print("\n🚀 Cargando fixtures del día...")
+    partidos = obtener_partidos_del_dia()
+    for f in partidos[:5]:  # analizar solo los primeros 5 por ahora
+        analizar_partido(f)
 
 if __name__ == "__main__":
     main()
+
 
 
 if __name__ == "__main__":
