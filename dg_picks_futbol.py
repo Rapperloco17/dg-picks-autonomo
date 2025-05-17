@@ -1,31 +1,22 @@
-import requests
 import json
+import os
 from datetime import datetime
+from api_football import obtener_partidos_hoy, obtener_estadisticas_fixture
 
-API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
+# Cargar historial por liga (solo una vez al inicio)
+def cargar_historial():
+    historial = {}
+    carpeta = "historial/unificados"
+    for archivo in os.listdir(carpeta):
+        if archivo.endswith(".json"):
+            liga = archivo.replace("resultados_", "").replace(".json", "")
+            with open(os.path.join(carpeta, archivo), encoding="utf-8") as f:
+                historial[liga] = json.load(f)
+    return historial
 
-def obtener_fixtures_hoy():
-    hoy = datetime.now().strftime("%Y-%m-%d")
-    url = f"https://v3.football.api-sports.io/fixtures?date={hoy}"
-    headers = {
-        "x-apisports-key": API_KEY
-    }
-    try:
-        response = requests.get(url, headers=headers)
-        data = response.json()
-        partidos = data.get("response", [])
-        print(f"✅ Se obtuvieron {len(partidos)} partidos desde la API-FOOTBALL para hoy ({hoy})")
-        return partidos
-    except Exception as e:
-        print(f"⚠️ Error al obtener partidos de la API: {e}")
-        return []
-
+# Calcular promedios por equipo
 def calcular_stats(equipo, partidos):
-    goles_favor = []
-    goles_contra = []
-    btts = []
-    over25 = []
-
+    goles_favor, goles_contra, btts, over25 = [], [], [], []
     for p in partidos:
         local = p.get("equipo_local")
         visitante = p.get("equipo_visitante")
@@ -35,19 +26,16 @@ def calcular_stats(equipo, partidos):
         if local is None or visitante is None or goles_local is None or goles_visitante is None:
             continue
 
-        if equipo == local:
-            gf = goles_local
-            gc = goles_visitante
-        elif equipo == visitante:
-            gf = goles_visitante
-            gc = goles_local
-        else:
-            continue
+        if equipo == local or equipo == visitante:
+            if equipo == local:
+                gf, gc = goles_local, goles_visitante
+            else:
+                gf, gc = goles_visitante, goles_local
 
-        goles_favor.append(gf)
-        goles_contra.append(gc)
-        btts.append(1 if goles_local > 0 and goles_visitante > 0 else 0)
-        over25.append(1 if goles_local + goles_visitante > 2.5 else 0)
+            goles_favor.append(gf)
+            goles_contra.append(gc)
+            btts.append(1 if goles_local > 0 and goles_visitante > 0 else 0)
+            over25.append(1 if goles_local + goles_visitante > 2.5 else 0)
 
     total = len(goles_favor)
     if total == 0:
@@ -61,21 +49,43 @@ def calcular_stats(equipo, partidos):
         "over25_pct": 100 * sum(over25) / total
     }
 
-# ================= EJECUCIÓN =====================
+# Analizar partido usando historial
+def analizar_fixture(fixture, historial):
+    fixture_id = fixture['fixture']['id']
+    liga_id = fixture['league']['id']
+    fecha = fixture['fixture']['date'][:10]
+    nombre_liga = fixture['league']['name']
 
-partidos = obtener_fixtures_hoy()
+    equipo_local = fixture['teams']['home']['name']
+    equipo_visitante = fixture['teams']['away']['name']
 
-if not partidos:
-    print("⚠️ No se encontraron partidos para hoy. Verifica la API o la fecha.")
-    exit()
+    print(f"\n\U0001F4C4 Analizando: {equipo_local} vs {equipo_visitante} (Fixture ID: {fixture_id})")
 
-for fixture in partidos:
-    fixture_id = fixture.get("fixture", {}).get("id")
-    equipos = fixture.get("teams", {})
-    nombre_local = equipos.get("home", {}).get("name")
-    nombre_visitante = equipos.get("away", {}).get("name")
+    # Buscar historial por liga
+    partidos_liga = historial.get(str(liga_id)) or historial.get(nombre_liga.lower().replace(" ", "_"))
+    if not partidos_liga:
+        print("\u274C No se encontró historial para esta liga")
+        return
 
-    print(f"\n📊 Analizando: {nombre_local} vs {nombre_visitante} (Fixture ID: {fixture_id})")
+    # Calcular stats
+    stats_local = calcular_stats(equipo_local, partidos_liga)
+    stats_visitante = calcular_stats(equipo_visitante, partidos_liga)
 
-    # Aquí continuarías con tu lógica personalizada (descargar resultados históricos, análisis, predicciones, etc.)
-    # Este bloque es sólo un inicio del flujo de trabajo automatizado
+    print("  \U0001F4CA Stats Local:", stats_local)
+    print("  \U0001F4CA Stats Visitante:", stats_visitante)
+
+    # Condiciones para sugerir pick
+    if stats_local['btts_pct'] > 60 and stats_visitante['btts_pct'] > 50:
+        print(f"\u2705 Pick sugerido: Ambos Anotan (valor detectado)")
+    elif stats_local['over25_pct'] > 60 and stats_visitante['over25_pct'] > 60:
+        print(f"\u2705 Pick sugerido: Over 2.5 goles (valor detectado)")
+    else:
+        print(f"\u274C No hay suficiente respaldo estadístico para un pick.")
+
+# MAIN
+if __name__ == "__main__":
+    fixtures = obtener_partidos_hoy()
+    historial = cargar_historial()
+
+    for fixture in fixtures:
+        analizar_fixture(fixture, historial)
