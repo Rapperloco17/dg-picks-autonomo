@@ -7,7 +7,7 @@ API_KEY = os.getenv("API_FOOTBALL_KEY") or "178b66e41ba9d4d3b8549f096ef1e377"
 BASE_URL = "https://v3.football.api-sports.io"
 HEADERS = {"x-apisports-key": API_KEY}
 
-LIGAS_VALIDAS = {
+LIGAS_VALIDAS ={
     1: "resultados_world_cup.json",
     2: "resultados_uefa_champions_league.json",
     3: "resultados_uefa_europa_league.json",
@@ -66,8 +66,8 @@ LIGAS_VALIDAS = {
     281: "resultados_primera_división_peru.json",
     345: "resultados_czech_liga.json",
     357: "resultados_premier_division_ireland.json"
-
 }
+
 
 def obtener_partidos_del_dia():
     hoy = datetime.utcnow().strftime("%Y-%m-%d")
@@ -83,7 +83,7 @@ def obtener_partidos_del_dia():
 
 def obtener_detalles_fixture(fixture_id):
     try:
-        url = f"{BASE_URL}/fixtures?id={fixture_id}"
+        url = f"{BASE_URL}/fixtures?id={fixture_id}&include=predictions,statistics,odds"
         r = requests.get(url, headers=HEADERS, timeout=20)
         r.raise_for_status()
         return r.json().get("response", [])[0]
@@ -104,9 +104,9 @@ def analizar_partido(f):
 
     pred = detalle.get("predictions", {})
     stats = detalle.get("statistics", [])
+    odds = detalle.get("odds", {}).get("betting", [])
     goles_esperados = detalle.get("goals", {})
 
-    # Promedios
     tiros_local = tarjetas_local = corners_local = 0
     tiros_visita = tarjetas_visita = corners_visita = 0
 
@@ -122,9 +122,27 @@ def analizar_partido(f):
                 if stat["type"] == "Total Corners": corners_visita = stat["value"] or 0
                 if stat["type"] == "Yellow Cards": tarjetas_visita += stat["value"] or 0
 
+    cuota_local = cuota_empate = cuota_visitante = cuota_over25 = cuota_btts_si = None
+
+    for casa in odds:
+        for apuesta in casa.get("bets", []):
+            if apuesta["name"] == "Match Winner":
+                for v in apuesta["values"]:
+                    if v["value"] == "Home": cuota_local = v["odd"]
+                    elif v["value"] == "Draw": cuota_empate = v["odd"]
+                    elif v["value"] == "Away": cuota_visitante = v["odd"]
+            elif apuesta["name"] == "Over/Under 2.5":
+                for v in apuesta["values"]:
+                    if v["value"] == "Over 2.5": cuota_over25 = v["odd"]
+            elif apuesta["name"] == "Both Teams To Score":
+                for v in apuesta["values"]:
+                    if v["value"] == "Yes": cuota_btts_si = v["odd"]
+
     print(f"\n📊 {local} vs {visitante} — Liga: {liga} (Fixture ID: {fid})")
-    print(f"🎯 Predicción ML: {pred.get('winner', {}).get('name', 'Sin dato')} — Local: {pred.get('percent', {}).get('home', '-')}, Empate: {pred.get('percent', {}).get('draw', '-')}, Visitante: {pred.get('percent', {}).get('away', '-')}")
     print(f"🔢 Goles esperados: {goles_esperados.get('home', '-')} - {goles_esperados.get('away', '-')}")
+    print(f"🎯 Predicción ML: {pred.get('winner', {}).get('name', 'Sin dato')} — Local: {pred.get('percent', {}).get('home', '-')}, Empate: {pred.get('percent', {}).get('draw', '-')}, Visitante: {pred.get('percent', {}).get('away', '-')}")
+    print(f"💰 Cuotas: Local {cuota_local}, Empate {cuota_empate}, Visitante {cuota_visitante}")
+    print(f"📈 Over 2.5 cuota: {cuota_over25} | BTTS Sí cuota: {cuota_btts_si}")
     print(f"🎯 Tiros al arco: {local} {tiros_local} | {visitante} {tiros_visita}")
     print(f"🟨 Tarjetas: {local} {tarjetas_local} | {visitante} {tarjetas_visita}")
     print(f"🏁 Corners: {local} {corners_local} | {visitante} {corners_visita}")
