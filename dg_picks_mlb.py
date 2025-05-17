@@ -9,13 +9,12 @@ import time
 ODDS_API_KEY = "137992569bc2352366c01e6928577b2d"
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/baseball_mlb/odds"
 MLB_STATS_BASE_URL = "https://statsapi.mlb.com/api/v1/schedule"
-MLB_GAME_STATS_URL = "https://statsapi.mlb.com/api/v1.1/game/{}/feed/live"
+MLB_PLAYER_STATS_URL = "https://statsapi.mlb.com/api/v1/people/{}?hydrate=stats(group=[pitching],type=[season])"
 MLB_TEAM_STATS_URL = "https://statsapi.mlb.com/api/v1/teams/{}/stats"
 HEADERS = {"User-Agent": "DG Picks"}
 
 MX_TZ = pytz.timezone("America/Mexico_City")
 HOY = datetime.now(MX_TZ).strftime("%Y-%m-%d")
-AYER = (datetime.now(MX_TZ) - timedelta(days=1)).strftime("%Y-%m-%d")
 
 
 def get_today_mlb_games():
@@ -30,12 +29,16 @@ def get_today_mlb_games():
 
     for date_info in data.get("dates", []):
         for game in date_info.get("games", []):
+            home_pitcher = game["teams"]["home"].get("probablePitcher", {})
+            away_pitcher = game["teams"]["away"].get("probablePitcher", {})
             games.append({
                 "gamePk": game["gamePk"],
                 "home_team": game["teams"]["home"]["team"],
                 "away_team": game["teams"]["away"]["team"],
-                "home_pitcher": game["teams"]["home"].get("probablePitcher", {}).get("fullName", "No confirmado"),
-                "away_pitcher": game["teams"]["away"].get("probablePitcher", {}).get("fullName", "No confirmado"),
+                "home_pitcher_name": home_pitcher.get("fullName", "No confirmado"),
+                "away_pitcher_name": away_pitcher.get("fullName", "No confirmado"),
+                "home_pitcher_id": home_pitcher.get("id"),
+                "away_pitcher_id": away_pitcher.get("id"),
                 "home_team_id": game["teams"]["home"]["team"]["id"],
                 "away_team_id": game["teams"]["away"]["team"]["id"],
                 "start_time": game.get("gameDate")
@@ -67,6 +70,18 @@ def get_team_stats(team_id):
     return splits
 
 
+def get_pitcher_stats(pitcher_id):
+    if not pitcher_id:
+        return {}
+    url = MLB_PLAYER_STATS_URL.format(pitcher_id)
+    response = requests.get(url, headers=HEADERS)
+    if response.status_code != 200:
+        return {}
+    data = response.json()
+    stats = data.get("people", [])[0].get("stats", [])[0].get("splits", [])[0].get("stat", {})
+    return stats
+
+
 def emparejar_partidos(games, odds):
     partidos = []
     for game in games:
@@ -82,12 +97,14 @@ def emparejar_partidos(games, odds):
 
                 partidos.append({
                     "enfrentamiento": f"{game['away_team']['name']} vs {game['home_team']['name']}",
-                    "pitchers": f"{game['away_pitcher']} vs {game['home_pitcher']}",
+                    "pitchers": f"{game['away_pitcher_name']} vs {game['home_pitcher_name']}",
                     "inicio": game['start_time'],
                     "cuotas": cuotas_dict,
                     "total": over_under,
                     "home_team_id": game['home_team_id'],
-                    "away_team_id": game['away_team_id']
+                    "away_team_id": game['away_team_id'],
+                    "home_pitcher_id": game['home_pitcher_id'],
+                    "away_pitcher_id": game['away_pitcher_id']
                 })
                 break
     return partidos
@@ -115,8 +132,22 @@ def main():
         home_stats = get_team_stats(partido['home_team_id'])
         away_stats = get_team_stats(partido['away_team_id'])
 
-        print(f"   🟢 {partido['home_team_id']} – AVG: {home_stats.get('avg')}, OBP: {home_stats.get('obp')}, SLG: {home_stats.get('slg')}")
-        print(f"   🔴 {partido['away_team_id']} – AVG: {away_stats.get('avg')}, OBP: {away_stats.get('obp')}, SLG: {away_stats.get('slg')}")
+        print(f"   🟢 Local – AVG: {home_stats.get('avg')}, OBP: {home_stats.get('obp')}, SLG: {home_stats.get('slg')}")
+        print(f"   🔴 Visitante – AVG: {away_stats.get('avg')}, OBP: {away_stats.get('obp')}, SLG: {away_stats.get('slg')}")
+
+        home_pitcher_stats = get_pitcher_stats(partido['home_pitcher_id'])
+        away_pitcher_stats = get_pitcher_stats(partido['away_pitcher_id'])
+
+        print("   📊 Stats Pitcher Local:", {
+            "ERA": home_pitcher_stats.get("era"),
+            "WHIP": home_pitcher_stats.get("whip"),
+            "K/9": home_pitcher_stats.get("strikeoutsPer9Inn")
+        })
+        print("   📊 Stats Pitcher Visitante:", {
+            "ERA": away_pitcher_stats.get("era"),
+            "WHIP": away_pitcher_stats.get("whip"),
+            "K/9": away_pitcher_stats.get("strikeoutsPer9Inn")
+        })
 
 
 if __name__ == "__main__":
