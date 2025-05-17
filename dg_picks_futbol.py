@@ -127,3 +127,10 @@ if __name__ == "__main__":
     print("📊 Obteniendo partidos válidos de hoy...")
     fixtures = obtener_partidos_hoy(API_KEY, LEAGUE_ID_TO_FILENAME.keys())
     print(f"🔎 Se encontraron {len(fixtures)} partidos para analizar hoy.")
+    print("\n📅 Lista de partidos válidos:")
+    for f in fixtures:
+        local = f['teams']['home']['name']
+        visitante = f['teams']['away']['name']
+        fixture_id = f['fixture']['id']
+        print(f" - {local} vs {visitante} (Fixture ID: {fixture_id})")
+
