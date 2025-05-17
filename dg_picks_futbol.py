@@ -7,7 +7,7 @@ API_KEY = os.getenv("API_FOOTBALL_KEY") or "178b66e41ba9d4d3b8549f096ef1e377"
 BASE_URL = "https://v3.football.api-sports.io"
 HEADERS = {"x-apisports-key": API_KEY}
 
-LIGAS_VALIDAS = [
+LIGAS_VALIDAS = {
     1: "resultados_world_cup.json",
     2: "resultados_uefa_champions_league.json",
     3: "resultados_uefa_europa_league.json",
@@ -67,7 +67,7 @@ LIGAS_VALIDAS = [
     345: "resultados_czech_liga.json",
     357: "resultados_premier_division_ireland.json"
 
-]
+}
 
 def obtener_partidos_del_dia():
     hoy = datetime.utcnow().strftime("%Y-%m-%d")
