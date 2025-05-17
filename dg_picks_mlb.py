@@ -11,6 +11,7 @@ ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/baseball_mlb/odds"
 MLB_STATS_BASE_URL = "https://statsapi.mlb.com/api/v1/schedule"
 MLB_PLAYER_STATS_URL = "https://statsapi.mlb.com/api/v1/people/{}?hydrate=stats(group=[pitching],type=[season])"
 MLB_TEAM_STATS_URL = "https://statsapi.mlb.com/api/v1/teams/{}/stats"
+MLB_RESULTS_URL = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&teamId={}&startDate={}&endDate={}"
 HEADERS = {"User-Agent": "DG Picks"}
 
 MX_TZ = pytz.timezone("America/Mexico_City")
@@ -82,6 +83,80 @@ def get_pitcher_stats(pitcher_id):
     return stats
 
 
+def get_team_form(team_id):
+    end_date = datetime.now().strftime("%Y-%m-%d")
+    start_date = (datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d")
+    url = MLB_RESULTS_URL.format(team_id, start_date, end_date)
+    response = requests.get(url, headers=HEADERS)
+    if response.status_code != 200:
+        return {}
+
+    games = response.json().get("dates", [])
+    resultados = []
+    for fecha in games:
+        for game in fecha.get("games", []):
+            if not game.get("status", {}).get("detailedState") == "Final":
+                continue
+            home = game["teams"]["home"]
+            away = game["teams"]["away"]
+            if home["team"]["id"] == team_id:
+                anotadas = home["score"]
+                recibidas = away["score"]
+                victoria = anotadas > recibidas
+            else:
+                anotadas = away["score"]
+                recibidas = home["score"]
+                victoria = anotadas > recibidas
+            resultados.append((anotadas, recibidas, victoria))
+
+    ultimos = resultados[-5:]
+    if not ultimos:
+        return {}
+
+    promedio_anotadas = round(sum(x[0] for x in ultimos) / len(ultimos), 2)
+    promedio_recibidas = round(sum(x[1] for x in ultimos) / len(ultimos), 2)
+    victorias = sum(1 for x in ultimos if x[2])
+    derrotas = len(ultimos) - victorias
+
+    return {
+        "anotadas": promedio_anotadas,
+        "recibidas": promedio_recibidas,
+        "record": f"{victorias}G-{derrotas}P"
+    }
+
+
+def sugerir_pick(home_stats, away_stats, home_pitcher, away_pitcher, cuotas):
+    try:
+        home_era = float(home_pitcher.get("era", 99))
+        away_era = float(away_pitcher.get("era", 99))
+        home_avg = float(home_stats.get("avg", 0))
+        away_avg = float(away_stats.get("avg", 0))
+    except:
+        return "❌ Pick no disponible (datos incompletos)"
+
+    razon = []
+    recomendacion = None
+
+    if home_era < away_era:
+        razon.append("mejor ERA del pitcher local")
+    else:
+        razon.append("mejor ERA del pitcher visitante")
+
+    if home_avg > away_avg:
+        razon.append("mejor ofensiva local")
+    else:
+        razon.append("mejor ofensiva visitante")
+
+    if home_era < away_era and home_avg > away_avg:
+        recomendacion = "Local ML"
+    elif away_era < home_era and away_avg > home_avg:
+        recomendacion = "Visitante ML"
+    else:
+        recomendacion = "Partido parejo, evitar o buscar over"
+
+    return f"✅ Pick sugerido: {recomendacion} | Justificación: {', '.join(razon)}"
+
+
 def emparejar_partidos(games, odds):
     partidos = []
     for game in games:
@@ -149,6 +224,20 @@ def main():
             "K/9": away_pitcher_stats.get("strikeoutsPer9Inn")
         })
 
+        form_local = get_team_form(partido['home_team_id'])
+        form_visit = get_team_form(partido['away_team_id'])
+
+        print("   📈 Forma Local – Anotadas Prom: {}, Recibidas Prom: {}, Record: {}".format(
+            form_local.get("anotadas"), form_local.get("recibidas"), form_local.get("record")
+        ))
+        print("   📉 Forma Visitante – Anotadas Prom: {}, Recibidas Prom: {}, Record: {}".format(
+            form_visit.get("anotadas"), form_visit.get("recibidas"), form_visit.get("record")
+        ))
+
+        sugerencia = sugerir_pick(home_stats, away_stats, home_pitcher_stats, away_pitcher_stats, partido['cuotas'])
+        print("   🧠", sugerencia)
+
 
 if __name__ == "__main__":
     main()
+
