@@ -7,9 +7,8 @@ API_KEY = os.getenv("API_FOOTBALL_KEY") or "178b66e41ba9d4d3b8549f096ef1e377"
 BASE_URL = "https://v3.football.api-sports.io"
 HEADERS = {
     "x-apisports-key": API_KEY
-}  
+}
 
-# Diccionario de ligas válidas para análisis
 LIGAS_VALIDAS = {
     1: "resultados_world_cup.json",
     2: "resultados_uefa_champions_league.json",
@@ -85,53 +84,60 @@ def obtener_fixtures_hoy():
         print(f"\n❌ Error al obtener partidos: {e}\n")
         return []
 
-def sugerir_resultado(stats_local, stats_visita):
-    gf_l = stats_local.get("goles_favor", 0)
-    gc_l = stats_local.get("goles_contra", 0)
-    gf_v = stats_visita.get("goles_favor", 0)
-    gc_v = stats_visita.get("goles_contra", 0)
+def sugerir_pick(stats_local, stats_visitante):
+    gl, cl, btts_l, o25_l = stats_local.values()
+    gv, cv, btts_v, o25_v = stats_visitante.values()
 
-    if gf_l > gf_v + 0.4 and gc_l < gc_v:
-        return "🌟 Gana Local"
-    elif gf_v > gf_l + 0.4 and gc_v < gc_l:
-        return "🔟 Gana Visitante"
-    elif abs(gf_l - gf_v) < 0.3:
-        return "⚖️ Posible Empate"
+    if gl > gv and cl < cv:
+        return "🟩 Gana Local"
+    elif gv > gl and cv < cl:
+        return "🟥 Gana Visitante"
+    elif abs(gl - gv) < 0.3:
+        return "🟨 Posible Empate"
     else:
         return "❓ Sin sugerencia"
 
-def analizar_fixture(fixture):
-    local = fixture['teams']['home']['name']
-    visitante = fixture['teams']['away']['name']
-    lid = fixture['league']['id']
-    nombre_liga = fixture['league']['name']
-    fid = fixture['fixture']['id']
+def obtener_cuotas(fixture_id):
+    url = f"{BASE_URL}/odds?fixture={fixture_id}&bookmaker=6"
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=10)
+        data = r.json()
+        markets = data.get("response", [])
+        cuotas = {}
+        for m in markets:
+            for entry in m.get("bookmakers", []):
+                for bet in entry.get("bets", []):
+                    if bet['name'] == "Match Winner":
+                        for odd in bet['values']:
+                            cuotas[odd['value']] = odd['odd']
+        return cuotas
+    except:
+        return {}
 
-    stats_local = {
-        "goles_favor": round(1.6 + 0.5 * (hash(local) % 3), 2),
-        "goles_contra": round(1.2 + 0.3 * (hash(local[::-1]) % 2), 2),
-        "btts_pct": 58.3,
-        "over25_pct": 62.7
-    }
+def analizar_fixture(f):
+    lid = f['league']['id']
+    lid_name = LIGAS_VALIDAS.get(lid, "Liga")
+    fid = f['fixture']['id']
+    local = f['teams']['home']['name']
+    visitante = f['teams']['away']['name']
 
-    stats_visita = {
-        "goles_favor": round(1.3 + 0.5 * (hash(visitante) % 3), 2),
-        "goles_contra": round(1.4 + 0.3 * (hash(visitante[::-1]) % 2), 2),
-        "btts_pct": 54.1,
-        "over25_pct": 51.3
-    }
+    # Datos simulados para ambos equipos (para pruebas)
+    stats_local = {"gf": 1.6, "gc": 1.2, "btts": 58.3, "o25": 62.7}
+    stats_visit = {"gf": 1.3, "gc": 1.4, "btts": 54.1, "o25": 51.3}
+    pick = sugerir_pick(stats_local, stats_visit)
+    cuotas = obtener_cuotas(fid)
 
-    pick = sugerir_resultado(stats_local, stats_visita)
-
-    print(f"\n⚔️ {local} vs {visitante} (Fixture ID: {fid}, Liga: {nombre_liga})")
-    print(f"🔹 Stats Local: GF: {stats_local['goles_favor']}, GC: {stats_local['goles_contra']}, BTTS: {stats_local['btts_pct']}%, Over 2.5: {stats_local['over25_pct']}%")
-    print(f"🔹 Stats Visitante: GF: {stats_visita['goles_favor']}, GC: {stats_visita['goles_contra']}, BTTS: {stats_visita['btts_pct']}%, Over 2.5: {stats_visita['over25_pct']}%")
-    print(f"🔸 Pick sugerido: {pick}")
+    print(f"\n⚔️ {local} vs {visitante} (Fixture ID: {fid}, Liga: {lid_name})")
+    print(f"📊 Stats Local: GF: {stats_local['gf']}, GC: {stats_local['gc']}, BTTS: {stats_local['btts']}%, Over 2.5: {stats_local['o25']}%")
+    print(f"📊 Stats Visitante: GF: {stats_visit['gf']}, GC: {stats_visit['gc']}, BTTS: {stats_visit['btts']}%, Over 2.5: {stats_visit['o25']}%")
+    if cuotas:
+        print(f"🔢 Cuotas: Local {cuotas.get('Home', '-')}, Empate {cuotas.get('Draw', '-')}, Visitante {cuotas.get('Away', '-')}")
+    print(f"🎯 Pick sugerido: {pick}")
 
 def main():
     print("\n🚀 Obteniendo partidos válidos de hoy...")
-    fixtures = obtener_fixtures_hoy()
-    for f in fixtures:
+    partidos = obtener_fixtures_hoy()
+    for f in partidos:
         analizar_fixture(f)
 
 if __name__ == "__main__":
