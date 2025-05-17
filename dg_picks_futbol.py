@@ -7,7 +7,7 @@ API_KEY = os.getenv("API_FOOTBALL_KEY") or "178b66e41ba9d4d3b8549f096ef1e377"
 BASE_URL = "https://v3.football.api-sports.io"
 HEADERS = {
     "x-apisports-key": API_KEY
-}
+}  
 
 # Diccionario de ligas válidas para análisis
 LIGAS_VALIDAS = {
@@ -69,7 +69,6 @@ LIGAS_VALIDAS = {
     281: "resultados_primera_división_peru.json",
     345: "resultados_czech_liga.json",
     357: "resultados_premier_division_ireland.json"
-
 }
 
 def obtener_fixtures_hoy():
@@ -86,19 +85,18 @@ def obtener_fixtures_hoy():
         print(f"\n❌ Error al obtener partidos: {e}\n")
         return []
 
-def sugerir_ganador_local_vs_visita(stats):
-    gf = stats.get("goles_favor", 0)
-    gc = stats.get("goles_contra", 0)
-    btts = stats.get("btts_pct", 0)
-    over25 = stats.get("over25_pct", 0)
+def sugerir_resultado(stats_local, stats_visita):
+    gf_l = stats_local.get("goles_favor", 0)
+    gc_l = stats_local.get("goles_contra", 0)
+    gf_v = stats_visita.get("goles_favor", 0)
+    gc_v = stats_visita.get("goles_contra", 0)
 
-    # Lógica condicional muy básica (ajustar con mejores umbrales reales)
-    if gf > 1.5 and gc < 1.3 and over25 > 55:
+    if gf_l > gf_v + 0.4 and gc_l < gc_v:
         return "🌟 Gana Local"
-    elif gf < 1.0 and gc > 1.5:
+    elif gf_v > gf_l + 0.4 and gc_v < gc_l:
         return "🔟 Gana Visitante"
-    elif btts > 60:
-        return "🔊 Ambos Anotan"
+    elif abs(gf_l - gf_v) < 0.3:
+        return "⚖️ Posible Empate"
     else:
         return "❓ Sin sugerencia"
 
@@ -106,21 +104,28 @@ def analizar_fixture(fixture):
     local = fixture['teams']['home']['name']
     visitante = fixture['teams']['away']['name']
     lid = fixture['league']['id']
-    nombre_liga = LIGAS_VALIDAS.get(lid, "Liga")
+    nombre_liga = fixture['league']['name']
     fid = fixture['fixture']['id']
 
     stats_local = {
-        "juegos": 180,
         "goles_favor": round(1.6 + 0.5 * (hash(local) % 3), 2),
         "goles_contra": round(1.2 + 0.3 * (hash(local[::-1]) % 2), 2),
         "btts_pct": 58.3,
         "over25_pct": 62.7
     }
 
-    pick = sugerir_ganador_local_vs_visita(stats_local)
+    stats_visita = {
+        "goles_favor": round(1.3 + 0.5 * (hash(visitante) % 3), 2),
+        "goles_contra": round(1.4 + 0.3 * (hash(visitante[::-1]) % 2), 2),
+        "btts_pct": 54.1,
+        "over25_pct": 51.3
+    }
 
-    print(f"\n⚔️ {local} vs {visitante} ({nombre_liga}) — Fixture ID: {fid}")
+    pick = sugerir_resultado(stats_local, stats_visita)
+
+    print(f"\n⚔️ {local} vs {visitante} (Fixture ID: {fid}, Liga: {nombre_liga})")
     print(f"🔹 Stats Local: GF: {stats_local['goles_favor']}, GC: {stats_local['goles_contra']}, BTTS: {stats_local['btts_pct']}%, Over 2.5: {stats_local['over25_pct']}%")
+    print(f"🔹 Stats Visitante: GF: {stats_visita['goles_favor']}, GC: {stats_visita['goles_contra']}, BTTS: {stats_visita['btts_pct']}%, Over 2.5: {stats_visita['over25_pct']}%")
     print(f"🔸 Pick sugerido: {pick}")
 
 def main():
