@@ -1,7 +1,33 @@
+
 import json
 import os
+import requests
 from datetime import datetime
-from api_football import obtener_partidos_hoy, obtener_estadisticas_fixture
+
+# Diccionario actualizado de ID de liga a nombre de archivo
+LEAGUE_ID_TO_FILENAME = {
+    1: "world_cup", 2: "uefa_champions_league", 3: "uefa_europa_league", 4: "euro_championship", 9: "copa_america",
+    11: "conmebol_sudamericana", 13: "conmebol_libertadores", 16: "concacaf_champions_league",
+    39: "premier_league", 40: "championship", 61: "ligue_1", 62: "ligue_2",
+    71: "serie_a_brasil", 72: "serie_b_brasil", 73: "copa_do_brasil",
+    45: "fa_cup", 78: "bundesliga", 79: "2_bundesliga", 88: "eredivisie",
+    94: "primeira_liga", 103: "eliteserien", 106: "ekstraklasa", 113: "allsvenskan", 119: "superliga_dinamarca",
+    128: "liga_profesional_argentina", 129: "primera_nacional", 130: "copa_argentina",
+    135: "serie_a_italia", 136: "serie_b_italia", 137: "coppa_italia",
+    140: "la_liga", 141: "segunda_division", 143: "copa_del_rey",
+    144: "jupiler_pro_league", 162: "primera_division_cr", 164: "urvalsdeild", 169: "super_league_china",
+    172: "first_league_bulgaria", 179: "premiership_scotland", 188: "a_league",
+    197: "super_league_1_greece", 203: "super_lig", 207: "super_league_suiza", 210: "hnl_croacia",
+    218: "bundesliga_austria", 239: "primera_a_colombia", 242: "liga_pro_ecuador",
+    244: "veikkausliiga", 253: "mls", 257: "us_open_cup",
+    262: "liga_mx", 263: "liga_expansion_mx", 265: "primera_division_chile", 268: "primera_division_apertura_uru",
+    271: "nb_i", 281: "primera_division_peru", 345: "czech_liga", 357: "premier_division_irlanda"
+}
+
+
+
+print("Diccionario de ligas cargado correctamente")
+
 
 # Cargar historial por liga (solo una vez al inicio)
 def cargar_historial():
