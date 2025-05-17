@@ -1,7 +1,7 @@
 # dg_picks_mlb.py
 
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 import time
 
@@ -9,15 +9,16 @@ import time
 ODDS_API_KEY = "137992569bc2352366c01e6928577b2d"
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/baseball_mlb/odds"
 MLB_STATS_BASE_URL = "https://statsapi.mlb.com/api/v1/schedule"
+MLB_GAME_STATS_URL = "https://statsapi.mlb.com/api/v1.1/game/{}/feed/live"
+MLB_TEAM_STATS_URL = "https://statsapi.mlb.com/api/v1/teams/{}/stats"
 HEADERS = {"User-Agent": "DG Picks"}
 
-# Zona horaria México para partidos del día
 MX_TZ = pytz.timezone("America/Mexico_City")
 HOY = datetime.now(MX_TZ).strftime("%Y-%m-%d")
+AYER = (datetime.now(MX_TZ) - timedelta(days=1)).strftime("%Y-%m-%d")
 
 
 def get_today_mlb_games():
-    """Consulta los partidos de MLB programados para hoy desde MLB Stats API."""
     params = {
         "sportId": 1,
         "date": HOY,
@@ -31,17 +32,18 @@ def get_today_mlb_games():
         for game in date_info.get("games", []):
             games.append({
                 "gamePk": game["gamePk"],
-                "home_team": game["teams"]["home"]["team"]["name"],
-                "away_team": game["teams"]["away"]["team"]["name"],
+                "home_team": game["teams"]["home"]["team"],
+                "away_team": game["teams"]["away"]["team"],
                 "home_pitcher": game["teams"]["home"].get("probablePitcher", {}).get("fullName", "No confirmado"),
                 "away_pitcher": game["teams"]["away"].get("probablePitcher", {}).get("fullName", "No confirmado"),
+                "home_team_id": game["teams"]["home"]["team"]["id"],
+                "away_team_id": game["teams"]["away"]["team"]["id"],
                 "start_time": game.get("gameDate")
             })
-    return games
+    return games[:5]
 
 
 def get_odds_for_mlb():
-    """Obtiene cuotas para partidos MLB del día desde The Odds API."""
     params = {
         "apiKey": ODDS_API_KEY,
         "regions": "us",
@@ -55,13 +57,22 @@ def get_odds_for_mlb():
     return response.json()
 
 
+def get_team_stats(team_id):
+    url = MLB_TEAM_STATS_URL.format(team_id)
+    response = requests.get(url, headers=HEADERS)
+    if response.status_code != 200:
+        return {}
+    stats = response.json()
+    splits = stats.get("stats", [])[0].get("splits", [])[0].get("stat", {})
+    return splits
+
+
 def emparejar_partidos(games, odds):
-    """Une los partidos obtenidos de MLB Stats API con sus cuotas desde The Odds API."""
     partidos = []
     for game in games:
         for odd in odds:
-            if (game['home_team'].lower() in odd['home_team'].lower() or odd['home_team'].lower() in game['home_team'].lower()) and \
-               (game['away_team'].lower() in odd['away_team'].lower() or odd['away_team'].lower() in game['away_team'].lower()):
+            if (game['home_team']['name'].lower() in odd['home_team'].lower() or odd['home_team'].lower() in game['home_team']['name'].lower()) and \
+               (game['away_team']['name'].lower() in odd['away_team'].lower() or odd['away_team'].lower() in game['away_team']['name'].lower()):
 
                 cuota_ml = odd.get("bookmakers", [])[0].get("markets", [])[0].get("outcomes", [])
                 cuotas_dict = {o['name']: o['price'] for o in cuota_ml}
@@ -70,11 +81,13 @@ def emparejar_partidos(games, odds):
                 over_under = total_market['outcomes'][0] if total_market else {}
 
                 partidos.append({
-                    "enfrentamiento": f"{game['away_team']} vs {game['home_team']}",
+                    "enfrentamiento": f"{game['away_team']['name']} vs {game['home_team']['name']}",
                     "pitchers": f"{game['away_pitcher']} vs {game['home_pitcher']}",
                     "inicio": game['start_time'],
                     "cuotas": cuotas_dict,
-                    "total": over_under
+                    "total": over_under,
+                    "home_team_id": game['home_team_id'],
+                    "away_team_id": game['away_team_id']
                 })
                 break
     return partidos
@@ -98,6 +111,12 @@ def main():
         print("   Cuotas ML:", partido['cuotas'])
         if partido['total']:
             print("   Over/Under:", partido['total'])
+
+        home_stats = get_team_stats(partido['home_team_id'])
+        away_stats = get_team_stats(partido['away_team_id'])
+
+        print(f"   🟢 {partido['home_team_id']} – AVG: {home_stats.get('avg')}, OBP: {home_stats.get('obp')}, SLG: {home_stats.get('slg')}")
+        print(f"   🔴 {partido['away_team_id']} – AVG: {away_stats.get('avg')}, OBP: {away_stats.get('obp')}, SLG: {away_stats.get('slg')}")
 
 
 if __name__ == "__main__":
