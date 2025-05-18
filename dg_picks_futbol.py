@@ -118,8 +118,12 @@ def obtener_cuotas(fixture_id):
 
 def analizar_partido(partido):
     forma_local = obtener_forma_equipo(partido["local_id"], partido["liga_id"])
+    
     forma_visitante = obtener_forma_equipo(partido["visitante_id"], partido["liga_id"])
     if not forma_local or not forma_visitante:
+        print("❌ Datos incompletos para alguno de los equipos. Se omite este partido.")
+        return
+    
         print("❌ Datos incompletos para alguno de los equipos. Se omite este partido.")
         return
 
@@ -193,13 +197,6 @@ def analizar_partido(partido):
         recomendaciones.append(f"⚠️ Pick sugerido: Over en corners (media: {avg_corners:.1f})")
     if avg_tarjetas >= UMBRAL_TARJETAS:
         recomendaciones.append(f"⚠️ Pick sugerido: Over en tarjetas (media: {avg_tarjetas:.1f})")
-
-    
-    prom_corners_total = (forma_local["corners"] + forma_visitante["corners"]) / 2
-    prom_tarjetas_total = (forma_local["tarjetas"] + forma_visitante["tarjetas"]) / 2
-    print(f"\n🎯 Promedio total de corners: {prom_corners_total:.1f}")
-    print(f"🎯 Promedio total de tarjetas: {prom_tarjetas_total:.1f}")
-
 
     if recomendaciones:
         print("\n🔐 Recomendaciones:")
