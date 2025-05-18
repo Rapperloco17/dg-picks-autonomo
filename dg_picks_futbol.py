@@ -1,54 +1,99 @@
+import requests
+import os
+from datetime import datetime
 
-import pandas as pd
+API_KEY = os.getenv("API_FOOTBALL_KEY")
+HEADERS = {"x-apisports-key": API_KEY}
+BASE_URL = "https://v3.football.api-sports.io"
 
-# Lista de partidos y marcador tentativo calculado
-partidos = [
-    {"Partido": "Toluca vs Tigres UANL", "Marcador Tentativo": "2.3 - 1.1"},
-    {"Partido": "Macara vs El Nacional", "Marcador Tentativo": "1.2 - 1.1"},
-    {"Partido": "San Diego vs Sporting Kansas City", "Marcador Tentativo": "0.9 - 2.0"},
-    {"Partido": "Portland Timbers vs Seattle Sounders", "Marcador Tentativo": "2.1 - 2.0"},
-]
+FECHA_HOY = datetime.today().strftime("%Y-%m-%d")
 
-# Recomendaciones en base a lógica de goles esperados
-def recomendar_apuesta(marcador):
-    try:
-        g1, g2 = map(float, marcador.split("-"))
-    except:
-        return "❌ Sin datos"
+LIGAS_VALIDAS_IDS = {
+    1, 2, 3, 4, 9, 11, 13, 16, 39, 40, 61, 62, 71, 72, 73,
+    45, 78, 79, 88, 94, 103, 106, 113, 119, 128, 129, 130,
+    135, 136, 137, 140, 141, 143, 144, 162, 164, 169, 172,
+    179, 188, 197, 203, 207, 210, 218, 239, 242, 244, 253,
+    257, 262, 263, 265, 268, 271, 281, 345, 357
+}
 
-    total_goles = g1 + g2
-    recomendaciones = []
+def obtener_fixtures():
+    url = f"{BASE_URL}/fixtures?date={FECHA_HOY}"
+    response = requests.get(url, headers=HEADERS)
+    if response.status_code != 200:
+        print("Error al obtener fixtures")
+        return []
+    all_fixtures = response.json().get("response", [])
+    return [fx for fx in all_fixtures if fx["league"]["id"] in LIGAS_VALIDAS_IDS]
 
-    # ML
-    if g1 - g2 >= 1:
-        recomendaciones.append("🏆 Gana Local")
-    elif g2 - g1 >= 1:
-        recomendaciones.append("🏆 Gana Visitante")
-    else:
-        recomendaciones.append("🤝 Empate probable")
+def obtener_predicciones(fixture_id):
+    url = f"{BASE_URL}/predictions?fixture={fixture_id}"
+    response = requests.get(url, headers=HEADERS)
+    if response.status_code != 200:
+        return None
+    data = response.json().get("response", [])
+    return data[0] if data else None
 
-    # Over/Under
-    if total_goles >= 2.8:
-        recomendaciones.append("🔥 Over 2.5")
-    elif total_goles <= 2.2:
-        recomendaciones.append("🧊 Under 2.5")
+def obtener_estadisticas_equipo(team_id, league_id):
+    url = f"{BASE_URL}/teams/statistics?team={team_id}&league={league_id}&season=2024"
+    response = requests.get(url, headers=HEADERS)
+    if response.status_code != 200:
+        return None
+    return response.json().get("response", {})
 
-    # BTTS
-    if g1 >= 1 and g2 >= 1:
-        recomendaciones.append("✅ BTTS (Ambos anotan)")
+def obtener_h2h(team1_id, team2_id):
+    url = f"{BASE_URL}/fixtures/headtohead?h2h={team1_id}-{team2_id}"
+    response = requests.get(url, headers=HEADERS)
+    if response.status_code != 200:
+        return []
+    return response.json().get("response", [])
 
-    return " | ".join(recomendaciones)
+def analizar_partido(fixture):
+    fixture_id = fixture["fixture"]["id"]
+    equipos = fixture["teams"]
+    local = equipos["home"]
+    visitante = equipos["away"]
+    liga = fixture["league"]
 
-# Construcción del DataFrame
-df = pd.DataFrame(partidos)
-df["Recomendación"] = df["Marcador Tentativo"].apply(recomendar_apuesta)
+    prediccion = obtener_predicciones(fixture_id)
+    stats_local = obtener_estadisticas_equipo(local["id"], liga["id"])
+    stats_visitante = obtener_estadisticas_equipo(visitante["id"], liga["id"])
+    h2h = obtener_h2h(local["id"], visitante["id"])
 
-# Generar formato estilo Telegram
-df["Mensaje Telegram"] = df.apply(
-    lambda row: f"🎯 *{row['Partido']}*\n🔢 Marcador tentativo: {row['Marcador Tentativo']}\n{row['Recomendación']}\n", axis=1
-)
+    print(f"\n📊 {local['name']} vs {visitante['name']} ({liga['name']})")
 
-mensaje_final = "\n".join(df["Mensaje Telegram"].tolist())
+    if prediccion:
+        pred = prediccion["predictions"]
+        ganador = pred.get("winner", {}).get("name", "N/D")
+        btts = pred.get("both_teams_to_score", {}).get("yes", "0")
+        over25 = pred.get("goals", {}).get("over_2_5", {}).get("percentage", "0")
+        confianza = pred.get("winner", {}).get("comment", "")
 
-print("📊 Análisis DG Picks – Recomendaciones del Día\n")
-print(mensaje_final)
+        print(f"📈 ML: {ganador} ({confianza}) | BTTS: {btts}% | Over 2.5: {over25}%")
+
+    if stats_local and stats_visitante:
+        gf_local = stats_local["goals"]["for"]["average"].get("total", 0)
+        gc_local = stats_local["goals"]["against"]["average"].get("total", 0)
+        gf_visit = stats_visitante["goals"]["for"]["average"].get("total", 0)
+        gc_visit = stats_visitante["goals"]["against"]["average"].get("total", 0)
+
+        exp_local = (float(gf_local) + float(gc_visit)) / 2
+        exp_visit = (float(gf_visit) + float(gc_local)) / 2
+        print(f"🔢 Marcador tentativo: {round(exp_local, 1)} - {round(exp_visit, 1)}")
+
+    if h2h:
+        ultimos = h2h[:5]
+        marcador_h2h = [f"{x['teams']['home']['name']} {x['goals']['home']} - {x['goals']['away']} {x['teams']['away']['name']}" for x in ultimos]
+        print("📚 Últimos enfrentamientos:")
+        for h in marcador_h2h:
+            print("  -", h)
+
+def main():
+    print(f"\n🗓️ Análisis de partidos del día {FECHA_HOY}")
+    fixtures = obtener_fixtures()
+    print(f"📌 Total partidos encontrados: {len(fixtures)}")
+
+    for partido in fixtures:
+        analizar_partido(partido)
+
+if __name__ == "__main__":
+    main()
