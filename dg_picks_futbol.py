@@ -135,10 +135,6 @@ def analizar_partido(partido):
     tarjetas_l = forma_local.get("cards", {}).get("yellow", {}).get("total", 0)
     tarjetas_v = forma_visitante.get("cards", {}).get("yellow", {}).get("total", 0)
 
-    predicciones = obtener_predicciones(partido["fixture_id"])
-    if not predicciones or not predicciones["over25"] or not predicciones["btts"]:
-        print("❌ Sin predicciones útiles. Se omite este partido.")
-        return
 
     cuotas = obtener_cuotas(partido["fixture_id"])
     if not cuotas or not any(cuotas.values()):
