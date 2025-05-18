@@ -1,5 +1,4 @@
 
-
 import requests
 from datetime import datetime
 
@@ -67,11 +66,17 @@ def obtener_predicciones(fixture_id):
     data = response.json().get("response", [])
     if not data:
         return {}
+
     pred = data[0].get("predictions", {})
+    goles = data[0].get("goals", {})
+
     return {
         "ganador": pred.get("winner", {}).get("name"),
-        "btts": pred.get("both_teams_to_score", {}).get("yes"),
-        "over25": pred.get("goals", {}).get("over_2_5", {}).get("percentage")
+        "btts_yes": pred.get("both_teams_to_score", {}).get("yes"),
+        "btts_no": pred.get("both_teams_to_score", {}).get("no"),
+        "over25": pred.get("goals", {}).get("over_2_5", {}).get("percentage"),
+        "goles_home": goles.get("home"),
+        "goles_away": goles.get("away")
     }
 
 def obtener_h2h(local_id, visitante_id):
@@ -129,42 +134,37 @@ def analizar_partido(partido):
     prom_gf_v = float(forma_visitante.get("goals", {}).get("for", {}).get("average", {}).get("away") or 0)
     prom_gc_v = float(forma_visitante.get("goals", {}).get("against", {}).get("average", {}).get("away") or 0)
 
-    corners_l = forma_local.get("corners", {}).get("total", {}).get("total", 0)
-    corners_v = forma_visitante.get("corners", {}).get("total", {}).get("total", 0)
-    tarjetas_l = forma_local.get("cards", {}).get("yellow", {}).get("total", 0)
-    tarjetas_v = forma_visitante.get("cards", {}).get("yellow", {}).get("total", 0)
+    corners_l = forma_local.get("corners", {}).get("total", {}).get("total")
+    corners_v = forma_visitante.get("corners", {}).get("total", {}).get("total")
+    tarjetas_l = forma_local.get("cards", {}).get("yellow", {}).get("total")
+    tarjetas_v = forma_visitante.get("cards", {}).get("yellow", {}).get("total")
 
-    predicciones = obtener_predicciones(partido["fixture_id"])
+    corners_total = "No disponible" if corners_l is None or corners_v is None else (corners_l + corners_v) / 2
+    tarjetas_total = "No disponible" if tarjetas_l is None or tarjetas_v is None else (tarjetas_l + tarjetas_v) / 2
+
+    pred = obtener_predicciones(partido["fixture_id"])
     cuotas = obtener_cuotas(partido["fixture_id"])
     h2h = obtener_h2h(partido["local_id"], partido["visitante_id"])
 
     print(f"\n🔍 {partido['local']} vs {partido['visitante']} ({partido['liga']})")
-    print(f"  🏠 {partido['local']}: Forma: {forma_l} | Goles Casa: {prom_gf_l:.1f} / Contra: {prom_gc_l:.1f}, Corners: {corners_l}, Amarillas: {tarjetas_l}")
-    print(f"  🚶‍♂️ {partido['visitante']}: Forma: {forma_v} | Goles Visita: {prom_gf_v:.1f} / Contra: {prom_gc_v:.1f}, Corners: {corners_v}, Amarillas: {tarjetas_v}")
-    print(f"  📊 Predicción: Gana {predicciones.get('ganador', 'N/D')} | BTTS: {predicciones.get('btts', 'N/D')} | Over 2.5: {predicciones.get('over25', 'N/D')}%")
+    print(f"  🏠 {partido['local']}: Forma: {forma_l} | GF: {prom_gf_l:.1f}, GC: {prom_gc_l:.1f}")
+    print(f"  🚶‍♂️ {partido['visitante']}: Forma: {forma_v} | GF: {prom_gf_v:.1f}, GC: {prom_gc_v:.1f}")
+    print(f"  📊 Predicción: Gana {pred.get('ganador', 'N/D')}, BTTS Sí: {pred.get('btts_yes', '—')}%, Over 2.5: {pred.get('over25', '—')}%")
+    print(f"  🎯 Marcador tentativo: {pred.get('goles_home', '?')} - {pred.get('goles_away', '?')}")
+
+    promedio_goles = (prom_gf_l + prom_gf_v)
+    if not pred.get("over25"):
+        if promedio_goles >= 3:
+            print(f"  ⚠️ Estimación por promedio: OVER 2.5 probable (Promedio GF: {promedio_goles:.1f})")
+        elif promedio_goles <= 2:
+            print(f"  ⚠️ Estimación por promedio: UNDER 2.5 probable (Promedio GF: {promedio_goles:.1f})")
+
     if h2h:
         print(f"  🆚 Últimos H2H: {' | '.join(h2h)}")
+
     print(f"  💸 Cuotas: ML Local {cuotas.get('local', '-')}, Empate {cuotas.get('empate', '-')}, Visitante {cuotas.get('visitante', '-')}, BTTS Sí {cuotas.get('btts', '-')}, Over 2.5 {cuotas.get('over_2_5', '-')}")
-
-    recomendaciones = []
-    if predicciones.get("over25") and predicciones["over25"].isdigit() and int(predicciones["over25"]) >= UMBRAL_GOLES and "over_2_5" in cuotas:
-        recomendaciones.append(f"✅ Pick sugerido: Over 2.5 goles @ {cuotas['over_2_5']}")
-    if predicciones.get("btts") and predicciones["btts"].isdigit() and int(predicciones["btts"]) >= UMBRAL_BTTS and "btts" in cuotas:
-        recomendaciones.append(f"✅ Pick sugerido: Ambos anotan (BTTS) @ {cuotas['btts']}")
-    if (corners_l + corners_v) / 2 >= UMBRAL_CORNERS:
-        recomendaciones.append(f"⚠️ Pick sugerido: Over en corners (media: {(corners_l + corners_v)/2:.1f})")
-    if (tarjetas_l + tarjetas_v) / 2 >= UMBRAL_TARJETAS:
-        recomendaciones.append(f"⚠️ Pick sugerido: Over en tarjetas (media: {(tarjetas_l + tarjetas_v)/2:.1f})")
-
-    print(f"\n🎯 Promedio total de corners: {(corners_l + corners_v) / 2:.1f}")
-    print(f"🎯 Promedio total de tarjetas: {(tarjetas_l + tarjetas_v) / 2:.1f}")
-
-    if recomendaciones:
-        print("\n🔐 Recomendaciones:")
-        for r in recomendaciones:
-            print("   -", r)
-    else:
-        print("🔎 Sin recomendaciones claras para este partido.")
+    print(f"  📉 Promedio total de corners: {corners_total}")
+    print(f"  📉 Promedio total de tarjetas: {tarjetas_total}")
 
 def main():
     print(f"\n📅 Análisis de partidos del día {FECHA_HOY}")
