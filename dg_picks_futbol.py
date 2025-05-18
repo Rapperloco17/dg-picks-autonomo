@@ -6,13 +6,13 @@ HEADERS = {"x-apisports-key": API_KEY}
 BASE_URL = "https://v3.football.api-sports.io"
 
 FECHA_HOY = datetime.today().strftime("%Y-%m-%d")
+print("🔍 Fecha que se está analizando:", FECHA_HOY)
 
 UMBRAL_GOLES = 65
 UMBRAL_BTTS = 60
 UMBRAL_CORNERS = 9
 UMBRAL_TARJETAS = 4
 
-# Ligas válidas por ID (para filtrar fixtures)
 LIGAS_VALIDAS_IDS = {
     1, 2, 3, 4, 9, 11, 13, 16, 39, 40, 61, 62, 71, 72, 73,
     45, 78, 79, 88, 94, 103, 106, 113, 119, 128, 129, 130,
@@ -33,11 +33,8 @@ def obtener_fixtures_del_dia():
         total_partidos += 1
         liga_id = item["league"]["id"]
         if liga_id not in LIGAS_VALIDAS_IDS:
-            print(f"❌ Liga no válida: {liga_id} - {item['league']['name']}")
             continue
-
         total_filtrados += 1
-        print(f"✅ Partido válido encontrado: {item['teams']['home']['name']} vs {item['teams']['away']['name']}")
         partidos.append({
             "fixture_id": item["fixture"]["id"],
             "liga": item["league"]["name"],
@@ -49,7 +46,23 @@ def obtener_fixtures_del_dia():
             "hora": item["fixture"]["date"]
         })
 
-    print(f"\n📊 Total partidos recibidos: {total_partidos}")
+    print(f"📦 Total partidos recibidos: {total_partidos}")
     print(f"✅ Partidos en ligas válidas: {total_filtrados}")
     return partidos
 
+# Aquí iría el resto de funciones como: obtener_forma_equipo, obtener_predicciones, etc.
+
+
+def main():
+    print(f"\n📊 Análisis de partidos del día {FECHA_HOY}\n")
+    partidos = obtener_fixtures_del_dia()
+    if not partidos:
+        print("🚫 No se encontraron partidos válidos para analizar.")
+    for partido in partidos:
+        print("🔍 Analizando:", partido.get("local"), "vs", partido.get("visitante"))
+        # Aquí deberías llamar a analizar_partido(partido)
+
+    print("✅ SCRIPT FINALIZADO CORRECTAMENTE")
+
+if __name__ == "__main__":
+    main()
