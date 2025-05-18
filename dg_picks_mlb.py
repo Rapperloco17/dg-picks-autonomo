@@ -63,7 +63,9 @@ def get_team_stats(team_id):
     url = MLB_TEAM_STATS_URL.format(team_id)
     response = requests.get(url, headers=HEADERS)
     stats = response.json()
-    return stats.get("stats", [])[0].get("splits", [])[0].get("stat", {})
+    if not stats.get("stats") or not stats["stats"][0].get("splits"):
+        return {}
+    return stats["stats"][0]["splits"][0].get("stat", {})
 
 
 def get_team_form(team_id):
