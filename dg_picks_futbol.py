@@ -87,33 +87,39 @@ def obtener_h2h(local_id, visitante_id):
     data = response.json().get("response", [])
     return [f"{p.get('goals', {}).get('home', 0)}-{p.get('goals', {}).get('away', 0)}" for p in data]
 
+
 def obtener_cuotas(fixture_id):
-    url = f"{BASE_URL}/odds?fixture={fixture_id}&bookmaker=6"
-    response = requests.get(url, headers=HEADERS)
-    if response.status_code != 200:
-        return {}
-    data = response.json().get("response", [])
-    cuotas = {}
-    for mercado in data:
-        for book in mercado.get("bookmakers", []):
-            for tipo in book.get("bets", []):
-                if tipo["name"] == "Over/Under 2.5 goals":
-                    for val in tipo.get("values", []):
-                        if val["value"] == "Over 2.5":
-                            cuotas["over_2_5"] = val["odd"]
-                if tipo["name"] == "Both Teams To Score":
-                    for val in tipo.get("values", []):
-                        if val["value"] == "Yes":
-                            cuotas["btts"] = val["odd"]
-                if tipo["name"] == "Match Winner":
-                    for val in tipo.get("values", []):
-                        if val["value"] == "Home":
-                            cuotas["local"] = val["odd"]
-                        elif val["value"] == "Draw":
-                            cuotas["empate"] = val["odd"]
-                        elif val["value"] == "Away":
-                            cuotas["visitante"] = val["odd"]
-    return cuotas
+    bookmaker_ids = [6, 1, 8, 9]  # Bet365, 1xBet, Pinnacle, William Hill
+    for bookmaker_id in bookmaker_ids:
+        url = f"{BASE_URL}/odds?fixture={fixture_id}&bookmaker={bookmaker_id}"
+        response = requests.get(url, headers=HEADERS)
+        if response.status_code != 200:
+            continue
+        data = response.json().get("response", [])
+        cuotas = {}
+        for mercado in data:
+            for book in mercado.get("bookmakers", []):
+                for tipo in book.get("bets", []):
+                    if tipo["name"] == "Over/Under 2.5 goals":
+                        for val in tipo.get("values", []):
+                            if val["value"] == "Over 2.5":
+                                cuotas["over_2_5"] = val["odd"]
+                    if tipo["name"] == "Both Teams To Score":
+                        for val in tipo.get("values", []):
+                            if val["value"] == "Yes":
+                                cuotas["btts"] = val["odd"]
+                    if tipo["name"] == "Match Winner":
+                        for val in tipo.get("values", []):
+                            if val["value"] == "Home":
+                                cuotas["local"] = val["odd"]
+                            elif val["value"] == "Draw":
+                                cuotas["empate"] = val["odd"]
+                            elif val["value"] == "Away":
+                                cuotas["visitante"] = val["odd"]
+        if cuotas:
+            return cuotas
+    return {}
+
 
 def analizar_partido(partido):
     forma_local = obtener_forma_equipo(partido["local_id"], partido["liga_id"])
