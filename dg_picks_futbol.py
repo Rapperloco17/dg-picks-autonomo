@@ -26,15 +26,16 @@ def obtener_fixtures_del_dia():
     response = requests.get(url, headers=HEADERS)
     data = response.json()
     partidos = []
-    total_partidos = 0
-    total_filtrados = 0
+
+    total = 0
+    filtrados = 0
 
     for item in data.get("response", []):
-        total_partidos += 1
+        total += 1
         liga_id = item["league"]["id"]
         if liga_id not in LIGAS_VALIDAS_IDS:
             continue
-        total_filtrados += 1
+        filtrados += 1
         partidos.append({
             "fixture_id": item["fixture"]["id"],
             "liga": item["league"]["name"],
@@ -46,8 +47,8 @@ def obtener_fixtures_del_dia():
             "hora": item["fixture"]["date"]
         })
 
-    print(f"\n📊 Total partidos recibidos: {total_partidos}")
-    print(f"✅ Partidos en ligas válidas: {total_filtrados}")
+    print(f"\n📊 Total partidos recibidos: {total}")
+    print(f"✅ Partidos en ligas válidas: {filtrados}")
     return partidos
 
 def obtener_forma_equipo(team_id, league_id):
@@ -61,16 +62,16 @@ def obtener_predicciones(fixture_id):
     url = f"{BASE_URL}/predictions?fixture={fixture_id}"
     response = requests.get(url, headers=HEADERS)
     if response.status_code != 200:
-        return None
+        return {}
     data = response.json().get("response", [])
-    if data:
-        pred = data[0].get("predictions", {})
-        return {
-            "ganador": pred.get("winner", {}).get("name"),
-            "btts": pred.get("both_teams_to_score", {}).get("yes"),
-            "over25": pred.get("goals", {}).get("over_2_5", {}).get("percentage")
-        }
-    return None
+    if not data:
+        return {}
+    pred = data[0].get("predictions", {})
+    return {
+        "ganador": pred.get("winner", {}).get("name"),
+        "btts": pred.get("both_teams_to_score", {}).get("yes"),
+        "over25": pred.get("goals", {}).get("over_2_5", {}).get("percentage")
+    }
 
 def obtener_h2h(local_id, visitante_id):
     url = f"{BASE_URL}/fixtures/headtohead?h2h={local_id}-{visitante_id}&last=5"
@@ -88,39 +89,36 @@ def obtener_cuotas(fixture_id):
     data = response.json().get("response", [])
     cuotas = {}
     for mercado in data:
-        for bet in mercado.get("bookmakers", []):
-            for tipo in bet.get("bets", []):
-                if tipo.get("name") == "Over/Under 2.5 goals":
+        for book in mercado.get("bookmakers", []):
+            for tipo in book.get("bets", []):
+                if tipo["name"] == "Over/Under 2.5 goals":
                     for val in tipo.get("values", []):
-                        if val.get("value") == "Over 2.5":
-                            cuotas["over_2_5"] = val.get("odd")
-                elif tipo.get("name") == "Both Teams To Score":
+                        if val["value"] == "Over 2.5":
+                            cuotas["over_2_5"] = val["odd"]
+                if tipo["name"] == "Both Teams To Score":
                     for val in tipo.get("values", []):
-                        if val.get("value") == "Yes":
-                            cuotas["btts"] = val.get("odd")
-                elif tipo.get("name") == "Match Winner":
+                        if val["value"] == "Yes":
+                            cuotas["btts"] = val["odd"]
+                if tipo["name"] == "Match Winner":
                     for val in tipo.get("values", []):
-                        if val.get("value") == "Home":
-                            cuotas["local"] = val.get("odd")
-                        elif val.get("value") == "Draw":
-                            cuotas["empate"] = val.get("odd")
-                        elif val.get("value") == "Away":
-                            cuotas["visitante"] = val.get("odd")
+                        if val["value"] == "Home":
+                            cuotas["local"] = val["odd"]
+                        elif val["value"] == "Draw":
+                            cuotas["empate"] = val["odd"]
+                        elif val["value"] == "Away":
+                            cuotas["visitante"] = val["odd"]
     return cuotas
 
 def analizar_partido(partido):
     forma_local = obtener_forma_equipo(partido["local_id"], partido["liga_id"])
     forma_visitante = obtener_forma_equipo(partido["visitante_id"], partido["liga_id"])
     if not forma_local or not forma_visitante:
-        print("❌ Datos incompletos para alguno de los equipos. Se omite este partido.")
+        print("❌ Datos incompletos. Se omite este partido.")
         return
 
     def procesar_forma(cadena):
         ultimos = cadena[-5:] if cadena else ""
-        ganados = ultimos.count("W")
-        empatados = ultimos.count("D")
-        perdidos = ultimos.count("L")
-        return f"{' '.join(ultimos)} | {ganados}V – {empatados}E – {perdidos}D"
+        return f"{' '.join(ultimos)} | {ultimos.count('W')}V – {ultimos.count('D')}E – {ultimos.count('L')}D"
 
     forma_l = procesar_forma(forma_local.get("form", ""))
     forma_v = procesar_forma(forma_visitante.get("form", ""))
@@ -135,14 +133,8 @@ def analizar_partido(partido):
     tarjetas_l = forma_local.get("cards", {}).get("yellow", {}).get("total", 0)
     tarjetas_v = forma_visitante.get("cards", {}).get("yellow", {}).get("total", 0)
 
-       predicciones = obtener_predicciones(partido["fixture_id"])
-    # Las predicciones se usarán solo si están disponibles, no se filtrará por eso
-
+    predicciones = obtener_predicciones(partido["fixture_id"])
     cuotas = obtener_cuotas(partido["fixture_id"])
-    if not cuotas or not cuotas.values():
-        print("❌ Sin cuotas disponibles. Se omite este partido.")
-        return
-
     h2h = obtener_h2h(partido["local_id"], partido["visitante_id"])
 
     print(f"\n🔍 {partido['local']} vs {partido['visitante']} ({partido['liga']})")
@@ -154,9 +146,9 @@ def analizar_partido(partido):
     print(f"  💸 Cuotas: ML Local {cuotas.get('local', '-')}, Empate {cuotas.get('empate', '-')}, Visitante {cuotas.get('visitante', '-')}, BTTS Sí {cuotas.get('btts', '-')}, Over 2.5 {cuotas.get('over_2_5', '-')}")
 
     recomendaciones = []
-    if predicciones.get("over25") and isinstance(predicciones["over25"], str) and predicciones["over25"].isdigit() and int(predicciones["over25"]) >= UMBRAL_GOLES and "over_2_5" in cuotas:
+    if predicciones.get("over25") and predicciones["over25"].isdigit() and int(predicciones["over25"]) >= UMBRAL_GOLES and "over_2_5" in cuotas:
         recomendaciones.append(f"✅ Pick sugerido: Over 2.5 goles @ {cuotas['over_2_5']}")
-    if predicciones.get("btts") and isinstance(predicciones["btts"], str) and predicciones["btts"].isdigit() and int(predicciones["btts"]) >= UMBRAL_BTTS and "btts" in cuotas:
+    if predicciones.get("btts") and predicciones["btts"].isdigit() and int(predicciones["btts"]) >= UMBRAL_BTTS and "btts" in cuotas:
         recomendaciones.append(f"✅ Pick sugerido: Ambos anotan (BTTS) @ {cuotas['btts']}")
     if (corners_l + corners_v) / 2 >= UMBRAL_CORNERS:
         recomendaciones.append(f"⚠️ Pick sugerido: Over en corners (media: {(corners_l + corners_v)/2:.1f})")
@@ -171,7 +163,7 @@ def analizar_partido(partido):
         for r in recomendaciones:
             print("   -", r)
     else:
-        print("\n🔎 Sin recomendaciones claras para este partido.")
+        print("🔎 Sin recomendaciones claras para este partido.")
 
 def main():
     print(f"\n📅 Análisis de partidos del día {FECHA_HOY}")
