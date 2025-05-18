@@ -44,7 +44,7 @@ def get_today_mlb_games():
                 "away_team_id": game["teams"]["away"]["team"]["id"],
                 "start_time": game.get("gameDate")
             })
-    return games[:5]
+    return games
 
 
 def get_odds_for_mlb():
