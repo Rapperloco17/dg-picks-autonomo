@@ -1,186 +1,177 @@
-import os
+
 import requests
-import json
 from datetime import datetime
 
-# Configuración de API
-API_KEY = os.getenv("API_FOOTBALL_KEY") or "178b66e41ba9d4d3b8549f096ef1e377"
-BASE_URL = "https://v3.football.api-sports.io"
+API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
 HEADERS = {"x-apisports-key": API_KEY}
+BASE_URL = "https://v3.football.api-sports.io"
 
-# Ligas válidas (IDs y archivo de historial)
-LIGAS_VALIDAS = {
-    1: "resultados_world_cup.json",
-    2: "resultados_uefa_champions_league.json",
-    3: "resultados_uefa_europa_league.json",
-    4: "resultados_euro_championship.json",
-    9: "resultados_copa_america.json",
-    11: "resultados_conmebol_sudamericana.json",
-    13: "resultados_conmebol_libertadores.json",
-    16: "resultados_concacaf_champions_league.json",
-    39: "resultados_premier_league.json",
-    40: "resultados_championship.json",
-    61: "resultados_ligue_1.json",
-    62: "resultados_ligue_2.json",
-    71: "resultados_serie_a.json",
-    72: "resultados_serie_b.json",
-    73: "resultados_copa_do_brasil.json",
-    45: "resultados_fa_cup.json",
-    78: "resultados_bundesliga.json",
-    79: "resultados_2_bundesliga.json",
-    88: "resultados_eredivisie.json",
-    94: "resultados_primeira_liga.json",
-    103: "resultados_eliteserien.json",
-    106: "resultados_ekstraklasa.json",
-    113: "resultados_allsvenskan.json",
-    119: "resultados_superliga.json",
-    128: "resultados_liga_profesional_argentina.json",
-    129: "resultados_primera_nacional.json",
-    130: "resultados_copa_argentina.json",
-    135: "resultados_serie_a_italy.json",
-    136: "resultados_serie_b_italy.json",
-    137: "resultados_coppa_italia.json",
-    140: "resultados_la_liga.json",
-    141: "resultados_segunda_división.json",
-    143: "resultados_copa_del_rey.json",
-    144: "resultados_jupiler_pro_league.json",
-    162: "resultados_primera_división_costa_rica.json",
-    164: "resultados_urvalsdeild.json",
-    169: "resultados_super_league_china.json",
-    172: "resultados_first_league.json",
-    179: "resultados_premiership.json",
-    188: "resultados_a_league.json",
-    197: "resultados_super_league_1.json",
-    203: "resultados_super_lig.json",
-    207: "resultados_super_league_switzerland.json",
-    210: "resultados_hnl.json",
-    218: "resultados_bundesliga_austria.json",
-    239: "resultados_primera_a.json",
-    242: "resultados_liga_pro.json",
-    244: "resultados_veikkausliiga.json",
-    253: "resultados_major_league_soccer.json",
-    257: "resultados_us_open_cup.json",
-    262: "resultados_liga_mx.json",
-    263: "resultados_liga_de_expansión_mx.json",
-    265: "resultados_primera_división_chile.json",
-    268: "resultados_primera_división_apertura.json",
-    271: "resultados_nb_i.json",
-    281: "resultados_primera_división_peru.json",
-    345: "resultados_czech_liga.json",
-    357: "resultados_premier_division_ireland.json"
+FECHA_HOY = datetime.today().strftime("%Y-%m-%d")
+
+UMBRAL_GOLES = 65
+UMBRAL_BTTS = 60
+UMBRAL_CORNERS = 9
+UMBRAL_TARJETAS = 4
+
+LIGAS_VALIDAS_IDS = {
+    1, 2, 3, 4, 9, 11, 13, 16, 39, 40, 61, 62, 71, 72, 73,
+    45, 78, 79, 88, 94, 103, 106, 113, 119, 128, 129, 130,
+    135, 136, 137, 140, 141, 143, 144, 162, 164, 169, 172,
+    179, 188, 197, 203, 207, 210, 218, 239, 242, 244, 253,
+    257, 262, 263, 265, 268, 271, 281, 345, 357
 }
 
-  
+def obtener_fixtures_del_dia():
+    url = f"{BASE_URL}/fixtures?date={FECHA_HOY}"
+    response = requests.get(url, headers=HEADERS)
+    data = response.json()
+    partidos = []
+    total_partidos = 0
+    total_filtrados = 0
 
-# ---------------------- FUNCIONES PRINCIPALES ----------------------
+    for item in data.get("response", []):
+        total_partidos += 1
+        liga_id = item["league"]["id"]
+        if liga_id not in LIGAS_VALIDAS_IDS:
+            continue
+        total_filtrados += 1
+        partidos.append({
+            "fixture_id": item["fixture"]["id"],
+            "liga": item["league"]["name"],
+            "liga_id": liga_id,
+            "local": item["teams"]["home"]["name"],
+            "visitante": item["teams"]["away"]["name"],
+            "local_id": item["teams"]["home"]["id"],
+            "visitante_id": item["teams"]["away"]["id"],
+            "hora": item["fixture"]["date"]
+        })
 
-def obtener_fixtures_hoy():
-    hoy = datetime.utcnow().strftime("%Y-%m-%d")
-    url = f"{BASE_URL}/fixtures?date={hoy}"
-    try:
-        res = requests.get(url, headers=HEADERS, timeout=10).json()
-        fixtures = res.get("response", [])
-        return [f for f in fixtures if f['league']['id'] in LIGAS_VALIDAS]
-    except:
-        return []
+    print(f"\n📊 Total partidos recibidos: {total_partidos}")
+    print(f"✅ Partidos en ligas válidas: {total_filtrados}")
 
-def cargar_historial(liga_id):
-    archivo = LIGAS_VALIDAS.get(liga_id)
-    if not archivo:
-        return []
-    try:
-        with open(f"historial/{archivo}", "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
-        return []
+    return partidos
 
-def calcular_promedios(equipo, historial):
-    partidos = [p for p in historial if p['equipo_local'] == equipo or p['equipo_visitante'] == equipo]
-    if not partidos:
+def obtener_forma_equipo(team_id, league_id):
+    url = f"{BASE_URL}/teams/statistics?team={team_id}&season=2024&league={league_id}"
+    response = requests.get(url, headers=HEADERS)
+    if response.status_code != 200:
         return None
-    goles_favor, goles_contra, tarjetas, corners = 0, 0, 0, 0
-    for p in partidos:
-        if p['equipo_local'] == equipo:
-            goles_favor += p['goles_local']
-            goles_contra += p['goles_visitante']
-            tarjetas += p.get('amarillas_local', 0)
-            corners += p.get('corners_local', 0)
-        else:
-            goles_favor += p['goles_visitante']
-            goles_contra += p['goles_local']
-            tarjetas += p.get('amarillas_visitante', 0)
-            corners += p.get('corners_visitante', 0)
-    n = len(partidos)
+    data = response.json().get("response", {})
     return {
-        "goles_favor": round(goles_favor / n, 2),
-        "goles_contra": round(goles_contra / n, 2),
-        "tarjetas": round(tarjetas / n, 2),
-        "corners": round(corners / n, 2),
-        "partidos": n
+        "goles_favor": data.get("goals", {}).get("for", {}).get("total", {}).get("total", 0),
+        "goles_contra": data.get("goals", {}).get("against", {}).get("total", {}).get("total", 0),
+        "forma": data.get("form", ""),
+        "corners": data.get("corners", {}).get("total", {}).get("total", 0),
+        "tarjetas": data.get("cards", {}).get("yellow", {}).get("total", 0)
     }
 
+def obtener_predicciones(fixture_id):
+    url = f"{BASE_URL}/predictions?fixture={fixture_id}"
+    response = requests.get(url, headers=HEADERS)
+    if response.status_code != 200:
+        return None
+    data = response.json().get("response", [])
+    if data:
+        pred = data[0].get("predictions", {})
+        return {
+            "ganador": pred.get("winner", {}).get("name"),
+            "btts": pred.get("both_teams_to_score", {}).get("yes"),
+            "over25": pred.get("goals", {}).get("over_2_5", {}).get("percentage")
+        }
+    return None
+
+def obtener_h2h(local_id, visitante_id):
+    url = f"{BASE_URL}/fixtures/headtohead?h2h={local_id}-{visitante_id}&last=5"
+    response = requests.get(url, headers=HEADERS)
+    if response.status_code != 200:
+        return []
+    data = response.json().get("response", [])
+    return [f"{p.get('goals', {}).get('home', 0)}-{p.get('goals', {}).get('away', 0)}" for p in data]
+
 def obtener_cuotas(fixture_id):
-    url = f"{BASE_URL}/odds?fixture={fixture_id}&bookmaker=1"
-    try:
-        res = requests.get(url, headers=HEADERS, timeout=10).json()
-        apuestas = res.get("response", [])
-        cuotas = {"ML": {}, "Over25": None, "BTTS": None}
-        for ap in apuestas:
-            for market in ap.get("bookmakers", []):
-                for b in market.get("bets", []):
-                    if b['name'] == "Match Winner":
-                        for o in b['values']:
-                            cuotas['ML'][o['value']] = o['odd']
-                    elif b['name'] == "Over/Under":
-                        for o in b['values']:
-                            if o['value'] == "Over 2.5":
-                                cuotas['Over25'] = o['odd']
-                    elif b['name'] == "Both Teams To Score":
-                        for o in b['values']:
-                            if o['value'] == "Yes":
-                                cuotas['BTTS'] = o['odd']
-        return cuotas
-    except:
+    url = f"{BASE_URL}/odds?fixture={fixture_id}&bookmaker=6"
+    response = requests.get(url, headers=HEADERS)
+    if response.status_code != 200:
         return {}
+    data = response.json().get("response", [])
+    cuotas = {}
+    for mercado in data:
+        for bet in mercado.get("bookmakers", []):
+            for tipo in bet.get("bets", []):
+                if tipo.get("name") == "Over/Under 2.5 goals":
+                    for val in tipo.get("values", []):
+                        if val.get("value") == "Over 2.5":
+                            cuotas["over_2_5"] = val.get("odd")
+                elif tipo.get("name") == "Both Teams To Score":
+                    for val in tipo.get("values", []):
+                        if val.get("value") == "Yes":
+                            cuotas["btts"] = val.get("odd")
+                elif tipo.get("name") == "Match Winner":
+                    for val in tipo.get("values", []):
+                        if val.get("value") == "Home":
+                            cuotas["local"] = val.get("odd")
+                        elif val.get("value") == "Draw":
+                            cuotas["empate"] = val.get("odd")
+                        elif val.get("value") == "Away":
+                            cuotas["visitante"] = val.get("odd")
+    return cuotas
 
-def sugerir_pick(casa, visita, cuotas):
-    if not cuotas.get('ML'):
-        return "Sin sugerencia"
-    if casa['goles_favor'] > 1.5 and casa['goles_contra'] < 1.0:
-        return f"Gana Local @ {cuotas['ML'].get('Home', '?')}"
-    elif visita['goles_favor'] > 1.5 and visita['goles_contra'] < 1.0:
-        return f"Gana Visitante @ {cuotas['ML'].get('Away', '?')}"
-    elif casa['goles_favor'] + visita['goles_favor'] > 3.0:
-        return f"Over 2.5 goles @ {cuotas.get('Over25', '?')}"
-    elif casa['goles_favor'] > 1.2 and visita['goles_favor'] > 1.2:
-        return f"Ambos Anotan @ {cuotas.get('BTTS', '?')}"
+def analizar_partido(partido):
+    forma_local = obtener_forma_equipo(partido["local_id"], partido["liga_id"])
+    forma_visitante = obtener_forma_equipo(partido["visitante_id"], partido["liga_id"])
+    predicciones = obtener_predicciones(partido["fixture_id"])
+    h2h = obtener_h2h(partido["local_id"], partido["visitante_id"])
+    cuotas = obtener_cuotas(partido["fixture_id"])
+
+    print(f"\n🔍 {partido['local']} vs {partido['visitante']} ({partido['liga']})")
+
+    if forma_local and forma_visitante:
+        avg_corners = (forma_local['corners'] + forma_visitante['corners']) / 2
+        avg_tarjetas = (forma_local['tarjetas'] + forma_visitante['tarjetas']) / 2
+        print(f"  🏠 {partido['local']}: GF: {forma_local['goles_favor']}, GC: {forma_local['goles_contra']}, Forma: {forma_local['forma']}, Corners: {forma_local['corners']}, Amarillas: {forma_local['tarjetas']}")
+        print(f"  🚶‍♂️ {partido['visitante']}: GF: {forma_visitante['goles_favor']}, GC: {forma_visitante['goles_contra']}, Forma: {forma_visitante['forma']}, Corners: {forma_visitante['corners']}, Amarillas: {forma_visitante['tarjetas']}")
     else:
-        return "Sin sugerencia"
-
-def analizar_fixture(f):
-    local = f['teams']['home']['name']
-    visita = f['teams']['away']['name']
-    lid = f['league']['id']
-    fid = f['fixture']['id']
-    historial = cargar_historial(lid)
-    stats_local = calcular_promedios(local, historial)
-    stats_visita = calcular_promedios(visita, historial)
-    if not stats_local or not stats_visita:
-        print(f"❌ Datos incompletos para {local} vs {visita}")
+        print("  ❌ Datos incompletos para alguno de los equipos")
         return
-    cuotas = obtener_cuotas(fid)
-    pick = sugerir_pick(stats_local, stats_visita, cuotas)
-    print(f"\n🔍 {local} vs {visita} — Liga: {f['league']['name']}")
-    print(f"📊 Promedio Local: Goles: {stats_local['goles_favor']}, Tarjetas: {stats_local['tarjetas']}, Corners: {stats_local['corners']}")
-    print(f"📊 Promedio Visitante: Goles: {stats_visita['goles_favor']}, Tarjetas: {stats_visita['tarjetas']}, Corners: {stats_visita['corners']}")
-    print(f"✅ Pick sugerido: {pick}")
+
+    if predicciones:
+        print(f"  📊 Predicción: Gana {predicciones['ganador']} | BTTS: {predicciones['btts']} | Over 2.5: {predicciones['over25']}%")
+    else:
+        print("  📉 Predicciones no disponibles")
+
+    if h2h:
+        print(f"  🆚 Últimos H2H: {' | '.join(h2h)}")
+    else:
+        print("  🆚 Sin historial reciente entre ellos")
+
+    if cuotas:
+        print(f"  💸 Cuotas: ML Local {cuotas.get('local', '-')}, Empate {cuotas.get('empate', '-')}, Visitante {cuotas.get('visitante', '-')}, BTTS Sí {cuotas.get('btts', '-')}, Over 2.5 {cuotas.get('over_2_5', '-')}")
+    else:
+        print("  💸 Cuotas no disponibles")
+
+    recomendaciones = []
+    if predicciones:
+        if int(predicciones['over25']) >= UMBRAL_GOLES and 'over_2_5' in cuotas:
+            recomendaciones.append(f"✅ Pick sugerido: Over 2.5 goles @ {cuotas['over_2_5']}")
+        if int(predicciones['btts']) >= UMBRAL_BTTS and 'btts' in cuotas:
+            recomendaciones.append(f"✅ Pick sugerido: Ambos anotan (BTTS) @ {cuotas['btts']}")
+    if avg_corners >= UMBRAL_CORNERS:
+        recomendaciones.append(f"⚠️ Pick sugerido: Over en corners (media: {avg_corners:.1f})")
+    if avg_tarjetas >= UMBRAL_TARJETAS:
+        recomendaciones.append(f"⚠️ Pick sugerido: Over en tarjetas (media: {avg_tarjetas:.1f})")
+
+    if recomendaciones:
+        print("\n🔐 Recomendaciones:")
+        for r in recomendaciones:
+            print("   -", r)
+    else:
+        print("\n🔎 Sin recomendaciones claras para este partido.")
 
 def main():
-    print("\n⚽ Cargando fixtures del día...")
-    fixtures = obtener_fixtures_hoy()
-    print(f"✅ Se encontraron {len(fixtures)} partidos para analizar hoy.")
-    for f in fixtures:
-        analizar_fixture(f)
+    print(f"\n📅 Análisis de partidos del día {FECHA_HOY}")
+    partidos = obtener_fixtures_del_dia()
+    for partido in partidos:
+        analizar_partido(partido)
 
 if __name__ == "__main__":
     main()
