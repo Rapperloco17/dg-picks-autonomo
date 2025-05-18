@@ -151,9 +151,9 @@ def analizar_partido(partido):
 
     recomendaciones = []
     if predicciones:
-        if int(predicciones['over25']) >= UMBRAL_GOLES and 'over_2_5' in cuotas:
+        if predicciones['over25'] and int(predicciones['over25']) >= UMBRAL_GOLES and 'over_2_5' in cuotas:
             recomendaciones.append(f"✅ Pick sugerido: Over 2.5 goles @ {cuotas['over_2_5']}")
-        if int(predicciones['btts']) >= UMBRAL_BTTS and 'btts' in cuotas:
+        if predicciones['btts'] and int(predicciones['btts']) >= UMBRAL_BTTS and 'btts' in cuotas:
             recomendaciones.append(f"✅ Pick sugerido: Ambos anotan (BTTS) @ {cuotas['btts']}")
     if avg_corners >= UMBRAL_CORNERS:
         recomendaciones.append(f"⚠️ Pick sugerido: Over en corners (media: {avg_corners:.1f})")
