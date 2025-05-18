@@ -1,4 +1,4 @@
-# dg_picks_mlb.py – Análisis MLB (sin filtro de reto escalera)
+# dg_picks_mlb.py – Análisis con picks ML, Over y Handicap -1.5
 
 import requests
 from datetime import datetime, timedelta
@@ -14,7 +14,6 @@ HEADERS = {"User-Agent": "DG Picks"}
 
 MX_TZ = pytz.timezone("America/Mexico_City")
 HOY = datetime.now(MX_TZ).strftime("%Y-%m-%d")
-
 
 def get_today_mlb_games():
     params = {"sportId": 1, "date": HOY, "hydrate": "team,linescore,probablePitcher"}
@@ -35,17 +34,15 @@ def get_today_mlb_games():
             })
     return games
 
-
 def get_odds_for_mlb():
     params = {
         "apiKey": ODDS_API_KEY,
         "regions": "us",
-        "markets": "h2h",
+        "markets": "h2h,spreads,totals",
         "oddsFormat": "decimal"
     }
     response = requests.get(ODDS_API_URL, headers=HEADERS, params=params)
     return response.json()
-
 
 def get_pitcher_stats(pitcher_id):
     if not pitcher_id:
@@ -58,7 +55,6 @@ def get_pitcher_stats(pitcher_id):
     splits = data["people"][0]["stats"][0].get("splits", [])
     return splits[0].get("stat", {}) if splits else {}
 
-
 def get_team_stats(team_id):
     url = MLB_TEAM_STATS_URL.format(team_id)
     response = requests.get(url, headers=HEADERS)
@@ -66,7 +62,6 @@ def get_team_stats(team_id):
     if not stats.get("stats") or not stats["stats"][0].get("splits"):
         return {}
     return stats["stats"][0]["splits"][0].get("stat", {})
-
 
 def get_team_form(team_id):
     end_date = datetime.now().strftime("%Y-%m-%d")
@@ -94,13 +89,35 @@ def get_team_form(team_id):
     if not ultimos:
         return {}
     promedio_anotadas = round(sum(x[0] for x in ultimos) / len(ultimos), 2)
+    promedio_recibidas = round(sum(x[1] for x in ultimos) / len(ultimos), 2)
     victorias = sum(1 for x in ultimos if x[2])
     return {
         "anotadas": promedio_anotadas,
-        "victorias": victorias,
+        "recibidas": promedio_recibidas,
         "record": f"{victorias}G-{5 - victorias}P"
     }
 
+def sugerir_pick(equipo, rival, stats_eq, stats_riv, pitcher_eq, pitcher_riv, form_eq, cuotas):
+    try:
+        era = float(pitcher_eq.get("era", 99))
+        avg = float(stats_eq.get("avg", 0))
+        riv_era = float(pitcher_riv.get("era", 99))
+        riv_avg = float(stats_riv.get("avg", 0))
+        anotadas = form_eq.get("anotadas", 0)
+        recibidas = form_eq.get("recibidas", 10)
+        cuota_ml = cuotas.get(equipo)
+        spread = cuotas.get(f"{equipo} -1.5")
+
+        if cuota_ml and cuota_ml < 1.60 and spread and anotadas >= 5 and era < 3.5:
+            return f"✅ Pick sugerido: {equipo} -1.5 @ {spread} | Motivo: cuota ML baja, ofensiva potente, ERA sólida"
+        elif cuota_ml and 1.70 <= cuota_ml <= 2.10 and era < riv_era and avg > riv_avg:
+            return f"✅ Pick sugerido: {equipo} ML @ {cuota_ml} | Motivo: ventaja en ERA y AVG"
+        elif anotadas + stats_riv.get("avg", 0) > 9:
+            return "✅ Pick sugerido: Over 8.5 | Ambos equipos anotan mucho"
+        else:
+            return "⚠️ Partido parejo, evitar"
+    except:
+        return "❌ No hay suficiente información para sugerir pick"
 
 def main():
     print("🔍 Analizando partidos de MLB del día...")
@@ -120,15 +137,30 @@ def main():
         for odd in odds:
             if home.lower() in odd["home_team"].lower() and away.lower() in odd["away_team"].lower():
                 try:
-                    cuotas = {o["name"]: o["price"] for o in odd["bookmakers"][0]["markets"][0]["outcomes"]}
+                    outcomes = {o["name"]: o["price"] for m in odd["bookmakers"][0]["markets"] for o in m["outcomes"] if m["key"] in ["h2h", "spreads"]}
+                    if f"{home} -1.5" not in outcomes:
+                        for o in odd["bookmakers"][0]["markets"]:
+                            if o["key"] == "spreads":
+                                for spread in o["outcomes"]:
+                                    if spread["point"] == -1.5 and spread["name"] == home:
+                                        outcomes[f"{home} -1.5"] = spread["price"]
+                                    if spread["point"] == -1.5 and spread["name"] == away:
+                                        outcomes[f"{away} -1.5"] = spread["price"]
+
                     print("\n🧾", f"{away} vs {home}")
-                    print("   Cuotas:", cuotas)
+                    print("   Cuotas:", outcomes)
                     print("   ERA Pitchers:", pitcher_away.get("era"), "vs", pitcher_home.get("era"))
                     print("   AVG Equipos:", stats_away.get("avg"), "vs", stats_home.get("avg"))
                     print("   Forma:", form_away.get("record"), "vs", form_home.get("record"))
-                except:
-                    continue
 
+                    pick_home = sugerir_pick(home, away, stats_home, stats_away, pitcher_home, pitcher_away, form_home, outcomes)
+                    pick_away = sugerir_pick(away, home, stats_away, stats_home, pitcher_away, pitcher_home, form_away, outcomes)
+
+                    print("   🧠", pick_home)
+                    print("   🧠", pick_away)
+                except Exception as e:
+                    print("   ❌ Error en análisis:", e)
 
 if __name__ == "__main__":
     main()
+
