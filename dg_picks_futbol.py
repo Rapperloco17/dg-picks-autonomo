@@ -1,99 +1,104 @@
+
 import requests
-import os
+import json
 from datetime import datetime
 
 API_KEY = os.getenv("API_FOOTBALL_KEY")
-HEADERS = {"x-apisports-key": API_KEY}
 BASE_URL = "https://v3.football.api-sports.io"
 
-FECHA_HOY = datetime.today().strftime("%Y-%m-%d")
-
-LIGAS_VALIDAS_IDS = {
-    1, 2, 3, 4, 9, 11, 13, 16, 39, 40, 61, 62, 71, 72, 73,
-    45, 78, 79, 88, 94, 103, 106, 113, 119, 128, 129, 130,
-    135, 136, 137, 140, 141, 143, 144, 162, 164, 169, 172,
-    179, 188, 197, 203, 207, 210, 218, 239, 242, 244, 253,
-    257, 262, 263, 265, 268, 271, 281, 345, 357
+HEADERS = {
+    "x-apisports-key": API_KEY
 }
 
-def obtener_fixtures():
-    url = f"{BASE_URL}/fixtures?date={FECHA_HOY}"
-    response = requests.get(url, headers=HEADERS)
-    if response.status_code != 200:
-        print("Error al obtener fixtures")
-        return []
-    all_fixtures = response.json().get("response", [])
-    return [fx for fx in all_fixtures if fx["league"]["id"] in LIGAS_VALIDAS_IDS]
+LIGAS_VALIDAS = [
+    1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13,
+    78, 79, 80, 82, 88, 94, 135, 136, 137, 140,
+    141, 143, 144, 145, 146, 147, 148, 149, 165,
+    168, 169, 170, 203, 207, 208, 210, 211, 212,
+    213, 214, 235, 253, 256, 262, 268, 270, 271
+]
 
-def obtener_predicciones(fixture_id):
-    url = f"{BASE_URL}/predictions?fixture={fixture_id}"
+def get_fixtures_hoy():
+    hoy = datetime.today().strftime('%Y-%m-%d')
+    url = f"{BASE_URL}/fixtures?date={hoy}"
     response = requests.get(url, headers=HEADERS)
-    if response.status_code != 200:
-        return None
-    data = response.json().get("response", [])
-    return data[0] if data else None
+    return response.json().get('response', [])
 
-def obtener_estadisticas_equipo(team_id, league_id):
+def get_stats_por_equipo(team_id, league_id):
     url = f"{BASE_URL}/teams/statistics?team={team_id}&league={league_id}&season=2024"
-    response = requests.get(url, headers=HEADERS)
-    if response.status_code != 200:
-        return None
-    return response.json().get("response", {})
+    r = requests.get(url, headers=HEADERS)
+    return r.json().get("response", {})
 
-def obtener_h2h(team1_id, team2_id):
-    url = f"{BASE_URL}/fixtures/headtohead?h2h={team1_id}-{team2_id}"
-    response = requests.get(url, headers=HEADERS)
-    if response.status_code != 200:
-        return []
-    return response.json().get("response", [])
+def get_cuotas_por_fixture(fixture_id):
+    url = f"{BASE_URL}/odds?fixture={fixture_id}&bookmaker=6"
+    r = requests.get(url, headers=HEADERS)
+    return r.json().get("response", [])
 
-def analizar_partido(fixture):
+def redondear_marcador(gf_local, gc_vis, gf_vis, gc_local):
+    est_local = (gf_local + gc_vis) / 2
+    est_vis = (gf_vis + gc_local) / 2
+    return round(est_local), round(est_vis)
+
+def extraer_cuotas(data):
+    cuotas = {"local": "-", "empate": "-", "visitante": "-", "over_2_5": "-", "btts": "-"}
+    for mercado in data:
+        for apuesta in mercado.get("bookmakers", []):
+            for tipo in apuesta.get("bets", []):
+                if tipo["name"] == "Match Winner":
+                    for val in tipo["values"]:
+                        if val["value"] == "Home":
+                            cuotas["local"] = val["odd"]
+                        elif val["value"] == "Draw":
+                            cuotas["empate"] = val["odd"]
+                        elif val["value"] == "Away":
+                            cuotas["visitante"] = val["odd"]
+                elif tipo["name"] == "Over/Under 2.5 goals":
+                    for val in tipo["values"]:
+                        if val["value"] == "Over 2.5":
+                            cuotas["over_2_5"] = val["odd"]
+                elif tipo["name"] == "Both Teams To Score":
+                    for val in tipo["values"]:
+                        if val["value"] == "Yes":
+                            cuotas["btts"] = val["odd"]
+    return cuotas
+
+def analizar_fixture(fixture):
     fixture_id = fixture["fixture"]["id"]
-    equipos = fixture["teams"]
-    local = equipos["home"]
-    visitante = equipos["away"]
-    liga = fixture["league"]
+    liga_id = fixture["league"]["id"]
+    if liga_id not in LIGAS_VALIDAS:
+        return
 
-    prediccion = obtener_predicciones(fixture_id)
-    stats_local = obtener_estadisticas_equipo(local["id"], liga["id"])
-    stats_visitante = obtener_estadisticas_equipo(visitante["id"], liga["id"])
-    h2h = obtener_h2h(local["id"], visitante["id"])
+    home = fixture["teams"]["home"]
+    away = fixture["teams"]["away"]
 
-    print(f"\n📊 {local['name']} vs {visitante['name']} ({liga['name']})")
+    stats_home = get_stats_por_equipo(home["id"], liga_id)
+    stats_away = get_stats_por_equipo(away["id"], liga_id)
 
-    if prediccion:
-        pred = prediccion["predictions"]
-        ganador = pred.get("winner", {}).get("name", "N/D")
-        btts = pred.get("both_teams_to_score", {}).get("yes", "0")
-        over25 = pred.get("goals", {}).get("over_2_5", {}).get("percentage", "0")
-        confianza = pred.get("winner", {}).get("comment", "")
+    if not stats_home or not stats_away:
+        return
 
-        print(f"📈 ML: {ganador} ({confianza}) | BTTS: {btts}% | Over 2.5: {over25}%")
+    gf_home = stats_home["goals"]["for"]["average"]["total"]
+    gc_home = stats_home["goals"]["against"]["average"]["total"]
+    gf_away = stats_away["goals"]["for"]["average"]["total"]
+    gc_away = stats_away["goals"]["against"]["average"]["total"]
 
-    if stats_local and stats_visitante:
-        gf_local = stats_local["goals"]["for"]["average"].get("total", 0)
-        gc_local = stats_local["goals"]["against"]["average"].get("total", 0)
-        gf_visit = stats_visitante["goals"]["for"]["average"].get("total", 0)
-        gc_visit = stats_visitante["goals"]["against"]["average"].get("total", 0)
+    marcador_home, marcador_away = redondear_marcador(gf_home, gc_away, gf_away, gc_home)
 
-        exp_local = (float(gf_local) + float(gc_visit)) / 2
-        exp_visit = (float(gf_visit) + float(gc_local)) / 2
-        print(f"🔢 Marcador tentativo: {round(exp_local, 1)} - {round(exp_visit, 1)}")
+    cuotas_raw = get_cuotas_por_fixture(fixture_id)
+    cuotas = extraer_cuotas(cuotas_raw)
 
-    if h2h:
-        ultimos = h2h[:5]
-        marcador_h2h = [f"{x['teams']['home']['name']} {x['goals']['home']} - {x['goals']['away']} {x['teams']['away']['name']}" for x in ultimos]
-        print("📚 Últimos enfrentamientos:")
-        for h in marcador_h2h:
-            print("  -", h)
+    print(f"📊 {home['name']} vs {away['name']} ({fixture['league']['name']})")
+    print(f"🧠 ML: {home['name']} ({cuotas['local']}) – Empate ({cuotas['empate']}) – {away['name']} ({cuotas['visitante']})")
+    print(f"🔢 Marcador tentativo: {marcador_home} – {marcador_away}")
+    print(f"🔥 Cuotas: Over 2.5: {cuotas['over_2_5']} | BTTS Sí: {cuotas['btts']}")
+    print("")
 
 def main():
-    print(f"\n🗓️ Análisis de partidos del día {FECHA_HOY}")
-    fixtures = obtener_fixtures()
-    print(f"📌 Total partidos encontrados: {len(fixtures)}")
-
-    for partido in fixtures:
-        analizar_partido(partido)
+    print(f"📅 Análisis de partidos del día {datetime.today().strftime('%Y-%m-%d')}")
+    fixtures = get_fixtures_hoy()
+    print(f"⭐ Total partidos encontrados: {len(fixtures)}")
+    for fixture in fixtures:
+        analizar_fixture(fixture)
 
 if __name__ == "__main__":
     main()
