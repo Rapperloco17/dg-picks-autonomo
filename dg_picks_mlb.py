@@ -1,4 +1,4 @@
-# dg_picks_mlb.py – Picks reactivados con lógica segura y control de datos incompletos
+# dg_picks_mlb.py – Reactivado con justificación de bateo y forma reciente
 
 import requests
 from datetime import datetime, timedelta
@@ -97,22 +97,26 @@ def get_team_form(team_id):
         "record": f"{victorias}G-{5 - victorias}P"
     }
 
-def sugerir_pick(equipo, stats_eq, form_eq, pitcher_eq, cuota_ml, cuota_spread):
+def sugerir_pick(equipo, form_eq, pitcher_eq, cuota_ml, cuota_spread):
     try:
         era = float(pitcher_eq.get("era", 99))
-        avg = float(stats_eq.get("avg", 0))
         anotadas = form_eq.get("anotadas", 0)
+        record = form_eq.get("record", "-")
 
-        if cuota_ml and cuota_ml < 1.60 and cuota_spread and anotadas >= 5 and era < 3.5:
-            return f"✅ {equipo} -1.5 @ {cuota_spread} | Motivo: ofensiva fuerte + ERA sólida"
-        elif cuota_ml and 1.70 <= cuota_ml <= 2.10 and era < 4 and avg > 0.250:
-            return f"✅ {equipo} ML @ {cuota_ml} | Motivo: pitcher aceptable + ofensiva superior"
+        if cuota_ml and cuota_ml < 1.60 and anotadas >= 4 and era < 3.7:
+            return f"✅ {equipo} ML @ {cuota_ml} | Cuota baja ideal para parlay – ERA {era}, anotadas {anotadas}/juego, forma {record}"
+        elif cuota_ml and 1.60 <= cuota_ml <= 2.40 and anotadas >= 4 and era < 4.2:
+            return f"✅ {equipo} ML @ {cuota_ml} | Motivo: pitcher aceptable y ofensiva activa ({anotadas}/juego) – Forma {record}"
+        elif cuota_ml and cuota_ml > 2.40 and anotadas >= 5 and era < 4:
+            return f"🔥 Underdog con valor: {equipo} ML @ {cuota_ml} – Anota {anotadas}/juego, ERA decente, forma {record}"
+        elif cuota_spread and cuota_ml < 1.65 and anotadas >= 5 and era < 3.5:
+            return f"✅ {equipo} -1.5 @ {cuota_spread} | Motivo: ofensiva encendida + ERA dominante – Forma {record}"
         elif anotadas >= 5:
-            return f"⚠️ {equipo} anota mucho, considerar Over"
+            return f"⚠️ {equipo} anota mucho ({anotadas}/juego), considerar Over"
         else:
-            return "⚠️ Partido parejo o sin valor"
+            return "⚠️ Partido parejo o sin valor claro"
     except:
-        return "❌ No hay datos suficientes"
+        return "❌ Sin datos para sugerir pick"
 
 def main():
     print("🔍 Analizando partidos de MLB del día...")
@@ -124,8 +128,6 @@ def main():
         away = game['away_team']
         pitcher_home = get_pitcher_stats(game['home_pitcher_id'])
         pitcher_away = get_pitcher_stats(game['away_pitcher_id'])
-        stats_home = get_team_stats(game['home_team_id'])
-        stats_away = get_team_stats(game['away_team_id'])
         form_home = get_team_form(game['home_team_id'])
         form_away = get_team_form(game['away_team_id'])
 
@@ -140,17 +142,19 @@ def main():
                         if m["key"] == "spreads":
                             for o in m["outcomes"]:
                                 if o["point"] == -1.5:
-                                    key = f"{o['name']} -1.5"
-                                    cuotas[key] = o["price"]
+                                    cuotas[f"{o['name']} -1.5"] = o["price"]
 
                     print(f"\n🧾 {away} vs {home}")
                     print("   Cuotas:", cuotas)
                     print("   ERA Pitchers:", pitcher_away.get("era", "❌ Sin datos"), "vs", pitcher_home.get("era", "❌ Sin datos"))
-                    print("   AVG Equipos:", stats_away.get("avg", "❌ Sin datos"), "vs", stats_home.get("avg", "❌ Sin datos"))
-                    print("   Forma:", form_away.get("record", "❌"), "vs", form_home.get("record", "❌"))
+                    print("   Forma (últimos 5):", form_away.get("record", "❌"), "vs", form_home.get("record", "❌"))
+                    print("   Anotadas Prom.:", form_away.get("anotadas", "-"), "/", form_home.get("anotadas", "-"))
 
-                    pick_home = sugerir_pick(home, stats_home, form_home, pitcher_home, cuotas.get(home), cuotas.get(f"{home} -1.5"))
+                    pick_home = sugerir_pick(home, form_home, pitcher_home, cuotas.get(home), cuotas.get(f"{home} -1.5"))
+                    pick_away = sugerir_pick(away, form_away, pitcher_away, cuotas.get(away), cuotas.get(f"{away} -1.5"))
+
                     print("   🧠", pick_home)
+                    print("   🧠", pick_away)
                 except Exception as e:
                     print("   ❌ Error en análisis:", e)
 
