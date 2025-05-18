@@ -136,7 +136,7 @@ def analizar_partido(partido):
     tarjetas_v = forma_visitante.get("cards", {}).get("yellow", {}).get("total", 0)
 
     predicciones = obtener_predicciones(partido["fixture_id"])
-    if not predicciones or not predicciones["over25"] or not predicciones["btts"]:
+    if not predicciones or (predicciones["over25"] is None and predicciones["btts"] is None):
         print("❌ Sin predicciones útiles. Se omite este partido.")
         return
 
