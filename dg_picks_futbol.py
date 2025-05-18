@@ -314,6 +314,15 @@ def analizar_partido(partido):
     elif "visitante" in cuotas and "empate" in cuotas:
         recomendaciones.append(f"⚠️ Doble oportunidad: {partido['visitante']} o Empate (X2)")
 
+    
+    if pred_ml["confianza"] >= 70:
+        if pred_ml["prediccion"] == "Local" and "local" in cuotas:
+            recomendaciones.append(f"✅ Pick sugerido: Gana {partido['local']} @ {cuotas['local']} (confianza {pred_ml['confianza']}%)")
+        elif pred_ml["prediccion"] == "Visitante" and "visitante" in cuotas:
+            recomendaciones.append(f"✅ Pick sugerido: Gana {partido['visitante']} @ {cuotas['visitante']} (confianza {pred_ml['confianza']}%)")
+        elif pred_ml["prediccion"] == "Empate" and "empate" in cuotas:
+            recomendaciones.append(f"✅ Pick sugerido: Empate @ {cuotas['empate']} (confianza {pred_ml['confianza']}%)")
+
     if recomendaciones:
         print("\n🔐 Recomendaciones:")
         for r in recomendaciones:
