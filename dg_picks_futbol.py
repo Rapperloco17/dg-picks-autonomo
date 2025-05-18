@@ -121,6 +121,44 @@ def obtener_cuotas(fixture_id):
     return {}
 
 
+
+def analizar_historial_equipo(team_id, league_id):
+    url = f"{BASE_URL}/fixtures?team={team_id}&league={league_id}&season=2024&status=FT&limit=10"
+    response = requests.get(url, headers=HEADERS)
+    if response.status_code != 200:
+        return {"btts_pct": 0, "over25_pct": 0, "goles_prom": 0}
+
+    data = response.json().get("response", [])
+    if not data:
+        return {"btts_pct": 0, "over25_pct": 0, "goles_prom": 0}
+
+    btts_count = 0
+    over25_count = 0
+    total_goles = 0
+    partidos_validos = 0
+
+    for match in data:
+        goals = match.get("goals", {})
+        g1 = goals.get("home", 0)
+        g2 = goals.get("away", 0)
+
+        if g1 is not None and g2 is not None:
+            partidos_validos += 1
+            total_goles += g1 + g2
+            if g1 > 0 and g2 > 0:
+                btts_count += 1
+            if g1 + g2 > 2.5:
+                over25_count += 1
+
+    if partidos_validos == 0:
+        return {"btts_pct": 0, "over25_pct": 0, "goles_prom": 0}
+
+    return {
+        "btts_pct": round((btts_count / partidos_validos) * 100, 1),
+        "over25_pct": round((over25_count / partidos_validos) * 100, 1),
+        "goles_prom": round(total_goles / partidos_validos, 2)
+    }
+
 def analizar_partido(partido):
     forma_local = obtener_forma_equipo(partido["local_id"], partido["liga_id"])
     forma_visitante = obtener_forma_equipo(partido["visitante_id"], partido["liga_id"])
