@@ -1,11 +1,10 @@
-# dg_picks_mlb.py (mejorado con presentación real del pick sugerido)
+# dg_picks_mlb.py (con selección del Candado del Día – Reto Escalera 🪜)
 
 import requests
 from datetime import datetime, timedelta
 import pytz
 import time
 
-# === CONFIGURACIONES ===
 ODDS_API_KEY = "137992569bc2352366c01e6928577b2d"
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/baseball_mlb/odds"
 MLB_STATS_BASE_URL = "https://statsapi.mlb.com/api/v1/schedule"
@@ -90,7 +89,6 @@ def get_team_form(team_id):
     response = requests.get(url, headers=HEADERS)
     if response.status_code != 200:
         return {}
-
     games = response.json().get("dates", [])
     resultados = []
     for fecha in games:
@@ -108,94 +106,75 @@ def get_team_form(team_id):
                 recibidas = home["score"]
                 victoria = anotadas > recibidas
             resultados.append((anotadas, recibidas, victoria))
-
     ultimos = resultados[-5:]
     if not ultimos:
         return {}
-
     promedio_anotadas = round(sum(x[0] for x in ultimos) / len(ultimos), 2)
     promedio_recibidas = round(sum(x[1] for x in ultimos) / len(ultimos), 2)
     victorias = sum(1 for x in ultimos if x[2])
     derrotas = len(ultimos) - victorias
-
     return {
         "anotadas": promedio_anotadas,
         "recibidas": promedio_recibidas,
-        "record": f"{victorias}G-{derrotas}P"
+        "record": f"{victorias}G-{derrotas}P",
+        "victorias": victorias
     }
 
 
-def imprimir_pick_final(equipo, cuota, justificacion, forma):
+def imprimir_candado(data):
+    print("\n🔒 CANDADO DEL DÍA – Reto Escalera 🪜")
     print("━━━━━━━━━━━━━━━━━━━━━━")
-    print("🎯 PICK SUGERIDO DG PICKS – MLB")
-    print(f"✅ {equipo} ML @ {cuota}")
-    print(f"📊 Motivo: {justificacion}")
-    print(f"📈 Forma reciente: {forma}")
+    print(f"✅ {data['equipo']} ML @ {data['cuota']}")
+    print(f"📊 Motivo: {data['motivo']}")
+    print(f"📈 Forma: {data['record']} | {data['anotadas']} anotadas/juego")
     print("💡 Valor detectado en la cuota")
     print("━━━━━━━━━━━━━━━━━━━━━━")
 
 
 def main():
-    print("⏳ Obteniendo partidos de MLB para hoy...")
-    games = get_today_mlb_games()
-    print(f"✅ {len(games)} partidos encontrados.")
-
-    print("⏳ Obteniendo cuotas reales de apuestas...")
+    juegos = get_today_mlb_games()
     odds = get_odds_for_mlb()
-    print(f"✅ {len(odds)} cuotas recibidas.")
+    candidatos = []
 
-    for game in games:
-        home = game['home_team']['name']
-        away = game['away_team']['name']
-        print(f"\n🧾 {away} vs {home}")
-        print(f"   Pitchers: {game['away_pitcher_name']} vs {game['home_pitcher_name']}")
-
+    for juego in juegos:
+        home = juego['home_team']['name']
+        away = juego['away_team']['name']
         cuotas = {}
-        total = {}
         for odd in odds:
             if (home.lower() in odd['home_team'].lower() and away.lower() in odd['away_team'].lower()):
                 cuota_ml = odd.get("bookmakers", [])[0].get("markets", [])[0].get("outcomes", [])
                 cuotas = {o['name']: o['price'] for o in cuota_ml}
-                total_market = next((m for m in odd.get("bookmakers", [])[0].get("markets", []) if m['key'] == 'totals'), None)
-                total = total_market['outcomes'][0] if total_market else {}
                 break
-
-        print("   Cuotas ML:", cuotas)
-        if total:
-            print("   Over/Under:", total)
-
-        stats_home = get_team_stats(game['home_team_id'])
-        stats_away = get_team_stats(game['away_team_id'])
-
-        pitcher_home = get_pitcher_stats(game['home_pitcher_id'])
-        pitcher_away = get_pitcher_stats(game['away_pitcher_id'])
-
-        form_home = get_team_form(game['home_team_id'])
-        form_away = get_team_form(game['away_team_id'])
-
-        justificacion = []
-        ganador = None
+        stats_home = get_team_stats(juego['home_team_id'])
+        stats_away = get_team_stats(juego['away_team_id'])
+        pitcher_home = get_pitcher_stats(juego['home_pitcher_id'])
+        pitcher_away = get_pitcher_stats(juego['away_pitcher_id'])
+        form_home = get_team_form(juego['home_team_id'])
+        form_away = get_team_form(juego['away_team_id'])
 
         try:
-            if float(pitcher_home.get("era", 99)) < float(pitcher_away.get("era", 99)):
-                justificacion.append("mejor ERA del pitcher local")
-                ganador = home
-            else:
-                justificacion.append("mejor ERA del pitcher visitante")
-                ganador = away
+            eh, ea = float(pitcher_home.get("era", 99)), float(pitcher_away.get("era", 99))
+            wh, wa = float(pitcher_home.get("whip", 99)), float(pitcher_away.get("whip", 99))
+            ah, aa = float(stats_home.get("avg", 0)), float(stats_away.get("avg", 0))
 
-            if float(stats_home.get("avg", 0)) > float(stats_away.get("avg", 0)):
-                justificacion.append("mejor ofensiva local")
-            else:
-                justificacion.append("mejor ofensiva visitante")
-
-            forma = form_home if ganador == home else form_away
-            cuota = cuotas.get(ganador, "-")
-            imprimir_pick_final(ganador, cuota, ", ".join(justificacion), f"{forma.get('record')} | {forma.get('anotadas')} anotadas por juego")
-
+            # Condiciones para pick
+            if eh < 3.5 and wh < 1.15 and ah > aa + 0.02 and form_home['victorias'] >= 3:
+                cuota = cuotas.get(home, 0)
+                if 1.70 <= cuota <= 2.20:
+                    candidatos.append({"equipo": home, "cuota": cuota, "motivo": "Pitcher dominante y ofensiva superior", "record": form_home['record'], "anotadas": form_home['anotadas']})
+            elif ea < 3.5 and wa < 1.15 and aa > ah + 0.02 and form_away['victorias'] >= 3:
+                cuota = cuotas.get(away, 0)
+                if 1.70 <= cuota <= 2.20:
+                    candidatos.append({"equipo": away, "cuota": cuota, "motivo": "Pitcher dominante y ofensiva superior", "record": form_away['record'], "anotadas": form_away['anotadas']})
         except:
-            print("❌ No se pudo calcular el pick sugerido por falta de datos.")
+            continue
+
+    if candidatos:
+        candado = sorted(candidatos, key=lambda x: (-x['anotadas'], x['cuota']))[0]
+        imprimir_candado(candado)
+    else:
+        print("⚠️ No se detectó un pick con condiciones ideales para el reto escalera hoy.")
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
