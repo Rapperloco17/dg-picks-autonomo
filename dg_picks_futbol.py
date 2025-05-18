@@ -186,6 +186,9 @@ def analizar_partido(partido):
     corners_total = "No disponible" if corners_l is None or corners_v is None else (corners_l + corners_v) / 2
     tarjetas_total = "No disponible" if tarjetas_l is None or tarjetas_v is None else (tarjetas_l + tarjetas_v) / 2
 
+    
+    historial_local = analizar_historial_equipo(partido["local_id"], partido["liga_id"])
+    historial_visitante = analizar_historial_equipo(partido["visitante_id"], partido["liga_id"])
     pred = obtener_predicciones(partido["fixture_id"])
     cuotas = obtener_cuotas(partido["fixture_id"])
     h2h = obtener_h2h(partido["local_id"], partido["visitante_id"])
@@ -203,12 +206,40 @@ def analizar_partido(partido):
         elif promedio_goles <= 2:
             print(f"  ⚠️ Estimación por promedio: UNDER 2.5 probable (Promedio GF: {promedio_goles:.1f})")
 
+    
+    print(f"  📈 Historial {partido['local']}: BTTS: {historial_local['btts_pct']}%, Over 2.5: {historial_local['over25_pct']}%, Goles prom: {historial_local['goles_prom']}")
+    print(f"  📈 Historial {partido['visitante']}: BTTS: {historial_visitante['btts_pct']}%, Over 2.5: {historial_visitante['over25_pct']}%, Goles prom: {historial_visitante['goles_prom']}")
+
     if h2h:
         print(f"  🆚 Últimos H2H: {' | '.join(h2h)}")
 
     print(f"  💸 Cuotas: ML Local {cuotas.get('local', '-')}, Empate {cuotas.get('empate', '-')}, Visitante {cuotas.get('visitante', '-')}, BTTS Sí {cuotas.get('btts', '-')}, Over 2.5 {cuotas.get('over_2_5', '-')}")
     print(f"  📉 Promedio total de corners: {corners_total}")
     print(f"  📉 Promedio total de tarjetas: {tarjetas_total}")
+    recomendaciones = []
+
+    if historial_local["btts_pct"] >= 60 and historial_visitante["btts_pct"] >= 60 and "btts" in cuotas:
+        recomendaciones.append(f"✅ Pick sugerido: Ambos anotan (BTTS) @ {cuotas['btts']} basado en historial")
+
+    if historial_local["over25_pct"] >= 60 and historial_visitante["over25_pct"] >= 60 and "over_2_5" in cuotas:
+        recomendaciones.append(f"✅ Pick sugerido: Over 2.5 goles @ {cuotas['over_2_5']} basado en historial")
+
+    
+    # Recomendaciones ML y Doble Oportunidad
+    if "local" in cuotas and "visitante" in cuotas and historial_local["goles_prom"] > historial_visitante["goles_prom"] + 0.5:
+        recomendaciones.append(f"✅ Pick sugerido: Gana {partido['local']} @ {cuotas['local']} (valor por goles promedio)")
+    elif "visitante" in cuotas and historial_visitante["goles_prom"] > historial_local["goles_prom"] + 0.5:
+        recomendaciones.append(f"✅ Pick sugerido: Gana {partido['visitante']} @ {cuotas['visitante']} (valor por goles promedio)")
+    elif "local" in cuotas and "empate" in cuotas:
+        recomendaciones.append(f"⚠️ Doble oportunidad: {partido['local']} o Empate (1X)")
+    elif "visitante" in cuotas and "empate" in cuotas:
+        recomendaciones.append(f"⚠️ Doble oportunidad: {partido['visitante']} o Empate (X2)")
+
+    if recomendaciones:
+        print("\n🔐 Recomendaciones:")
+        for r in recomendaciones:
+            print("   -", r)
+
 
 def main():
     print(f"\n📅 Análisis de partidos del día {FECHA_HOY}")
