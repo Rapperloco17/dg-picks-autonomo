@@ -22,6 +22,8 @@ def get_today_mlb_games():
     games = []
     for date_info in data.get("dates", []):
         for game in date_info.get("games", []):
+            if game.get("status", {}).get("detailedState") != "Scheduled":
+                continue
             home_pitcher = game["teams"]["home"].get("probablePitcher", {})
             away_pitcher = game["teams"]["away"].get("probablePitcher", {})
             games.append({
@@ -127,6 +129,14 @@ def main():
         home = game['home_team']
         away = game['away_team']
         pitcher_home = get_pitcher_stats(game['home_pitcher_id'])
+        home_pitcher_name = "Sin nombre"
+        away_pitcher_name = "Sin nombre"
+        if game['home_pitcher_id']:
+            home_pitcher_data = requests.get(f"https://statsapi.mlb.com/api/v1/people/{game['home_pitcher_id']}").json()
+            home_pitcher_name = home_pitcher_data.get('people', [{}])[0].get('fullName', 'Sin nombre')
+        if game['away_pitcher_id']:
+            away_pitcher_data = requests.get(f"https://statsapi.mlb.com/api/v1/people/{game['away_pitcher_id']}").json()
+            away_pitcher_name = away_pitcher_data.get('people', [{}])[0].get('fullName', 'Sin nombre')
         pitcher_away = get_pitcher_stats(game['away_pitcher_id'])
         form_home = get_team_form(game['home_team_id'])
         form_away = get_team_form(game['away_team_id'])
@@ -166,7 +176,8 @@ def main():
                         era_away = "❌ Sin datos"
                         era_home = "❌ Sin datos"
 
-                    print("   ERA Pitchers:", era_away, "vs", era_home)
+                    print(f"   Local: {home} | Visitante: {away}")
+                    print(f"   Pitchers: {away_pitcher_name} (ERA {era_away}) vs {home_pitcher_name} (ERA {era_home})")
                     print("   Forma (últimos 5):", form_away.get("record", "❌"), "vs", form_home.get("record", "❌"))
                     print("   Anotadas / Recibidas:", f"{form_away.get('anotadas', '-')}/{form_away.get('recibidas', '-')}", "vs", f"{form_home.get('anotadas', '-')}/{form_home.get('recibidas', '-')}")
                     total_combinado = (
@@ -201,3 +212,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
