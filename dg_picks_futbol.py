@@ -119,9 +119,43 @@ def obtener_cuotas(fixture_id):
 def analizar_partido(partido):
     forma_local = obtener_forma_equipo(partido["local_id"], partido["liga_id"])
     forma_visitante = obtener_forma_equipo(partido["visitante_id"], partido["liga_id"])
+    if not forma_local or not forma_visitante:
+        print("❌ Datos incompletos para alguno de los equipos. Se omite este partido.")
+        return
+
+    def procesar_forma(cadena):
+        ultimos = cadena[-5:] if cadena else ""
+        ganados = ultimos.count("W")
+        empatados = ultimos.count("D")
+        perdidos = ultimos.count("L")
+        return f"{' '.join(ultimos)} | {ganados}V – {empatados}E – {perdidos}D"
+
+    forma_l = procesar_forma(forma_local['forma'])
+    forma_v = procesar_forma(forma_visitante['forma'])
+
+    pj_home = forma_local.get("fixtures", {}).get("played", {}).get("home", 1)
+    pj_away = forma_visitante.get("fixtures", {}).get("played", {}).get("away", 1)
+
+    prom_gf_l = forma_local.get("goals", {}).get("for", {}).get("average", {}).get("home")
+    prom_gc_l = forma_local.get("goals", {}).get("against", {}).get("average", {}).get("home")
+    prom_gf_v = forma_visitante.get("goals", {}).get("for", {}).get("average", {}).get("away")
+    prom_gc_v = forma_visitante.get("goals", {}).get("against", {}).get("average", {}).get("away")
+
+    prom_gf_l = float(prom_gf_l) if prom_gf_l else 0
+    prom_gc_l = float(prom_gc_l) if prom_gc_l else 0
+    prom_gf_v = float(prom_gf_v) if prom_gf_v else 0
+    prom_gc_v = float(prom_gc_v) if prom_gc_v else 0
+        print("❌ Datos incompletos para alguno de los equipos. Se omite este partido.")
+        return
     predicciones = obtener_predicciones(partido["fixture_id"])
+    if not predicciones or not predicciones["over25"] or not predicciones["btts"]:
+        print("❌ Sin predicciones útiles. Se omite este partido.")
+        return
     h2h = obtener_h2h(partido["local_id"], partido["visitante_id"])
     cuotas = obtener_cuotas(partido["fixture_id"])
+    if not cuotas or not any(cuotas.values()):
+        print("❌ Sin cuotas disponibles. Se omite este partido.")
+        return
 
     print(f"\n🔍 {partido['local']} vs {partido['visitante']} ({partido['liga']})")
 
@@ -159,6 +193,13 @@ def analizar_partido(partido):
         recomendaciones.append(f"⚠️ Pick sugerido: Over en corners (media: {avg_corners:.1f})")
     if avg_tarjetas >= UMBRAL_TARJETAS:
         recomendaciones.append(f"⚠️ Pick sugerido: Over en tarjetas (media: {avg_tarjetas:.1f})")
+
+    
+    prom_corners_total = (forma_local["corners"] + forma_visitante["corners"]) / 2
+    prom_tarjetas_total = (forma_local["tarjetas"] + forma_visitante["tarjetas"]) / 2
+    print(f"\n🎯 Promedio total de corners: {prom_corners_total:.1f}")
+    print(f"🎯 Promedio total de tarjetas: {prom_tarjetas_total:.1f}")
+
 
     if recomendaciones:
         print("\n🔐 Recomendaciones:")
