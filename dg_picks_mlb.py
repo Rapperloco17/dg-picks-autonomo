@@ -1,4 +1,4 @@
-# dg_picks_mlb.py – Análisis MLB con Candado del Día 🪜 y manejo de errores
+# dg_picks_mlb.py – Análisis MLB (sin filtro de reto escalera)
 
 import requests
 from datetime import datetime, timedelta
@@ -102,20 +102,10 @@ def get_team_form(team_id):
     }
 
 
-def imprimir_candado(data):
-    print("\n🔒 CANDADO DEL DÍA – Reto Escalera 🪜")
-    print("━━━━━━━━━━━━━━━━━━━━━━")
-    print(f"✅ {data['equipo']} ML @ {data['cuota']}")
-    print(f"📊 Motivo: {data['motivo']}")
-    print(f"📈 Forma: {data['record']} | {data['anotadas']} anotadas/juego")
-    print("💡 Valor detectado en la cuota")
-    print("━━━━━━━━━━━━━━━━━━━━━━")
-
-
 def main():
+    print("🔍 Analizando partidos de MLB del día...")
     games = get_today_mlb_games()
     odds = get_odds_for_mlb()
-    candidatos = []
 
     for game in games:
         home = game['home_team']
@@ -131,26 +121,13 @@ def main():
             if home.lower() in odd["home_team"].lower() and away.lower() in odd["away_team"].lower():
                 try:
                     cuotas = {o["name"]: o["price"] for o in odd["bookmakers"][0]["markets"][0]["outcomes"]}
-                    eh, ea = float(pitcher_home.get("era", 99)), float(pitcher_away.get("era", 99))
-                    wh, wa = float(pitcher_home.get("whip", 99)), float(pitcher_away.get("whip", 99))
-                    ah, aa = float(stats_home.get("avg", 0)), float(stats_away.get("avg", 0))
-
-                    if eh < 3.5 and wh < 1.15 and ah > aa + 0.02 and form_home["victorias"] >= 3:
-                        cuota = cuotas.get(home, 0)
-                        if 1.70 <= cuota <= 2.20:
-                            candidatos.append({"equipo": home, "cuota": cuota, "motivo": "Pitcher dominante y ofensiva superior", "record": form_home["record"], "anotadas": form_home["anotadas"]})
-                    elif ea < 3.5 and wa < 1.15 and aa > ah + 0.02 and form_away["victorias"] >= 3:
-                        cuota = cuotas.get(away, 0)
-                        if 1.70 <= cuota <= 2.20:
-                            candidatos.append({"equipo": away, "cuota": cuota, "motivo": "Pitcher dominante y ofensiva superior", "record": form_away["record"], "anotadas": form_away["anotadas"]})
+                    print("\n🧾", f"{away} vs {home}")
+                    print("   Cuotas:", cuotas)
+                    print("   ERA Pitchers:", pitcher_away.get("era"), "vs", pitcher_home.get("era"))
+                    print("   AVG Equipos:", stats_away.get("avg"), "vs", stats_home.get("avg"))
+                    print("   Forma:", form_away.get("record"), "vs", form_home.get("record"))
                 except:
                     continue
-
-    if candidatos:
-        candado = sorted(candidatos, key=lambda x: (-x['anotadas'], x['cuota']))[0]
-        imprimir_candado(candado)
-    else:
-        print("⚠️ No se detectó un pick con condiciones ideales para el reto escalera hoy.")
 
 
 if __name__ == "__main__":
