@@ -1,68 +1,54 @@
-import requests
-from datetime import datetime
 
-API_KEY = "178b66e41ba9d4d3b8549f096ef1e377"
-HEADERS = {"x-apisports-key": API_KEY}
-BASE_URL = "https://v3.football.api-sports.io"
+import pandas as pd
 
-FECHA_HOY = datetime.today().strftime("%Y-%m-%d")
-print("🔍 Fecha que se está analizando:", FECHA_HOY)
+# Lista de partidos y marcador tentativo calculado
+partidos = [
+    {"Partido": "Toluca vs Tigres UANL", "Marcador Tentativo": "2.3 - 1.1"},
+    {"Partido": "Macara vs El Nacional", "Marcador Tentativo": "1.2 - 1.1"},
+    {"Partido": "San Diego vs Sporting Kansas City", "Marcador Tentativo": "0.9 - 2.0"},
+    {"Partido": "Portland Timbers vs Seattle Sounders", "Marcador Tentativo": "2.1 - 2.0"},
+]
 
-UMBRAL_GOLES = 65
-UMBRAL_BTTS = 60
-UMBRAL_CORNERS = 9
-UMBRAL_TARJETAS = 4
+# Recomendaciones en base a lógica de goles esperados
+def recomendar_apuesta(marcador):
+    try:
+        g1, g2 = map(float, marcador.split("-"))
+    except:
+        return "❌ Sin datos"
 
-LIGAS_VALIDAS_IDS = {
-    1, 2, 3, 4, 9, 11, 13, 16, 39, 40, 61, 62, 71, 72, 73,
-    45, 78, 79, 88, 94, 103, 106, 113, 119, 128, 129, 130,
-    135, 136, 137, 140, 141, 143, 144, 162, 164, 169, 172,
-    179, 188, 197, 203, 207, 210, 218, 239, 242, 244, 253,
-    257, 262, 263, 265, 268, 271, 281, 345, 357
-}
+    total_goles = g1 + g2
+    recomendaciones = []
 
-def obtener_fixtures_del_dia():
-    url = f"{BASE_URL}/fixtures?date={FECHA_HOY}"
-    response = requests.get(url, headers=HEADERS)
-    data = response.json()
-    partidos = []
-    total_partidos = 0
-    total_filtrados = 0
+    # ML
+    if g1 - g2 >= 1:
+        recomendaciones.append("🏆 Gana Local")
+    elif g2 - g1 >= 1:
+        recomendaciones.append("🏆 Gana Visitante")
+    else:
+        recomendaciones.append("🤝 Empate probable")
 
-    for item in data.get("response", []):
-        total_partidos += 1
-        liga_id = item["league"]["id"]
-        if liga_id not in LIGAS_VALIDAS_IDS:
-            continue
-        total_filtrados += 1
-        partidos.append({
-            "fixture_id": item["fixture"]["id"],
-            "liga": item["league"]["name"],
-            "liga_id": liga_id,
-            "local": item["teams"]["home"]["name"],
-            "visitante": item["teams"]["away"]["name"],
-            "local_id": item["teams"]["home"]["id"],
-            "visitante_id": item["teams"]["away"]["id"],
-            "hora": item["fixture"]["date"]
-        })
+    # Over/Under
+    if total_goles >= 2.8:
+        recomendaciones.append("🔥 Over 2.5")
+    elif total_goles <= 2.2:
+        recomendaciones.append("🧊 Under 2.5")
 
-    print(f"📦 Total partidos recibidos: {total_partidos}")
-    print(f"✅ Partidos en ligas válidas: {total_filtrados}")
-    return partidos
+    # BTTS
+    if g1 >= 1 and g2 >= 1:
+        recomendaciones.append("✅ BTTS (Ambos anotan)")
 
-# Aquí iría el resto de funciones como: obtener_forma_equipo, obtener_predicciones, etc.
+    return " | ".join(recomendaciones)
 
+# Construcción del DataFrame
+df = pd.DataFrame(partidos)
+df["Recomendación"] = df["Marcador Tentativo"].apply(recomendar_apuesta)
 
-def main():
-    print(f"\n📊 Análisis de partidos del día {FECHA_HOY}\n")
-    partidos = obtener_fixtures_del_dia()
-    if not partidos:
-        print("🚫 No se encontraron partidos válidos para analizar.")
-    for partido in partidos:
-        print("🔍 Analizando:", partido.get("local"), "vs", partido.get("visitante"))
-        # Aquí deberías llamar a analizar_partido(partido)
+# Generar formato estilo Telegram
+df["Mensaje Telegram"] = df.apply(
+    lambda row: f"🎯 *{row['Partido']}*\n🔢 Marcador tentativo: {row['Marcador Tentativo']}\n{row['Recomendación']}\n", axis=1
+)
 
-    print("✅ SCRIPT FINALIZADO CORRECTAMENTE")
+mensaje_final = "\n".join(df["Mensaje Telegram"].tolist())
 
-if __name__ == "__main__":
-    main()
+print("📊 Análisis DG Picks – Recomendaciones del Día\n")
+print(mensaje_final)
