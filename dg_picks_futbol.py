@@ -160,180 +160,58 @@ def analizar_historial_equipo(team_id, league_id):
     }
 
 
+
 def obtener_historial_equipo(team_id, league_id):
-    url = f"{BASE_URL}/fixtures?team={team_id}&league={league_id}&season=2024&status=FT&limit=10"
+    url = f"{BASE_URL}/fixtures?team={team_id}&league={league_id}&season=2024&status=FT&limit=20"
     response = requests.get(url, headers=HEADERS)
     if response.status_code != 200:
-        return {"victorias": 0, "empates": 0, "derrotas": 0, "gf": 0, "gc": 0, "prom_goles": 0}
+        return None
 
     data = response.json().get("response", [])
-    v = e = d = gf = gc = 0
+    total = len(data)
+    if total == 0:
+        return None
+
+    victorias = empates = derrotas = gf = gc = btts = over25 = 0
 
     for partido in data:
-        goles = partido.get("goals", {})
-        home = goles.get("home", 0)
-        away = goles.get("away", 0)
+        goals = partido.get("goals", {})
+        home = goals.get("home", 0)
+        away = goals.get("away", 0)
         if partido["teams"]["home"]["id"] == team_id:
-            gf += home
-            gc += away
+            goles_favor = home
+            goles_contra = away
             if home > away:
-                v += 1
+                victorias += 1
             elif home == away:
-                e += 1
+                empates += 1
             else:
-                d += 1
+                derrotas += 1
         else:
-            gf += away
-            gc += home
+            goles_favor = away
+            goles_contra = home
             if away > home:
-                v += 1
+                victorias += 1
             elif home == away:
-                e += 1
+                empates += 1
             else:
-                d += 1
+                derrotas += 1
 
-    total = v + e + d
-    prom_goles = (gf + gc) / total if total else 0
+        gf += goles_favor
+        gc += goles_contra
+
+        if goles_favor > 0 and goles_contra > 0:
+            btts += 1
+        if goles_favor + goles_contra >= 3:
+            over25 += 1
 
     return {
-        "victorias": v,
-        "empates": e,
-        "derrotas": d,
+        "victorias": victorias,
+        "empates": empates,
+        "derrotas": derrotas,
         "gf": gf,
         "gc": gc,
-        "prom_goles": round(prom_goles, 2)
+        "prom_goles": round((gf + gc) / total, 2),
+        "btts_pct": round((btts / total) * 100, 1),
+        "over25_pct": round((over25 / total) * 100, 1)
     }
-
-
-def predecir_ganador_ml(hist_local, hist_visitante):
-    resultado = {"prediccion": "Empate", "confianza": 0}
-
-    # Margen para considerar ventaja clara
-    ventaja_victorias = hist_local["victorias"] - hist_visitante["victorias"]
-    ventaja_goles = hist_local["gf"] - hist_local["gc"] - (hist_visitante["gf"] - hist_visitante["gc"])
-
-    if ventaja_victorias >= 2 and ventaja_goles >= 2:
-        resultado["prediccion"] = "Local"
-        resultado["confianza"] = min(100, 60 + ventaja_victorias * 5 + ventaja_goles)
-    elif ventaja_victorias <= -2 and ventaja_goles <= -2:
-        resultado["prediccion"] = "Visitante"
-        resultado["confianza"] = min(100, 60 + abs(ventaja_victorias) * 5 + abs(ventaja_goles))
-    elif abs(ventaja_victorias) <= 1 and abs(ventaja_goles) <= 1:
-        resultado["prediccion"] = "Empate"
-        resultado["confianza"] = 50
-    else:
-        if ventaja_victorias > 0 or ventaja_goles > 0:
-            resultado["prediccion"] = "Local"
-            resultado["confianza"] = 55
-        elif ventaja_victorias < 0 or ventaja_goles < 0:
-            resultado["prediccion"] = "Visitante"
-            resultado["confianza"] = 55
-
-    return resultado
-
-def analizar_partido(partido):
-    forma_local = obtener_forma_equipo(partido["local_id"], partido["liga_id"])
-    forma_visitante = obtener_forma_equipo(partido["visitante_id"], partido["liga_id"])
-    if not forma_local or not forma_visitante:
-        print("❌ Datos incompletos. Se omite este partido.")
-        return
-
-    def procesar_forma(cadena):
-        ultimos = cadena[-5:] if cadena else ""
-        return f"{' '.join(ultimos)} | {ultimos.count('W')}V – {ultimos.count('D')}E – {ultimos.count('L')}D"
-
-    forma_l = procesar_forma(forma_local.get("form", ""))
-    forma_v = procesar_forma(forma_visitante.get("form", ""))
-
-    prom_gf_l = float(forma_local.get("goals", {}).get("for", {}).get("average", {}).get("home") or 0)
-    prom_gc_l = float(forma_local.get("goals", {}).get("against", {}).get("average", {}).get("home") or 0)
-    prom_gf_v = float(forma_visitante.get("goals", {}).get("for", {}).get("average", {}).get("away") or 0)
-    prom_gc_v = float(forma_visitante.get("goals", {}).get("against", {}).get("average", {}).get("away") or 0)
-
-    corners_l = forma_local.get("corners", {}).get("total", {}).get("total")
-    corners_v = forma_visitante.get("corners", {}).get("total", {}).get("total")
-    tarjetas_l = forma_local.get("cards", {}).get("yellow", {}).get("total")
-    tarjetas_v = forma_visitante.get("cards", {}).get("yellow", {}).get("total")
-
-    corners_total = "No disponible" if corners_l is None or corners_v is None else (corners_l + corners_v) / 2
-    tarjetas_total = "No disponible" if tarjetas_l is None or tarjetas_v is None else (tarjetas_l + tarjetas_v) / 2
-
-    
-    historial_local = analizar_historial_equipo(partido["local_id"], partido["liga_id"])
-    historial_visitante = analizar_historial_equipo(partido["visitante_id"], partido["liga_id"])
-    pred = obtener_predicciones(partido["fixture_id"])
-    cuotas = obtener_cuotas(partido["fixture_id"])
-    h2h = obtener_h2h(partido["local_id"], partido["visitante_id"])
-
-    print(f"\n🔍 {partido['local']} vs {partido['visitante']} ({partido['liga']})")
-    print(f"  🏠 {partido['local']}: Forma: {forma_l} | GF: {prom_gf_l:.1f}, GC: {prom_gc_l:.1f}")
-    print(f"  🚶‍♂️ {partido['visitante']}: Forma: {forma_v} | GF: {prom_gf_v:.1f}, GC: {prom_gc_v:.1f}")
-    print(f"  📊 Predicción: Gana {pred.get('ganador', 'N/D')}, BTTS Sí: {pred.get('btts_yes', '—')}%, Over 2.5: {pred.get('over25', '—')}%")
-    print(f"  🎯 Marcador tentativo: {pred.get('goles_home', '?')} - {pred.get('goles_away', '?')}")
-    # Historial real desde API
-    hist_local = obtener_historial_equipo(partido["local_id"], partido["liga_id"])
-    hist_visitante = obtener_historial_equipo(partido["visitante_id"], partido["liga_id"])
-
-    pred_ml = predecir_ganador_ml(hist_local, hist_visitante)
-    print(f"  🧠 Predicción ML propia: {pred_ml['prediccion']} (Confianza: {pred_ml['confianza']}%)")
-
-
-    promedio_goles = (prom_gf_l + prom_gf_v)
-    if not pred.get("over25"):
-        if promedio_goles >= 3:
-            print(f"  ⚠️ Estimación por promedio: OVER 2.5 probable (Promedio GF: {promedio_goles:.1f})")
-        elif promedio_goles <= 2:
-            print(f"  ⚠️ Estimación por promedio: UNDER 2.5 probable (Promedio GF: {promedio_goles:.1f})")
-
-    
-    print(f"  📈 Historial {partido['local']}: BTTS: {historial_local['btts_pct']}%, Over 2.5: {historial_local['over25_pct']}%, Goles prom: {historial_local['goles_prom']}")
-    print(f"  📈 Historial {partido['visitante']}: BTTS: {historial_visitante['btts_pct']}%, Over 2.5: {historial_visitante['over25_pct']}%, Goles prom: {historial_visitante['goles_prom']}")
-
-    if h2h:
-        print(f"  🆚 Últimos H2H: {' | '.join(h2h)}")
-
-    print(f"  💸 Cuotas: ML Local {cuotas.get('local', '-')}, Empate {cuotas.get('empate', '-')}, Visitante {cuotas.get('visitante', '-')}, BTTS Sí {cuotas.get('btts', '-')}, Over 2.5 {cuotas.get('over_2_5', '-')}")
-    print(f"  📉 Promedio total de corners: {corners_total}")
-    print(f"  📉 Promedio total de tarjetas: {tarjetas_total}")
-    recomendaciones = []
-
-    if historial_local["btts_pct"] >= 60 and historial_visitante["btts_pct"] >= 60 and "btts" in cuotas:
-        recomendaciones.append(f"✅ Pick sugerido: Ambos anotan (BTTS) @ {cuotas['btts']} basado en historial")
-
-    if historial_local["over25_pct"] >= 60 and historial_visitante["over25_pct"] >= 60 and "over_2_5" in cuotas:
-        recomendaciones.append(f"✅ Pick sugerido: Over 2.5 goles @ {cuotas['over_2_5']} basado en historial")
-
-    
-    # Recomendaciones ML y Doble Oportunidad
-    if "local" in cuotas and "visitante" in cuotas and historial_local["goles_prom"] > historial_visitante["goles_prom"] + 0.5:
-        recomendaciones.append(f"✅ Pick sugerido: Gana {partido['local']} @ {cuotas['local']} (valor por goles promedio)")
-    elif "visitante" in cuotas and historial_visitante["goles_prom"] > historial_local["goles_prom"] + 0.5:
-        recomendaciones.append(f"✅ Pick sugerido: Gana {partido['visitante']} @ {cuotas['visitante']} (valor por goles promedio)")
-    elif "local" in cuotas and "empate" in cuotas:
-        recomendaciones.append(f"⚠️ Doble oportunidad: {partido['local']} o Empate (1X)")
-    elif "visitante" in cuotas and "empate" in cuotas:
-        recomendaciones.append(f"⚠️ Doble oportunidad: {partido['visitante']} o Empate (X2)")
-
-    
-    if pred_ml["confianza"] >= 70:
-        if pred_ml["prediccion"] == "Local" and "local" in cuotas:
-            recomendaciones.append(f"✅ Pick sugerido: Gana {partido['local']} @ {cuotas['local']} (confianza {pred_ml['confianza']}%)")
-        elif pred_ml["prediccion"] == "Visitante" and "visitante" in cuotas:
-            recomendaciones.append(f"✅ Pick sugerido: Gana {partido['visitante']} @ {cuotas['visitante']} (confianza {pred_ml['confianza']}%)")
-        elif pred_ml["prediccion"] == "Empate" and "empate" in cuotas:
-            recomendaciones.append(f"✅ Pick sugerido: Empate @ {cuotas['empate']} (confianza {pred_ml['confianza']}%)")
-
-    if recomendaciones:
-        print("\n🔐 Recomendaciones:")
-        for r in recomendaciones:
-            print("   -", r)
-
-
-def main():
-    print(f"\n📅 Análisis de partidos del día {FECHA_HOY}")
-    partidos = obtener_fixtures_del_dia()
-    for partido in partidos:
-        analizar_partido(partido)
-
-if __name__ == "__main__":
-    main()
