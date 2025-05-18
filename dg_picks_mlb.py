@@ -157,7 +157,16 @@ def main():
 
                     print(f"\n🧾 {away} vs {home}")
                     print("   Cuotas:", cuotas)
-                    print("   ERA Pitchers:", pitcher_away.get("era", "❌ Sin datos"), "vs", pitcher_home.get("era", "❌ Sin datos"))
+                    try:
+                        era_away_str = pitcher_away.get("era", "❌")
+                        era_home_str = pitcher_home.get("era", "❌")
+                        era_away = float(era_away_str)
+                        era_home = float(era_home_str)
+                    except:
+                        era_away = "❌ Sin datos"
+                        era_home = "❌ Sin datos"
+
+                    print("   ERA Pitchers:", era_away, "vs", era_home)
                     print("   Forma (últimos 5):", form_away.get("record", "❌"), "vs", form_home.get("record", "❌"))
                     print("   Anotadas / Recibidas:", f"{form_away.get('anotadas', '-')}/{form_away.get('recibidas', '-')}", "vs", f"{form_home.get('anotadas', '-')}/{form_home.get('recibidas', '-')}")
                     total_combinado = (
