@@ -136,7 +136,7 @@ def analizar_partido(partido):
     tarjetas_v = forma_visitante.get("cards", {}).get("yellow", {}).get("total", 0)
 
     predicciones = obtener_predicciones(partido["fixture_id"])
-    if not predicciones or (predicciones["over25"] is None and predicciones["btts"] is None):
+    if not predicciones or not predicciones["over25"] or not predicciones["btts"]:
         print("❌ Sin predicciones útiles. Se omite este partido.")
         return
 
@@ -150,15 +150,15 @@ def analizar_partido(partido):
     print(f"\n🔍 {partido['local']} vs {partido['visitante']} ({partido['liga']})")
     print(f"  🏠 {partido['local']}: Forma: {forma_l} | Goles Casa: {prom_gf_l:.1f} / Contra: {prom_gc_l:.1f}, Corners: {corners_l}, Amarillas: {tarjetas_l}")
     print(f"  🚶‍♂️ {partido['visitante']}: Forma: {forma_v} | Goles Visita: {prom_gf_v:.1f} / Contra: {prom_gc_v:.1f}, Corners: {corners_v}, Amarillas: {tarjetas_v}")
-    print(f"  📊 Predicción: Gana {predicciones['ganador']} | BTTS: {predicciones['btts']} | Over 2.5: {predicciones['over25']}%")
+    print(f"  📊 Predicción: Gana {predicciones.get('ganador', 'N/D')} | BTTS: {predicciones.get('btts', 'N/D')} | Over 2.5: {predicciones.get('over25', 'N/D')}%")
     if h2h:
         print(f"  🆚 Últimos H2H: {' | '.join(h2h)}")
     print(f"  💸 Cuotas: ML Local {cuotas.get('local', '-')}, Empate {cuotas.get('empate', '-')}, Visitante {cuotas.get('visitante', '-')}, BTTS Sí {cuotas.get('btts', '-')}, Over 2.5 {cuotas.get('over_2_5', '-')}")
 
     recomendaciones = []
-    if predicciones['over25'] and int(predicciones['over25']) >= UMBRAL_GOLES and 'over_2_5' in cuotas:
+    if predicciones.get("over25") and isinstance(predicciones["over25"], str) and predicciones["over25"].isdigit() and int(predicciones["over25"]) >= UMBRAL_GOLES and "over_2_5" in cuotas:
         recomendaciones.append(f"✅ Pick sugerido: Over 2.5 goles @ {cuotas['over_2_5']}")
-    if predicciones['btts'] and int(predicciones['btts']) >= UMBRAL_BTTS and 'btts' in cuotas:
+    if predicciones.get("btts") and isinstance(predicciones["btts"], str) and predicciones["btts"].isdigit() and int(predicciones["btts"]) >= UMBRAL_BTTS and "btts" in cuotas:
         recomendaciones.append(f"✅ Pick sugerido: Ambos anotan (BTTS) @ {cuotas['btts']}")
     if (corners_l + corners_v) / 2 >= UMBRAL_CORNERS:
         recomendaciones.append(f"⚠️ Pick sugerido: Over en corners (media: {(corners_l + corners_v)/2:.1f})")
