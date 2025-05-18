@@ -1,4 +1,4 @@
-# dg_picks_mlb.py
+# dg_picks_mlb.py (mejorado con presentación real del pick sugerido)
 
 import requests
 from datetime import datetime, timedelta
@@ -125,64 +125,14 @@ def get_team_form(team_id):
     }
 
 
-def sugerir_pick(home_stats, away_stats, home_pitcher, away_pitcher, cuotas):
-    try:
-        home_era = float(home_pitcher.get("era", 99))
-        away_era = float(away_pitcher.get("era", 99))
-        home_avg = float(home_stats.get("avg", 0))
-        away_avg = float(away_stats.get("avg", 0))
-    except:
-        return "❌ Pick no disponible (datos incompletos)"
-
-    razon = []
-    recomendacion = None
-
-    if home_era < away_era:
-        razon.append("mejor ERA del pitcher local")
-    else:
-        razon.append("mejor ERA del pitcher visitante")
-
-    if home_avg > away_avg:
-        razon.append("mejor ofensiva local")
-    else:
-        razon.append("mejor ofensiva visitante")
-
-    if home_era < away_era and home_avg > away_avg:
-        recomendacion = "Local ML"
-    elif away_era < home_era and away_avg > home_avg:
-        recomendacion = "Visitante ML"
-    else:
-        recomendacion = "Partido parejo, evitar o buscar over"
-
-    return f"✅ Pick sugerido: {recomendacion} | Justificación: {', '.join(razon)}"
-
-
-def emparejar_partidos(games, odds):
-    partidos = []
-    for game in games:
-        for odd in odds:
-            if (game['home_team']['name'].lower() in odd['home_team'].lower() or odd['home_team'].lower() in game['home_team']['name'].lower()) and \
-               (game['away_team']['name'].lower() in odd['away_team'].lower() or odd['away_team'].lower() in game['away_team']['name'].lower()):
-
-                cuota_ml = odd.get("bookmakers", [])[0].get("markets", [])[0].get("outcomes", [])
-                cuotas_dict = {o['name']: o['price'] for o in cuota_ml}
-
-                total_market = next((m for m in odd.get("bookmakers", [])[0].get("markets", []) if m['key'] == 'totals'), None)
-                over_under = total_market['outcomes'][0] if total_market else {}
-
-                partidos.append({
-                    "enfrentamiento": f"{game['away_team']['name']} vs {game['home_team']['name']}",
-                    "pitchers": f"{game['away_pitcher_name']} vs {game['home_pitcher_name']}",
-                    "inicio": game['start_time'],
-                    "cuotas": cuotas_dict,
-                    "total": over_under,
-                    "home_team_id": game['home_team_id'],
-                    "away_team_id": game['away_team_id'],
-                    "home_pitcher_id": game['home_pitcher_id'],
-                    "away_pitcher_id": game['away_pitcher_id']
-                })
-                break
-    return partidos
+def imprimir_pick_final(equipo, cuota, justificacion, forma):
+    print("━━━━━━━━━━━━━━━━━━━━━━")
+    print("🎯 PICK SUGERIDO DG PICKS – MLB")
+    print(f"✅ {equipo} ML @ {cuota}")
+    print(f"📊 Motivo: {justificacion}")
+    print(f"📈 Forma reciente: {forma}")
+    print("💡 Valor detectado en la cuota")
+    print("━━━━━━━━━━━━━━━━━━━━━━")
 
 
 def main():
@@ -194,50 +144,58 @@ def main():
     odds = get_odds_for_mlb()
     print(f"✅ {len(odds)} cuotas recibidas.")
 
-    print("🔄 Emparejando partidos con cuotas...")
-    partidos_finales = emparejar_partidos(games, odds)
+    for game in games:
+        home = game['home_team']['name']
+        away = game['away_team']['name']
+        print(f"\n🧾 {away} vs {home}")
+        print(f"   Pitchers: {game['away_pitcher_name']} vs {game['home_pitcher_name']}")
 
-    for partido in partidos_finales:
-        print("\n🧾", partido['enfrentamiento'])
-        print("   Pitchers:", partido['pitchers'])
-        print("   Cuotas ML:", partido['cuotas'])
-        if partido['total']:
-            print("   Over/Under:", partido['total'])
+        cuotas = {}
+        total = {}
+        for odd in odds:
+            if (home.lower() in odd['home_team'].lower() and away.lower() in odd['away_team'].lower()):
+                cuota_ml = odd.get("bookmakers", [])[0].get("markets", [])[0].get("outcomes", [])
+                cuotas = {o['name']: o['price'] for o in cuota_ml}
+                total_market = next((m for m in odd.get("bookmakers", [])[0].get("markets", []) if m['key'] == 'totals'), None)
+                total = total_market['outcomes'][0] if total_market else {}
+                break
 
-        home_stats = get_team_stats(partido['home_team_id'])
-        away_stats = get_team_stats(partido['away_team_id'])
+        print("   Cuotas ML:", cuotas)
+        if total:
+            print("   Over/Under:", total)
 
-        print(f"   🟢 Local – AVG: {home_stats.get('avg')}, OBP: {home_stats.get('obp')}, SLG: {home_stats.get('slg')}")
-        print(f"   🔴 Visitante – AVG: {away_stats.get('avg')}, OBP: {away_stats.get('obp')}, SLG: {away_stats.get('slg')}")
+        stats_home = get_team_stats(game['home_team_id'])
+        stats_away = get_team_stats(game['away_team_id'])
 
-        home_pitcher_stats = get_pitcher_stats(partido['home_pitcher_id'])
-        away_pitcher_stats = get_pitcher_stats(partido['away_pitcher_id'])
+        pitcher_home = get_pitcher_stats(game['home_pitcher_id'])
+        pitcher_away = get_pitcher_stats(game['away_pitcher_id'])
 
-        print("   📊 Stats Pitcher Local:", {
-            "ERA": home_pitcher_stats.get("era"),
-            "WHIP": home_pitcher_stats.get("whip"),
-            "K/9": home_pitcher_stats.get("strikeoutsPer9Inn")
-        })
-        print("   📊 Stats Pitcher Visitante:", {
-            "ERA": away_pitcher_stats.get("era"),
-            "WHIP": away_pitcher_stats.get("whip"),
-            "K/9": away_pitcher_stats.get("strikeoutsPer9Inn")
-        })
+        form_home = get_team_form(game['home_team_id'])
+        form_away = get_team_form(game['away_team_id'])
 
-        form_local = get_team_form(partido['home_team_id'])
-        form_visit = get_team_form(partido['away_team_id'])
+        justificacion = []
+        ganador = None
 
-        print("   📈 Forma Local – Anotadas Prom: {}, Recibidas Prom: {}, Record: {}".format(
-            form_local.get("anotadas"), form_local.get("recibidas"), form_local.get("record")
-        ))
-        print("   📉 Forma Visitante – Anotadas Prom: {}, Recibidas Prom: {}, Record: {}".format(
-            form_visit.get("anotadas"), form_visit.get("recibidas"), form_visit.get("record")
-        ))
+        try:
+            if float(pitcher_home.get("era", 99)) < float(pitcher_away.get("era", 99)):
+                justificacion.append("mejor ERA del pitcher local")
+                ganador = home
+            else:
+                justificacion.append("mejor ERA del pitcher visitante")
+                ganador = away
 
-        sugerencia = sugerir_pick(home_stats, away_stats, home_pitcher_stats, away_pitcher_stats, partido['cuotas'])
-        print("   🧠", sugerencia)
+            if float(stats_home.get("avg", 0)) > float(stats_away.get("avg", 0)):
+                justificacion.append("mejor ofensiva local")
+            else:
+                justificacion.append("mejor ofensiva visitante")
+
+            forma = form_home if ganador == home else form_away
+            cuota = cuotas.get(ganador, "-")
+            imprimir_pick_final(ganador, cuota, ", ".join(justificacion), f"{forma.get('record')} | {forma.get('anotadas')} anotadas por juego")
+
+        except:
+            print("❌ No se pudo calcular el pick sugerido por falta de datos.")
 
 
 if __name__ == "__main__":
     main()
-
