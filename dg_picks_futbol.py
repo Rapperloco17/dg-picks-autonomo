@@ -159,6 +159,78 @@ def analizar_historial_equipo(team_id, league_id):
         "goles_prom": round(total_goles / partidos_validos, 2)
     }
 
+
+def obtener_historial_equipo(team_id, league_id):
+    url = f"{BASE_URL}/fixtures?team={team_id}&league={league_id}&season=2024&status=FT&limit=10"
+    response = requests.get(url, headers=HEADERS)
+    if response.status_code != 200:
+        return {"victorias": 0, "empates": 0, "derrotas": 0, "gf": 0, "gc": 0, "prom_goles": 0}
+
+    data = response.json().get("response", [])
+    v = e = d = gf = gc = 0
+
+    for partido in data:
+        goles = partido.get("goals", {})
+        home = goles.get("home", 0)
+        away = goles.get("away", 0)
+        if partido["teams"]["home"]["id"] == team_id:
+            gf += home
+            gc += away
+            if home > away:
+                v += 1
+            elif home == away:
+                e += 1
+            else:
+                d += 1
+        else:
+            gf += away
+            gc += home
+            if away > home:
+                v += 1
+            elif home == away:
+                e += 1
+            else:
+                d += 1
+
+    total = v + e + d
+    prom_goles = (gf + gc) / total if total else 0
+
+    return {
+        "victorias": v,
+        "empates": e,
+        "derrotas": d,
+        "gf": gf,
+        "gc": gc,
+        "prom_goles": round(prom_goles, 2)
+    }
+
+
+def predecir_ganador_ml(hist_local, hist_visitante):
+    resultado = {"prediccion": "Empate", "confianza": 0}
+
+    # Margen para considerar ventaja clara
+    ventaja_victorias = hist_local["victorias"] - hist_visitante["victorias"]
+    ventaja_goles = hist_local["gf"] - hist_local["gc"] - (hist_visitante["gf"] - hist_visitante["gc"])
+
+    if ventaja_victorias >= 2 and ventaja_goles >= 2:
+        resultado["prediccion"] = "Local"
+        resultado["confianza"] = min(100, 60 + ventaja_victorias * 5 + ventaja_goles)
+    elif ventaja_victorias <= -2 and ventaja_goles <= -2:
+        resultado["prediccion"] = "Visitante"
+        resultado["confianza"] = min(100, 60 + abs(ventaja_victorias) * 5 + abs(ventaja_goles))
+    elif abs(ventaja_victorias) <= 1 and abs(ventaja_goles) <= 1:
+        resultado["prediccion"] = "Empate"
+        resultado["confianza"] = 50
+    else:
+        if ventaja_victorias > 0 or ventaja_goles > 0:
+            resultado["prediccion"] = "Local"
+            resultado["confianza"] = 55
+        elif ventaja_victorias < 0 or ventaja_goles < 0:
+            resultado["prediccion"] = "Visitante"
+            resultado["confianza"] = 55
+
+    return resultado
+
 def analizar_partido(partido):
     forma_local = obtener_forma_equipo(partido["local_id"], partido["liga_id"])
     forma_visitante = obtener_forma_equipo(partido["visitante_id"], partido["liga_id"])
@@ -198,6 +270,13 @@ def analizar_partido(partido):
     print(f"  🚶‍♂️ {partido['visitante']}: Forma: {forma_v} | GF: {prom_gf_v:.1f}, GC: {prom_gc_v:.1f}")
     print(f"  📊 Predicción: Gana {pred.get('ganador', 'N/D')}, BTTS Sí: {pred.get('btts_yes', '—')}%, Over 2.5: {pred.get('over25', '—')}%")
     print(f"  🎯 Marcador tentativo: {pred.get('goles_home', '?')} - {pred.get('goles_away', '?')}")
+    # Historial real desde API
+    hist_local = obtener_historial_equipo(partido["local_id"], partido["liga_id"])
+    hist_visitante = obtener_historial_equipo(partido["visitante_id"], partido["liga_id"])
+
+    pred_ml = predecir_ganador_ml(hist_local, hist_visitante)
+    print(f"  🧠 Predicción ML propia: {pred_ml['prediccion']} (Confianza: {pred_ml['confianza']}%)")
+
 
     promedio_goles = (prom_gf_l + prom_gf_v)
     if not pred.get("over25"):
