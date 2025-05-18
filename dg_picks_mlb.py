@@ -159,7 +159,12 @@ def main():
                     print("   Cuotas:", cuotas)
                     print("   ERA Pitchers:", pitcher_away.get("era", "❌ Sin datos"), "vs", pitcher_home.get("era", "❌ Sin datos"))
                     print("   Forma (últimos 5):", form_away.get("record", "❌"), "vs", form_home.get("record", "❌"))
-                    print("   Anotadas Prom.:", form_away.get("anotadas", "-"), "/", form_home.get("anotadas", "-"))
+                    print("   Anotadas / Recibidas:", f"{form_away.get('anotadas', '-')}/{form_away.get('recibidas', '-')}", "vs", f"{form_home.get('anotadas', '-')}/{form_home.get('recibidas', '-')}")
+                    total_combinado = (
+                        form_home.get("anotadas", 0) + form_home.get("recibidas", 0) +
+                        form_away.get("anotadas", 0) + form_away.get("recibidas", 0)
+                    ) / 2
+                    print(f"   📊 Total combinado estimado: {round(total_combinado, 2)} carreras")
                     if over_line and over_price:
                         promedio_total = form_home.get("anotadas", 0) + form_away.get("anotadas", 0)
                         if promedio_total > over_line:
