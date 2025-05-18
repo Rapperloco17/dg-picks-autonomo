@@ -22,8 +22,6 @@ def get_today_mlb_games():
     games = []
     for date_info in data.get("dates", []):
         for game in date_info.get("games", []):
-            if game.get("status", {}).get("detailedState") != "Scheduled":
-                continue
             home_pitcher = game["teams"]["home"].get("probablePitcher", {})
             away_pitcher = game["teams"]["away"].get("probablePitcher", {})
             games.append({
