@@ -1,4 +1,5 @@
-# dg_picks_mlb.py – Reactivado con justificación de bateo y forma reciente
+
+# dg_picks_mlb.py – Reactivado con justificación de bateo, forma reciente, Over/Under y nombres de pitchers
 
 import requests
 from datetime import datetime, timedelta
@@ -29,6 +30,8 @@ def get_today_mlb_games():
                 "away_team": game["teams"]["away"]["team"]["name"],
                 "home_pitcher_id": home_pitcher.get("id"),
                 "away_pitcher_id": away_pitcher.get("id"),
+                "home_pitcher_name": home_pitcher.get("fullName", "Por confirmar"),
+                "away_pitcher_name": away_pitcher.get("fullName", "Por confirmar"),
                 "home_team_id": game["teams"]["home"]["team"]["id"],
                 "away_team_id": game["teams"]["away"]["team"]["id"]
             })
@@ -38,7 +41,7 @@ def get_odds_for_mlb():
     params = {
         "apiKey": ODDS_API_KEY,
         "regions": "us",
-        "markets": "h2h,spreads",
+        "markets": "h2h,spreads,totals",
         "oddsFormat": "decimal"
     }
     response = requests.get(ODDS_API_URL, headers=HEADERS, params=params)
@@ -54,14 +57,6 @@ def get_pitcher_stats(pitcher_id):
         return {}
     splits = data["people"][0]["stats"][0].get("splits", [])
     return splits[0].get("stat", {}) if splits else {}
-
-def get_team_stats(team_id):
-    url = MLB_TEAM_STATS_URL.format(team_id)
-    response = requests.get(url, headers=HEADERS)
-    stats = response.json()
-    if not stats.get("stats") or not stats["stats"][0].get("splits"):
-        return {}
-    return stats["stats"][0]["splits"][0].get("stat", {})
 
 def get_team_form(team_id):
     end_date = datetime.now().strftime("%Y-%m-%d")
@@ -126,6 +121,8 @@ def main():
     for game in games:
         home = game['home_team']
         away = game['away_team']
+        pitcher_home_name = game['home_pitcher_name']
+        pitcher_away_name = game['away_pitcher_name']
         pitcher_home = get_pitcher_stats(game['home_pitcher_id'])
         pitcher_away = get_pitcher_stats(game['away_pitcher_id'])
         form_home = get_team_form(game['home_team_id'])
@@ -155,13 +152,15 @@ def main():
                                     over_line = o["point"]
                                     over_price = o["price"]
 
-                    print(f"\n🧾 {away} vs {home}")
+                    print(f"
+🧾 {away} (P: {pitcher_away_name}) vs {home} (P: {pitcher_home_name})")
                     print("   Cuotas:", cuotas)
+                    if over_line and over_price:
+                        print(f"   📈 Línea Over: {over_line} | Cuota: {over_price}")
+
                     try:
-                        era_away_str = pitcher_away.get("era", "❌")
-                        era_home_str = pitcher_home.get("era", "❌")
-                        era_away = float(era_away_str)
-                        era_home = float(era_home_str)
+                        era_away = float(pitcher_away.get("era", 99))
+                        era_home = float(pitcher_home.get("era", 99))
                     except:
                         era_away = "❌ Sin datos"
                         era_home = "❌ Sin datos"
@@ -169,17 +168,18 @@ def main():
                     print("   ERA Pitchers:", era_away, "vs", era_home)
                     print("   Forma (últimos 5):", form_away.get("record", "❌"), "vs", form_home.get("record", "❌"))
                     print("   Anotadas / Recibidas:", f"{form_away.get('anotadas', '-')}/{form_away.get('recibidas', '-')}", "vs", f"{form_home.get('anotadas', '-')}/{form_home.get('recibidas', '-')}")
+
                     total_combinado = (
                         form_home.get("anotadas", 0) + form_home.get("recibidas", 0) +
                         form_away.get("anotadas", 0) + form_away.get("recibidas", 0)
                     ) / 2
                     print(f"   📊 Total combinado estimado: {round(total_combinado, 2)} carreras")
+
                     if over_line and over_price:
                         promedio_total = form_home.get("anotadas", 0) + form_away.get("anotadas", 0)
                         if promedio_total > over_line:
                             print(f"   🔥 Pick sugerido: Over {over_line} @ {over_price} | Promedio combinado: {promedio_total} carreras")
 
-                                        # Comparar para evitar picks cruzados
                     anotadas_home = form_home.get("anotadas", 0)
                     anotadas_away = form_away.get("anotadas", 0)
                     era_home = float(pitcher_home.get("era", 99))
