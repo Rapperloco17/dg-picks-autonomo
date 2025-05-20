@@ -152,8 +152,8 @@ def main():
                                     over_line = o["point"]
                                     over_price = o["price"]
 
-                    print(f"
-🧾 {away} (P: {pitcher_away_name}) vs {home} (P: {pitcher_home_name})")
+ print(f"\n🧾 {away} (P: {pitcher_away_name}) vs {home} (P: {pitcher_home_name})")
+
                     print("   Cuotas:", cuotas)
                     if over_line and over_price:
                         print(f"   📈 Línea Over: {over_line} | Cuota: {over_price}")
