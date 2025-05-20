@@ -1,19 +1,19 @@
 
-# dg_picks_mlb.py – Versión completa integrada para DG Picks
+# dg_picks_mlb.py – Versión full con ML, Handicap, Totals y stats reales
 
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 
 ODDS_API_KEY = "137992569bc2352366c01e6928577b2d"
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/baseball_mlb/odds"
 MLB_SCHEDULE_URL = "https://statsapi.mlb.com/api/v1/schedule"
-MLB_TEAM_STATS_URL = "https://statsapi.mlb.com/api/v1/teams/{}/stats"
-MLB_GAMELOG_URL = "https://statsapi.mlb.com/api/v1/teams/{}/stats?stats=gameLog&group=hitting&season=2024"
+MLB_RESULTS_URL = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&teamId={}&startDate={}&endDate={}"
 HEADERS = {"User-Agent": "DG Picks"}
 
 MX_TZ = pytz.timezone("America/Mexico_City")
 HOY = datetime.now(MX_TZ).strftime("%Y-%m-%d")
+AYER = (datetime.now(MX_TZ) - timedelta(days=10)).strftime("%Y-%m-%d")
 
 
 def get_today_mlb_games():
@@ -42,11 +42,42 @@ def get_today_mlb_games():
     return juegos
 
 
-def get_over_under_odds():
+def get_team_form(team_id):
+    url = MLB_RESULTS_URL.format(team_id, AYER, HOY)
+    response = requests.get(url, headers=HEADERS)
+    data = response.json()
+
+    runs_for = []
+    runs_against = []
+
+    for date in data.get("dates", []):
+        for game in date.get("games", []):
+            try:
+                if game["status"]["abstractGameState"] != "Final":
+                    continue
+                team_home = game["teams"]["home"]
+                team_away = game["teams"]["away"]
+
+                if team_home["team"]["id"] == team_id:
+                    runs_for.append(team_home["score"])
+                    runs_against.append(team_away["score"])
+                elif team_away["team"]["id"] == team_id:
+                    runs_for.append(team_away["score"])
+                    runs_against.append(team_home["score"])
+            except:
+                continue
+
+    if not runs_for:
+        return 0.0, 0.0
+
+    return round(sum(runs_for[-5:]) / min(5, len(runs_for)), 1), round(sum(runs_against[-5:]) / min(5, len(runs_against)), 1)
+
+
+def get_all_odds():
     params = {
         "apiKey": ODDS_API_KEY,
         "regions": "us",
-        "markets": "totals",
+        "markets": "totals,h2h,spreads",
         "oddsFormat": "decimal"
     }
     response = requests.get(ODDS_API_URL, params=params)
@@ -54,71 +85,72 @@ def get_over_under_odds():
 
     odds_dict = {}
     for event in data:
-        equipos = tuple(sorted([event["home_team"], event["away_team"]]))
+        key = tuple(sorted([event["home_team"], event["away_team"]]))
+        odds_dict[key] = {"totals": None, "h2h": None, "spreads": None}
         for bookmaker in event.get("bookmakers", []):
             for market in bookmaker.get("markets", []):
                 if market["key"] == "totals":
-                    outcomes = market["outcomes"]
-                    over = next((o for o in outcomes if o["name"] == "Over"), None)
-                    under = next((o for o in outcomes if o["name"] == "Under"), None)
-                    if over and under:
-                        odds_dict[equipos] = {
-                            "total": over.get("point"),
-                            "over": over.get("price"),
-                            "under": under.get("price")
-                        }
-                    break
+                    over = next((o for o in market["outcomes"] if o["name"] == "Over"), {})
+                    under = next((o for o in market["outcomes"] if o["name"] == "Under"), {})
+                    odds_dict[key]["totals"] = {
+                        "point": over.get("point"),
+                        "over": over.get("price"),
+                        "under": under.get("price")
+                    }
+                elif market["key"] == "h2h":
+                    outcomes = {o["name"]: o["price"] for o in market["outcomes"]}
+                    odds_dict[key]["h2h"] = outcomes
+                elif market["key"] == "spreads":
+                    odds_dict[key]["spreads"] = {o["name"]: (o["point"], o["price"]) for o in market["outcomes"]}
     return odds_dict
-
-
-def get_team_form(team_id):
-    response = requests.get(MLB_GAMELOG_URL.format(team_id), headers=HEADERS)
-    try:
-        stats = response.json()["stats"][0]["splits"]
-        last_5 = stats[:5]
-        anotados = [g["stat"]["runs"] for g in last_5]
-        recibidos = [g["stat"]["runsAllowed"] for g in last_5]
-        return sum(anotados) / 5, sum(recibidos) / 5
-    except:
-        return 0, 0
 
 
 def analizar_juegos():
     juegos = get_today_mlb_games()
-    cuotas = get_over_under_odds()
+    cuotas = get_all_odds()
 
     for juego in juegos:
         home = juego["home"]
         away = juego["away"]
+        equipos = tuple(sorted([home, away]))
         home_pitcher = juego["home_pitcher"]
         away_pitcher = juego["away_pitcher"]
 
-        home_ataque, home_defensa = get_team_form(juego["home_id"])
-        away_ataque, away_defensa = get_team_form(juego["away_id"])
+        anot_home, recib_home = get_team_form(juego["home_id"])
+        anot_away, recib_away = get_team_form(juego["away_id"])
+        total_estimado = round((anot_home + anot_away + recib_home + recib_away) / 2, 2)
 
-        total_estimado = round((home_ataque + away_ataque + home_defensa + away_defensa) / 2, 2)
-
-        equipos = tuple(sorted([home, away]))
         print(f"⚾ {away} (P: {away_pitcher}) @ {home} (P: {home_pitcher})")
-        print(f"   🟢 Promedio {away}: {away_ataque:.1f} anotados / {away_defensa:.1f} recibidos")
-        print(f"   🔵 Promedio {home}: {home_ataque:.1f} anotados / {home_defensa:.1f} recibidos")
-        print(f"   🔢 Total estimado: {total_estimado}")
+        print(f"   🟢 Promedio {away}: {anot_away} anotados / {recib_away} recibidos")
+        print(f"   🔵 Promedio {home}: {anot_home} anotados / {recib_home} recibidos")
+        print(f"   🧮 Total estimado: {total_estimado}")
 
         if equipos in cuotas:
-            total = cuotas[equipos]["total"]
-            over = cuotas[equipos]["over"]
-            under = cuotas[equipos]["under"]
-            print(f"   📊 Línea: {total} | Over: {over} | Under: {under}")
+            datos = cuotas[equipos]
 
-            if total_estimado > float(total) and float(over) >= 1.75:
-                print(f"   ✅ PICK: Over {total} carreras | Cuota: {over}")
-            elif total_estimado < float(total) and float(under) >= 1.75:
-                print(f"   ✅ PICK: Under {total} carreras | Cuota: {under}")
-            else:
-                print("   ⚪ Solo informativo, sin pick claro")
+            # Totals
+            if datos["totals"]:
+                punto = datos["totals"]["point"]
+                over = datos["totals"]["over"]
+                under = datos["totals"]["under"]
+                print(f"   📊 Totals: Línea {punto} | Over: {over} | Under: {under}")
+                if total_estimado > float(punto) and over >= 1.75:
+                    print(f"   ✅ PICK: Over {punto} carreras | Cuota: {over}")
+                elif total_estimado < float(punto) and under >= 1.75:
+                    print(f"   ✅ PICK: Under {punto} carreras | Cuota: {under}")
+                else:
+                    print("   ⚪ No hay valor claro en Totals")
+
+            # Moneyline
+            if datos["h2h"]:
+                print("   💵 Moneyline:", datos["h2h"])
+
+            # Run Line
+            if datos["spreads"]:
+                print("   ➖ Handicap:", datos["spreads"])
 
         else:
-            print("   ❌ Cuotas no disponibles")
+            print("   ❌ No hay cuotas disponibles")
 
         print("—" * 60)
 
