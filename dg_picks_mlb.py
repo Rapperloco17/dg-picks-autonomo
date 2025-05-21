@@ -162,65 +162,7 @@ def main():
         print(f"   Forma: {form_away.get('record', '❌')} vs {form_home.get('record', '❌')}")
         print(f"   Anotadas / Recibidas: {anotadas_away}/{recibidas_away} vs {anotadas_home}/{recibidas_home}")
         print(f"   📊 Total combinado estimado (ajustado): {total_combinado} carreras")
-        # Buscar línea Over/Under
-        over_line = None
-        over_price = None
-        for odd in odds:
-            if home in odd["home_team"] and away in odd["away_team"]:
-                for book in odd["bookmakers"]:
-                    for market in book.get("markets", []):
-                        if market["key"] == "totals":
-                            for o in market["outcomes"]:
-                                if o["name"].lower() == "over":
-                                    over_line = o["point"]
-                                    over_price = o["price"]
-                                    break
-
-        if over_line and over_price:
-            print(f"   📈 Línea Over oficial: {over_line} @ {over_price}")
-            diferencia = total_combinado - over_line
-
-            if diferencia >= 3:
-                print(f"   🔐🔥 CANDADO: Over {over_line} @ {over_price} | Estimado: {total_combinado}")
-            elif diferencia >= 2:
-                print(f"   ✅ Pick sugerido: Over {over_line} @ {over_price} | Estimado: {total_combinado}")
-            elif diferencia <= -3:
-                print(f"   🔐🧊 CANDADO: Under {over_line} | Estimado: {total_combinado}")
-            elif diferencia <= -2:
-                print(f"   ✅ Pick sugerido: Under {over_line} | Estimado: {total_combinado}")
-        else:
-            print("   ❌ No se encontró línea de Over/Under")
-
 
 if __name__ == "__main__":
     main()
 
-
-        # Buscar línea Over/Under
-        over_line = None
-        over_price = None
-        for odd in odds:
-            if home in odd["home_team"] and away in odd["away_team"]:
-                for book in odd["bookmakers"]:
-                    for market in book.get("markets", []):
-                        if market["key"] == "totals":
-                            for o in market["outcomes"]:
-                                if o["name"].lower() == "over":
-                                    over_line = o["point"]
-                                    over_price = o["price"]
-                                    break
-
-        if over_line and over_price:
-            print(f"   📈 Línea Over oficial: {over_line} @ {over_price}")
-            diferencia = total_combinado - over_line
-
-            if diferencia >= 3:
-                print(f"   🔐🔥 CANDADO: Over {over_line} @ {over_price} | Estimado: {total_combinado}")
-            elif diferencia >= 2:
-                print(f"   ✅ Pick sugerido: Over {over_line} @ {over_price} | Estimado: {total_combinado}")
-            elif diferencia <= -3:
-                print(f"   🔐🧊 CANDADO: Under {over_line} | Estimado: {total_combinado}")
-            elif diferencia <= -2:
-                print(f"   ✅ Pick sugerido: Under {over_line} | Estimado: {total_combinado}")
-        else:
-            print("   ❌ No se encontró línea de Over/Under")
