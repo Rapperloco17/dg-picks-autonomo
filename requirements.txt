@@ -3,4 +3,5 @@ requests
 beautifulsoup4
 pandas
 schedule
-openai
+openai==0.28
+
