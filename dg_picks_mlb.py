@@ -1,5 +1,4 @@
-
-# dg_picks_mlb.py – Ajuste total por forma + ERA + AVG
+# dg_picks_mlb.py – Ajuste total por forma + ERA + AVG + formato Telegram
 
 import requests
 from datetime import datetime, timedelta
@@ -97,8 +96,7 @@ def get_team_avg(team_id):
     response = requests.get(url, headers=HEADERS)
     stats = response.json()
     try:
-        batting_avg = float(stats["stats"][0]["splits"][0]["stat"]["battingAvg"])
-        return batting_avg
+        return float(stats["stats"][0]["splits"][0]["stat"]["battingAvg"])
     except:
         return 0.25
 
@@ -156,11 +154,13 @@ def main():
 
         total_combinado = round((ajustado_home + ajustado_away + recibidas_home + recibidas_away) / 2, 2)
 
-        print(f"   AVG equipos: {away} = {avg_away:.3f}, {home} = {avg_home:.3f}")
-        print(f"   ERA Pitchers: {era_away} vs {era_home}")
-        print(f"   Forma: {form_away.get('record', '❌')} vs {form_home.get('record', '❌')}")
-        print(f"   Anotadas / Recibidas: {anotadas_away}/{recibidas_away} vs {anotadas_home}/{recibidas_home}")
-        print(f"   📊 Total combinado estimado (ajustado): {total_combinado} carreras")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print(f"🧾 {away} (P: {pitcher_away_name}) vs {home} (P: {pitcher_home_name})")
+        print(f"📊 AVG: {away} = {avg_away:.3f}, {home} = {avg_home:.3f}")
+        print(f"📉 ERA Pitchers: {era_away} vs {era_home}")
+        print(f"📈 Forma: {form_away.get('record', '❌')} vs {form_home.get('record', '❌')}")
+        print(f"⚾ Anotadas / Recibidas: {anotadas_away}/{recibidas_away} vs {anotadas_home}/{recibidas_home}")
+        print(f"📌 Total combinado estimado (ajustado): {total_combinado} carreras")
 
         over_line = None
         over_price = None
@@ -176,21 +176,20 @@ def main():
                                     break
 
         if over_line and over_price:
-            print(f"   📈 Línea Over oficial: {over_line} @ {over_price}")
+            print(f"📉 Línea Over/Under: {over_line} @ {over_price}")
             diferencia = round(total_combinado - over_line, 2)
-
             if diferencia >= 3:
-                print(f"   🔐🔥 CANDADO: Over {over_line} @ {over_price} | Estimado: {total_combinado}")
+                print(f"🔐🔥 CANDADO: Over {over_line} @ {over_price} | Estimado: {total_combinado}")
             elif diferencia >= 2:
-                print(f"   ✅ Pick sugerido: Over {over_line} @ {over_price} | Estimado: {total_combinado}")
+                print(f"✅ Pick sugerido: Over {over_line} @ {over_price} | Estimado: {total_combinado}")
             elif diferencia <= -3:
-                print(f"   🔐🧊 CANDADO: Under {over_line} | Estimado: {total_combinado}")
+                print(f"🔐🧊 CANDADO: Under {over_line} @ {over_price} | Estimado: {total_combinado}")
             elif diferencia <= -2:
-                print(f"   ✅ Pick sugerido: Under {over_line} | Estimado: {total_combinado}")
+                print(f"✅ Pick sugerido: Under {over_line} @ {over_price} | Estimado: {total_combinado}")
             else:
-                print(f"   ⚠️ Sin ventaja clara (estimado vs línea: {total_combinado} vs {over_line})")
+                print(f"⚠️ Sin ventaja clara (estimado vs línea: {total_combinado} vs {over_line})")
         else:
-            print("   ❌ No se encontró línea de Over/Under")
+            print("❌ No se encontró línea de Over/Under")
 
 if __name__ == "__main__":
     main()
