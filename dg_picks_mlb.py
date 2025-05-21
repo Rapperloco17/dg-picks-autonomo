@@ -156,8 +156,7 @@ def main():
 
         total_combinado = round((ajustado_home + ajustado_away + recibidas_home + recibidas_away) / 2, 2)
 
-        print(f"
-🧾 {away} (P: {pitcher_away_name}) vs {home} (P: {pitcher_home_name})")
+                print(f"\n🧾 {away} (P: {pitcher_away_name}) vs {home} (P: {pitcher_home_name})")
         print(f"   AVG equipos: {away} = {avg_away:.3f}, {home} = {avg_home:.3f}")
         print(f"   ERA Pitchers: {era_away} vs {era_home}")
         print(f"   Forma: {form_away.get('record', '❌')} vs {form_home.get('record', '❌')}")
