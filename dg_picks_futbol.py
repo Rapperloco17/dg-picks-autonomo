@@ -34,11 +34,12 @@ def get_odds(fixture_id):
     url = f"{BASE_URL}/odds?fixture={fixture_id}"
     response = requests.get(url, headers=HEADERS)
     for bookmaker in response.json()['response']:
-        for bet in bookmaker['bookmakers']:
-            if bet['bet']['name'] == "Over/Under":
-                for option in bet['values']:
-                    if option['value'] in ["Over 1.5", "Over 2.5", "Under 2.5", "Under 3.5"]:
-                        yield option['value'], float(option['odd'])
+        for bk in bookmaker.get('bookmakers', []):
+            for bet in bk.get('bets', []):
+                if bet['name'] == "Over/Under":
+                    for option in bet['values']:
+                        if option['value'] in ["Over 1.5", "Over 2.5", "Under 2.5", "Under 3.5"]:
+                            yield option['value'], float(option['odd'])
 
 def analizar_partido(fixture):
     home_id = fixture['teams']['home']['id']
