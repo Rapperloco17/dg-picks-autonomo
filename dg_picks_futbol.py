@@ -104,8 +104,7 @@ def imprimir_analisis(p):
         print(f"✅ PICK RECOMENDADO: {pick}")
         print(f"📌 Justificación: {justificacion}")
     else:
-        print("❌ No se recomienda pick para este partido.
-")
+        print("❌ No se recomienda pick para este partido.\n")
 
 def main():
     partidos = obtener_partidos_de_hoy()
