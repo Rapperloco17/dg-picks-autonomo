@@ -169,8 +169,8 @@ def main():
 
     if picks_excel:
         df = pd.DataFrame(picks_excel)
-        df.to_excel("/mnt/data/picks_ml_filtrados.xlsx", index=False)
-        print("\n✅ Archivo Excel generado: picks_ml_filtrados.xlsx")
+        df.to_csv("/mnt/data/picks_ml_filtrados.csv", index=False)
+        print("\n✅ Archivo CSV generado: picks_ml_filtrados.csv")
     else:
         print("\n❌ No se detectaron picks ML con lógica para exportar.")
 
