@@ -1,6 +1,7 @@
 import requests
 import datetime
 import os
+import pandas as pd
 
 API_KEY = os.getenv("API_FOOTBALL_KEY")
 BASE_URL = "https://v3.football.api-sports.io"
@@ -17,6 +18,7 @@ CUOTA_MIN = 1.50
 CUOTA_MAX = 2.50
 
 hoy = datetime.datetime.now().strftime("%Y-%m-%d")
+picks_excel = []
 
 def get_fixtures(date):
     url = f"{BASE_URL}/fixtures?date={date}"
@@ -102,6 +104,19 @@ def analizar_partido(fixture):
                 picks.append((market, cuota, total_avg_goals, stats_form_home['over_25_pct'], 
                               stats_form_away['over_25_pct'], marcador_tentativo, btts_prob))
 
+    for pick in picks:
+        picks_excel.append({
+            "Partido": f"{fixture['teams']['home']['name']} vs {fixture['teams']['away']['name']}",
+            "Liga": fixture['league']['name'],
+            "Promedio de Goles": pick[2],
+            "Over 2.5 Local": f"{pick[3]:.0f}%",
+            "Over 2.5 Visitante": f"{pick[4]:.0f}%",
+            "BTTS Prob": f"{pick[6]}%",
+            "Marcador Tentativo": pick[5],
+            "Pick": pick[0],
+            "Cuota": pick[1]
+        })
+
     return picks
 
 def main():
@@ -109,23 +124,14 @@ def main():
     print(f"Partidos encontrados: {len(fixtures)}")
     for fixture in fixtures:
         print(f"Analizando: {fixture['teams']['home']['name']} vs {fixture['teams']['away']['name']} ({fixture['league']['name']})")
-        resultado = analizar_partido(fixture)
-        if resultado:
-            for pick in resultado:
-                print("\n🔥 PICK DE VALOR - MERCADO OVER/UNDER 🔥")
-                print(f"\n🏟️ Partido: {fixture['teams']['home']['name']} vs {fixture['teams']['away']['name']}")
-                print(f"🇺🇳 Liga: {fixture['league']['name']}")
-                print(f"⏰ Hora: {fixture['fixture']['date'][11:16]} GMT")
-                print(f"\n📈 Promedio de goles: {pick[2]:.2f} por partido")
-                print(f"📊 Over 2.5 últimos 5:")
-                print(f"- Local: ✅ {pick[3]:.0f}%")
-                print(f"- Visitante: ✅ {pick[4]:.0f}%")
-                print(f"\n📊 BTTS Probabilidad: {pick[6]}%")
-                print(f"🔮 Marcador Tentativo: {pick[5]}")
-                print(f"\n🎯 Pick: {pick[0]}")
-                print(f"💸 Cuota: @{pick[1]}")
-                print(f"✅ Valor detectado en la cuota")
-                print("\n#DGPicks #OverUnder #PickSeguro")
+        analizar_partido(fixture)
+
+    if picks_excel:
+        df = pd.DataFrame(picks_excel)
+        df.to_excel("/mnt/data/picks_over_under.xlsx", index=False)
+        print("\n✅ Archivo Excel generado: picks_over_under.xlsx")
+    else:
+        print("\n❌ No se detectaron picks con valor para exportar.")
 
 if __name__ == "__main__":
     main()
