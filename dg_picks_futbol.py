@@ -92,38 +92,20 @@ def analizar_partido(fixture):
     marcador_tentativo = f"{pred_home_goals} - {pred_away_goals}"
     btts_prob = round((stats_form_home['btts_pct'] + stats_form_away['btts_pct']) / 2, 1)
 
-    picks = []
     for market, cuota in get_odds(fixture_id):
         if CUOTA_MIN <= cuota <= CUOTA_MAX:
-            if "Over 2.5" in market and total_avg_goals > 2.6 and \
-               stats_form_home['over_25_pct'] >= 60 and stats_form_away['over_25_pct'] >= 60:
-                picks.append((market, cuota, total_avg_goals, stats_form_home['over_25_pct'], 
-                              stats_form_away['over_25_pct'], marcador_tentativo, btts_prob))
-            elif "Under 2.5" in market and total_avg_goals < 2.2 and \
-                 stats_form_home['over_25_pct'] <= 40 and stats_form_away['over_25_pct'] <= 40:
-                picks.append((market, cuota, total_avg_goals, stats_form_home['over_25_pct'], 
-                              stats_form_away['over_25_pct'], marcador_tentativo, btts_prob))
-            elif "Over 1.5" in market and total_avg_goals > 2.0:
-                picks.append((market, cuota, total_avg_goals, stats_form_home['over_25_pct'], 
-                              stats_form_away['over_25_pct'], marcador_tentativo, btts_prob))
-            elif "Under 3.5" in market and total_avg_goals < 3.2:
-                picks.append((market, cuota, total_avg_goals, stats_form_home['over_25_pct'], 
-                              stats_form_away['over_25_pct'], marcador_tentativo, btts_prob))
+            picks_excel.append({
+                "Partido": f"{fixture['teams']['home']['name']} vs {fixture['teams']['away']['name']}",
+                "Liga": fixture['league']['name'],
+                "Promedio de Goles": total_avg_goals,
+                "Over 2.5 Local": f"{stats_form_home['over_25_pct']:.0f}%",
+                "Over 2.5 Visitante": f"{stats_form_away['over_25_pct']:.0f}%",
+                "BTTS Prob": f"{btts_prob}%",
+                "Marcador Tentativo": marcador_tentativo,
+                "Pick": market,
+                "Cuota": cuota
+            })
 
-    for pick in picks:
-        picks_excel.append({
-            "Partido": f"{fixture['teams']['home']['name']} vs {fixture['teams']['away']['name']}",
-            "Liga": fixture['league']['name'],
-            "Promedio de Goles": pick[2],
-            "Over 2.5 Local": f"{pick[3]:.0f}%",
-            "Over 2.5 Visitante": f"{pick[4]:.0f}%",
-            "BTTS Prob": f"{pick[6]}%",
-            "Marcador Tentativo": pick[5],
-            "Pick": pick[0],
-            "Cuota": pick[1]
-        })
-
-    return picks
 
 def main():
     fixtures = get_fixtures(hoy)
