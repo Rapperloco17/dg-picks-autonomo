@@ -21,9 +21,6 @@ hoy = datetime.datetime.now().strftime("%Y-%m-%d")
 picks_excel = []
 total_fixtures = 0
 fixtures_with_odds = 0
-fixtures_with_overunder = 0
-fixtures_with_btts = 0
-fixtures_with_dobleo = 0
 fixtures_with_ml = 0
 
 
@@ -43,10 +40,8 @@ def calcular_forma_y_goles(partidos, condicion_localidad):
     for match in partidos:
         if not match['teams']['home']['id'] or not match['teams']['away']['id']:
             continue
-        es_local = match['teams']['home']['id'] if condicion_localidad == "local" else match['teams']['away']['id']
         goles_local = match['goals']['home']
         goles_visitante = match['goals']['away']
-
         if goles_local is None or goles_visitante is None:
             continue
 
@@ -87,7 +82,7 @@ def get_odds(fixture_id):
     return data
 
 def analizar_partido(fixture):
-    global fixtures_with_dobleo
+    global fixtures_with_ml
 
     fixture_id = fixture['fixture']['id']
     home_id = fixture['teams']['home']['id']
@@ -109,29 +104,50 @@ def analizar_partido(fixture):
     for bookmaker in odds_data:
         for bk in bookmaker.get('bookmakers', []):
             for bet in bk.get('bets', []):
-                if bet['name'] == "Double Chance":
+                if bet['name'] == "Match Winner":
                     for option in bet['values']:
                         cuota = float(option['odd'])
                         valor = option['value']
-                        if CUOTA_MIN <= cuota <= CUOTA_MAX:
-                            if valor == "1X" and stats_home['ganados'] + stats_home['empatados'] >= 3 and stats_away['ganados'] <= 1:
-                                fixtures_with_dobleo += 1
-                            elif valor == "X2" and stats_away['ganados'] + stats_away['empatados'] >= 3 and stats_home['ganados'] <= 1:
-                                fixtures_with_dobleo += 1
-                            elif valor == "12" and stats_home['empatados'] + stats_away['empatados'] <= 1:
-                                fixtures_with_dobleo += 1
-                            else:
-                                continue
 
-                            print(f"\n🔐 PICK Doble Oportunidad (filtrado): {home_team} vs {away_team}")
-                            print(f"🎯 Pick: {valor} | Cuota: {cuota}")
-                            picks_excel.append({
-                                "Partido": f"{home_team} vs {away_team}",
-                                "Liga": league,
-                                "Pick": valor,
-                                "Cuota": cuota,
-                                "Mercado": "Doble Oportunidad"
-                            })
+                        if valor == "Home" and stats_home['ganados'] >= 3 and stats_away['perdidos'] >= 2:
+                            if CUOTA_MIN <= cuota <= CUOTA_MAX:
+                                fixtures_with_ml += 1
+                                print(f"\n🏆 PICK ML: {home_team} vs {away_team}")
+                                print(f"🎯 Pick: {valor} | Cuota: {cuota}")
+                                picks_excel.append({
+                                    "Partido": f"{home_team} vs {away_team}",
+                                    "Liga": league,
+                                    "Pick": valor,
+                                    "Cuota": cuota,
+                                    "Mercado": "Ganador ML"
+                                })
+                        elif valor == "Away" and stats_away['ganados'] >= 3 and stats_home['perdidos'] >= 2:
+                            if CUOTA_MIN <= cuota <= CUOTA_MAX:
+                                fixtures_with_ml += 1
+                                print(f"\n🏆 PICK ML: {home_team} vs {away_team}")
+                                print(f"🎯 Pick: {valor} | Cuota: {cuota}")
+                                picks_excel.append({
+                                    "Partido": f"{home_team} vs {away_team}",
+                                    "Liga": league,
+                                    "Pick": valor,
+                                    "Cuota": cuota,
+                                    "Mercado": "Ganador ML"
+                                })
+                        elif valor == "Draw":
+                            if stats_home['empatados'] >= 2 and stats_away['empatados'] >= 2:
+                                if stats_home['ganados'] <= 2 and stats_away['ganados'] <= 2:
+                                    if abs(stats_home['gf'] - stats_away['gf']) <= 1:
+                                        if CUOTA_MIN <= cuota <= CUOTA_MAX:
+                                            fixtures_with_ml += 1
+                                            print(f"\n🏆 PICK ML: {home_team} vs {away_team}")
+                                            print(f"🎯 Pick: {valor} | Cuota: {cuota}")
+                                            picks_excel.append({
+                                                "Partido": f"{home_team} vs {away_team}",
+                                                "Liga": league,
+                                                "Pick": valor,
+                                                "Cuota": cuota,
+                                                "Mercado": "Ganador ML"
+                                            })
 
 def main():
     global total_fixtures
@@ -145,14 +161,14 @@ def main():
     print("\nResumen de cobertura de cuotas:")
     print(f"🧩 Partidos totales analizados: {total_fixtures}")
     print(f"📊 Partidos con cuotas disponibles: {fixtures_with_odds}")
-    print(f"🔐 Partidos con Doble Oportunidad filtrados: {fixtures_with_dobleo}")
+    print(f"🏆 Partidos con Pick ML filtrado: {fixtures_with_ml}")
 
     if picks_excel:
         df = pd.DataFrame(picks_excel)
-        df.to_excel("/mnt/data/picks_doble_oportunidad_filtrados.xlsx", index=False)
-        print("\n✅ Archivo Excel generado: picks_doble_oportunidad_filtrados.xlsx")
+        df.to_excel("/mnt/data/picks_ml_filtrados.xlsx", index=False)
+        print("\n✅ Archivo Excel generado: picks_ml_filtrados.xlsx")
     else:
-        print("\n❌ No se detectaron picks con lógica para exportar.")
+        print("\n❌ No se detectaron picks ML con lógica para exportar.")
 
 if __name__ == "__main__":
     main()
