@@ -94,6 +94,11 @@ def analizar_partido(fixture):
 
     for market, cuota in get_odds(fixture_id):
         if CUOTA_MIN <= cuota <= CUOTA_MAX:
+            print(f"\n🔥 PICK DISPONIBLE: {fixture['teams']['home']['name']} vs {fixture['teams']['away']['name']}")
+            print(f"🎯 Pick: {market} | Cuota: {cuota}")
+            print(f"📈 Promedio de goles: {total_avg_goals:.2f}")
+            print(f"🔮 Marcador tentativo: {marcador_tentativo} | BTTS Prob: {btts_prob}%")
+
             picks_excel.append({
                 "Partido": f"{fixture['teams']['home']['name']} vs {fixture['teams']['away']['name']}",
                 "Liga": fixture['league']['name'],
@@ -105,7 +110,6 @@ def analizar_partido(fixture):
                 "Pick": market,
                 "Cuota": cuota
             })
-
 
 def main():
     fixtures = get_fixtures(hoy)
@@ -119,7 +123,7 @@ def main():
         df.to_excel("/mnt/data/picks_over_under.xlsx", index=False)
         print("\n✅ Archivo Excel generado: picks_over_under.xlsx")
     else:
-        print("\n❌ No se detectaron picks con valor para exportar.")
+        print("\n❌ No se detectaron picks con cuota para exportar.")
 
 if __name__ == "__main__":
     main()
