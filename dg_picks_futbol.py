@@ -105,49 +105,53 @@ def analizar_partido(fixture):
         for bk in bookmaker.get('bookmakers', []):
             for bet in bk.get('bets', []):
                 if bet['name'] == "Match Winner":
-                    for option in bet['values']:
-                        cuota = float(option['odd'])
-                        valor = option['value']
+                    opciones = {o['value']: float(o['odd']) for o in bet['values'] if o['value'] in ["Home", "Draw", "Away"] and CUOTA_MIN <= float(o['odd']) <= CUOTA_MAX}
 
-                        if valor == "Home" and stats_home['ganados'] >= 3 and stats_away['perdidos'] >= 2:
-                            if CUOTA_MIN <= cuota <= CUOTA_MAX:
-                                fixtures_with_ml += 1
-                                print(f"\n🏆 PICK ML: {home_team} vs {away_team}")
-                                print(f"🎯 Pick: {valor} | Cuota: {cuota}")
-                                picks_excel.append({
-                                    "Partido": f"{home_team} vs {away_team}",
-                                    "Liga": league,
-                                    "Pick": valor,
-                                    "Cuota": cuota,
-                                    "Mercado": "Ganador ML"
-                                })
-                        elif valor == "Away" and stats_away['ganados'] >= 3 and stats_home['perdidos'] >= 2:
-                            if CUOTA_MIN <= cuota <= CUOTA_MAX:
-                                fixtures_with_ml += 1
-                                print(f"\n🏆 PICK ML: {home_team} vs {away_team}")
-                                print(f"🎯 Pick: {valor} | Cuota: {cuota}")
-                                picks_excel.append({
-                                    "Partido": f"{home_team} vs {away_team}",
-                                    "Liga": league,
-                                    "Pick": valor,
-                                    "Cuota": cuota,
-                                    "Mercado": "Ganador ML"
-                                })
-                        elif valor == "Draw":
-                            if stats_home['empatados'] >= 2 and stats_away['empatados'] >= 2:
-                                if stats_home['ganados'] <= 2 and stats_away['ganados'] <= 2:
-                                    if abs(stats_home['gf'] - stats_away['gf']) <= 1:
-                                        if CUOTA_MIN <= cuota <= CUOTA_MAX:
-                                            fixtures_with_ml += 1
-                                            print(f"\n🏆 PICK ML: {home_team} vs {away_team}")
-                                            print(f"🎯 Pick: {valor} | Cuota: {cuota}")
-                                            picks_excel.append({
-                                                "Partido": f"{home_team} vs {away_team}",
-                                                "Liga": league,
-                                                "Pick": valor,
-                                                "Cuota": cuota,
-                                                "Mercado": "Ganador ML"
-                                            })
+                    if len(opciones) < 2:
+                        continue
+
+                    pick_generado = False
+                    if "Home" in opciones and stats_home['ganados'] >= 3 and stats_away['perdidos'] >= 2:
+                        fixtures_with_ml += 1
+                        print(f"\n🏆 PICK ML: {home_team} vs {away_team}")
+                        print(f"🎯 Pick: Home | Cuota: {opciones['Home']}")
+                        picks_excel.append({
+                            "Partido": f"{home_team} vs {away_team}",
+                            "Liga": league,
+                            "Pick": "Home",
+                            "Cuota": opciones['Home'],
+                            "Mercado": "Ganador ML"
+                        })
+                        pick_generado = True
+                    elif "Away" in opciones and stats_away['ganados'] >= 3 and stats_home['perdidos'] >= 2:
+                        fixtures_with_ml += 1
+                        print(f"\n🏆 PICK ML: {home_team} vs {away_team}")
+                        print(f"🎯 Pick: Away | Cuota: {opciones['Away']}")
+                        picks_excel.append({
+                            "Partido": f"{home_team} vs {away_team}",
+                            "Liga": league,
+                            "Pick": "Away",
+                            "Cuota": opciones['Away'],
+                            "Mercado": "Ganador ML"
+                        })
+                        pick_generado = True
+                    elif "Draw" in opciones:
+                        if stats_home['empatados'] >= 2 and stats_away['empatados'] >= 2:
+                            if stats_home['ganados'] <= 2 and stats_away['ganados'] <= 2:
+                                if abs(stats_home['gf'] - stats_away['gf']) <= 1:
+                                    fixtures_with_ml += 1
+                                    print(f"\n🏆 PICK ML: {home_team} vs {away_team}")
+                                    print(f"🎯 Pick: Draw | Cuota: {opciones['Draw']}")
+                                    picks_excel.append({
+                                        "Partido": f"{home_team} vs {away_team}",
+                                        "Liga": league,
+                                        "Pick": "Draw",
+                                        "Cuota": opciones['Draw'],
+                                        "Mercado": "Ganador ML"
+                                    })
+                                    pick_generado = True
+                    if pick_generado:
+                        return
 
 def main():
     global total_fixtures
