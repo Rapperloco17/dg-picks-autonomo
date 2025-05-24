@@ -37,20 +37,20 @@ def get_last_fixtures(team_id, league_id):
 def calcular_over_25_porcentaje(ultimos_partidos):
     count = 0
     btts_count = 0
-    valid_matches = 0
+    total_validos = 0
     for match in ultimos_partidos:
         home_goals = match['goals']['home']
         away_goals = match['goals']['away']
         if home_goals is not None and away_goals is not None:
+            total_validos += 1
             goles = home_goals + away_goals
-            valid_matches += 1
             if goles > 2.5:
                 count += 1
             if home_goals > 0 and away_goals > 0:
                 btts_count += 1
     return {
-        'over_25_pct': (count / valid_matches) * 100 if valid_matches else 0,
-        'btts_pct': (btts_count / valid_matches) * 100 if valid_matches else 0
+        'over_25_pct': (count / total_validos) * 100 if total_validos else 0,
+        'btts_pct': (btts_count / total_validos) * 100 if total_validos else 0
     }
 
 def get_odds(fixture_id):
@@ -111,12 +111,20 @@ def main():
         resultado = analizar_partido(fixture)
         if resultado:
             for pick in resultado:
-                print("\n====================================")
-                print(f"{fixture['teams']['home']['name']} vs {fixture['teams']['away']['name']}")
-                print(f"Liga: {fixture['league']['name']}")
-                print(f"Pick sugerido: {pick[0]} | Cuota: {pick[1]} | Prom. goles: {pick[2]:.2f}")
-                print(f"Over 2.5 últimos 5 partidos: Local {pick[3]:.0f}% | Visitante {pick[4]:.0f}%")
-                print(f"Marcador tentativo: {pick[5]} | BTTS Prob: {pick[6]}%")
+                print("\n🔥 PICK DE VALOR - MERCADO OVER/UNDER 🔥")
+                print(f"\n🏟️ Partido: {fixture['teams']['home']['name']} vs {fixture['teams']['away']['name']}")
+                print(f"🇺🇳 Liga: {fixture['league']['name']}")
+                print(f"⏰ Hora: {fixture['fixture']['date'][11:16]} GMT")
+                print(f"\n📈 Promedio de goles: {pick[2]:.2f} por partido")
+                print(f"📊 Over 2.5 últimos 5:")
+                print(f"- Local: ✅ {pick[3]:.0f}%")
+                print(f"- Visitante: ✅ {pick[4]:.0f}%")
+                print(f"\n📊 BTTS Probabilidad: {pick[6]}%")
+                print(f"🔮 Marcador Tentativo: {pick[5]}")
+                print(f"\n🎯 Pick: {pick[0]}")
+                print(f"💸 Cuota: @{pick[1]}")
+                print(f"✅ Valor detectado en la cuota")
+                print("\n#DGPicks #OverUnder #PickSeguro")
 
 if __name__ == "__main__":
     main()
