@@ -15,7 +15,7 @@ LIGAS_VALIDAS = [
 ]
 
 CUOTA_MIN = 1.50
-CUOTA_MAX = 2.50
+CUOTA_MAX = 3.25
 
 hoy = datetime.datetime.now().strftime("%Y-%m-%d")
 picks_excel = []
@@ -101,6 +101,12 @@ def analizar_partido(fixture):
                               stats_form_away['over_25_pct'], marcador_tentativo, btts_prob))
             elif "Under 2.5" in market and total_avg_goals < 2.2 and \
                  stats_form_home['over_25_pct'] <= 40 and stats_form_away['over_25_pct'] <= 40:
+                picks.append((market, cuota, total_avg_goals, stats_form_home['over_25_pct'], 
+                              stats_form_away['over_25_pct'], marcador_tentativo, btts_prob))
+            elif "Over 1.5" in market and total_avg_goals > 2.0:
+                picks.append((market, cuota, total_avg_goals, stats_form_home['over_25_pct'], 
+                              stats_form_away['over_25_pct'], marcador_tentativo, btts_prob))
+            elif "Under 3.5" in market and total_avg_goals < 3.2:
                 picks.append((market, cuota, total_avg_goals, stats_form_home['over_25_pct'], 
                               stats_form_away['over_25_pct'], marcador_tentativo, btts_prob))
 
