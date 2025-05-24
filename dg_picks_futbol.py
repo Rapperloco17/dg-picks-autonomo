@@ -108,6 +108,7 @@ def main():
     fixtures = get_fixtures(hoy)
     print(f"Partidos encontrados: {len(fixtures)}")
     for fixture in fixtures:
+        print(f"Analizando: {fixture['teams']['home']['name']} vs {fixture['teams']['away']['name']} ({fixture['league']['name']})")
         resultado = analizar_partido(fixture)
         if resultado:
             for pick in resultado:
