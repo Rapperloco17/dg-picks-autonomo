@@ -23,6 +23,8 @@ total_fixtures = 0
 fixtures_with_odds = 0
 fixtures_with_overunder = 0
 fixtures_with_btts = 0
+fixtures_with_dobleo = 0
+fixtures_with_ml = 0
 
 
 def get_fixtures(date):
@@ -30,35 +32,6 @@ def get_fixtures(date):
     response = requests.get(url, headers=HEADERS)
     data = response.json()
     return [f for f in data['response'] if f['league']['id'] in LIGAS_VALIDAS]
-
-def get_team_stats(team_id, league_id):
-    url = f"{BASE_URL}/teams/statistics?team={team_id}&league={league_id}&season=2024"
-    response = requests.get(url, headers=HEADERS)
-    return response.json()['response']
-
-def get_last_fixtures(team_id, league_id):
-    url = f"{BASE_URL}/fixtures?team={team_id}&league={league_id}&season=2024&last=5"
-    response = requests.get(url, headers=HEADERS)
-    return response.json()['response']
-
-def calcular_over_25_porcentaje(ultimos_partidos):
-    count = 0
-    btts_count = 0
-    total_validos = 0
-    for match in ultimos_partidos:
-        home_goals = match['goals']['home']
-        away_goals = match['goals']['away']
-        if home_goals is not None and away_goals is not None:
-            total_validos += 1
-            goles = home_goals + away_goals
-            if goles > 2.5:
-                count += 1
-            if home_goals > 0 and away_goals > 0:
-                btts_count += 1
-    return {
-        'over_25_pct': (count / total_validos) * 100 if total_validos else 0,
-        'btts_pct': (btts_count / total_validos) * 100 if total_validos else 0
-    }
 
 def get_odds(fixture_id):
     url = f"{BASE_URL}/odds?fixture={fixture_id}"
@@ -70,31 +43,12 @@ def get_odds(fixture_id):
     return data
 
 def analizar_partido(fixture):
-    global fixtures_with_overunder, fixtures_with_btts
-    home_id = fixture['teams']['home']['id']
-    away_id = fixture['teams']['away']['id']
-    league_id = fixture['league']['id']
+    global fixtures_with_overunder, fixtures_with_btts, fixtures_with_dobleo, fixtures_with_ml
+
     fixture_id = fixture['fixture']['id']
-
-    try:
-        stats_home = get_team_stats(home_id, league_id)
-        stats_away = get_team_stats(away_id, league_id)
-        ultimos_home = get_last_fixtures(home_id, league_id)
-        ultimos_away = get_last_fixtures(away_id, league_id)
-    except:
-        return None
-
-    avg_goals_home = float(stats_home['goals']['for']['average']['total'])
-    avg_goals_away = float(stats_away['goals']['for']['average']['total'])
-    total_avg_goals = avg_goals_home + avg_goals_away
-
-    stats_form_home = calcular_over_25_porcentaje(ultimos_home)
-    stats_form_away = calcular_over_25_porcentaje(ultimos_away)
-
-    pred_home_goals = round(avg_goals_home, 1)
-    pred_away_goals = round(avg_goals_away, 1)
-    marcador_tentativo = f"{pred_home_goals} - {pred_away_goals}"
-    btts_prob = round((stats_form_home['btts_pct'] + stats_form_away['btts_pct']) / 2, 1)
+    home_team = fixture['teams']['home']['name']
+    away_team = fixture['teams']['away']['name']
+    league = fixture['league']['name']
 
     odds_data = get_odds(fixture_id)
     for bookmaker in odds_data:
@@ -102,8 +56,12 @@ def analizar_partido(fixture):
             for bet in bk.get('bets', []):
                 if bet['name'] == "Over/Under":
                     fixtures_with_overunder += 1
-                if bet['name'] == "Both Teams To Score":
+                elif bet['name'] == "Both Teams To Score":
                     fixtures_with_btts += 1
+                elif bet['name'] == "Double Chance":
+                    fixtures_with_dobleo += 1
+                elif bet['name'] == "Match Winner":
+                    fixtures_with_ml += 1
 
 
 def main():
@@ -120,6 +78,8 @@ def main():
     print(f"📊 Partidos con cuotas disponibles: {fixtures_with_odds}")
     print(f"🎯 Partidos con mercado Over/Under: {fixtures_with_overunder}")
     print(f"🤝 Partidos con mercado Ambos Anotan: {fixtures_with_btts}")
+    print(f"🔐 Partidos con Doble Oportunidad: {fixtures_with_dobleo}")
+    print(f"🏆 Partidos con Ganador ML: {fixtures_with_ml}")
 
     if picks_excel:
         df = pd.DataFrame(picks_excel)
