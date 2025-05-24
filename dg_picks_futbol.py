@@ -37,16 +37,20 @@ def get_last_fixtures(team_id, league_id):
 def calcular_over_25_porcentaje(ultimos_partidos):
     count = 0
     btts_count = 0
+    valid_matches = 0
     for match in ultimos_partidos:
-        goles = match['goals']['home'] + match['goals']['away']
-        if goles > 2.5:
-            count += 1
-        if match['goals']['home'] > 0 and match['goals']['away'] > 0:
-            btts_count += 1
-    total = len(ultimos_partidos)
+        home_goals = match['goals']['home']
+        away_goals = match['goals']['away']
+        if home_goals is not None and away_goals is not None:
+            goles = home_goals + away_goals
+            valid_matches += 1
+            if goles > 2.5:
+                count += 1
+            if home_goals > 0 and away_goals > 0:
+                btts_count += 1
     return {
-        'over_25_pct': (count / total) * 100 if total else 0,
-        'btts_pct': (btts_count / total) * 100 if total else 0
+        'over_25_pct': (count / valid_matches) * 100 if valid_matches else 0,
+        'btts_pct': (btts_count / valid_matches) * 100 if valid_matches else 0
     }
 
 def get_odds(fixture_id):
