@@ -22,6 +22,7 @@ picks_excel = []
 total_fixtures = 0
 fixtures_with_odds = 0
 fixtures_with_overunder = 0
+fixtures_with_btts = 0
 
 
 def get_fixtures(date):
@@ -69,7 +70,7 @@ def get_odds(fixture_id):
     return data
 
 def analizar_partido(fixture):
-    global fixtures_with_overunder
+    global fixtures_with_overunder, fixtures_with_btts
     home_id = fixture['teams']['home']['id']
     away_id = fixture['teams']['away']['id']
     league_id = fixture['league']['id']
@@ -101,26 +102,9 @@ def analizar_partido(fixture):
             for bet in bk.get('bets', []):
                 if bet['name'] == "Over/Under":
                     fixtures_with_overunder += 1
-                    for option in bet['values']:
-                        if option['value'] in ["Over 1.5", "Over 2.5", "Under 2.5", "Under 3.5"]:
-                            cuota = float(option['odd'])
-                            if CUOTA_MIN <= cuota <= CUOTA_MAX:
-                                print(f"\n🔥 PICK DISPONIBLE: {fixture['teams']['home']['name']} vs {fixture['teams']['away']['name']}")
-                                print(f"🎯 Pick: {option['value']} | Cuota: {cuota}")
-                                print(f"📈 Promedio de goles: {total_avg_goals:.2f}")
-                                print(f"🔮 Marcador tentativo: {marcador_tentativo} | BTTS Prob: {btts_prob}%")
+                if bet['name'] == "Both Teams To Score":
+                    fixtures_with_btts += 1
 
-                                picks_excel.append({
-                                    "Partido": f"{fixture['teams']['home']['name']} vs {fixture['teams']['away']['name']}",
-                                    "Liga": fixture['league']['name'],
-                                    "Promedio de Goles": total_avg_goals,
-                                    "Over 2.5 Local": f"{stats_form_home['over_25_pct']:.0f}%",
-                                    "Over 2.5 Visitante": f"{stats_form_away['over_25_pct']:.0f}%",
-                                    "BTTS Prob": f"{btts_prob}%",
-                                    "Marcador Tentativo": marcador_tentativo,
-                                    "Pick": option['value'],
-                                    "Cuota": cuota
-                                })
 
 def main():
     global total_fixtures
@@ -135,6 +119,7 @@ def main():
     print(f"🧩 Partidos totales analizados: {total_fixtures}")
     print(f"📊 Partidos con cuotas disponibles: {fixtures_with_odds}")
     print(f"🎯 Partidos con mercado Over/Under: {fixtures_with_overunder}")
+    print(f"🤝 Partidos con mercado Ambos Anotan: {fixtures_with_btts}")
 
     if picks_excel:
         df = pd.DataFrame(picks_excel)
