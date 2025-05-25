@@ -5,7 +5,7 @@ from entrenar_modelo_ml import entrenar_modelos_y_enviar
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 BOT_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
-CHAT_ID_ADMIN = "7450739156"  # <-- Puedes reemplazarlo por variable
+CHAT_ID_ADMIN = "7450739156"  # tu ID
 
 def obtener_ultimo_json_del_bot():
     url = f"{BOT_API_URL}/getUpdates"
@@ -16,17 +16,14 @@ def obtener_ultimo_json_del_bot():
         message = result.get("message", {})
         doc = message.get("document")
         if doc and doc["file_name"].endswith(".json"):
-            file_id = doc["file_id"]
-            return file_id
+            return doc["file_id"]
     return None
 
 def descargar_archivo(file_id, destino):
-    # Obtener la ruta del archivo
     file_info_url = f"{BOT_API_URL}/getFile?file_id={file_id}"
     file_info = requests.get(file_info_url).json()
     file_path = file_info["result"]["file_path"]
 
-    # Descargar archivo
     file_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
     r = requests.get(file_url)
     with open(destino, "wb") as f:
@@ -42,8 +39,8 @@ def main():
 
     print("⬇️ Descargando archivo...")
     descargar_archivo(file_id, "dataset_ml_base.json")
-
     print("✅ Dataset descargado como dataset_ml_base.json")
+
     entrenar_modelos_y_enviar()
 
 if __name__ == "__main__":
