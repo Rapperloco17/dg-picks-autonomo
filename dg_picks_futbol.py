@@ -61,10 +61,9 @@ def obtener_estadisticas_equipo(equipo_id):
 
     for match in data.get("response", []):
         if match["teams"]["home"]["id"] == equipo_id:
-            gf = match["goals"]["home"]
+            goles.append(match["goals"]["home"])
         else:
-            gf = match["goals"]["away"]
-        goles.append(gf)
+            goles.append(match["goals"]["away"])
 
         fixture_id = match["fixture"]["id"]
         stats_url = f"{BASE_URL}/fixtures/statistics?fixture={fixture_id}&team={equipo_id}"
