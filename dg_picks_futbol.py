@@ -49,6 +49,12 @@ def obtener_cuotas(fixture_id):
     except Exception:
         return {}
 
+def float_safe(valor):
+    try:
+        return float(valor)
+    except:
+        return 0.0
+
 def imprimir_analisis(p):
     home = p["teams"]["home"]
     away = p["teams"]["away"]
@@ -73,31 +79,38 @@ def imprimir_analisis(p):
     wins_home = form_home.count("W")
     wins_away = form_away.count("W")
 
+    cuota_home = float_safe(cuotas.get("Home", 0))
+    cuota_away = float_safe(cuotas.get("Away", 0))
+    cuota_draw = float_safe(cuotas.get("Draw", 0))
+    cuota_1x = float_safe(cuotas.get("1X", 0))
+    cuota_x2 = float_safe(cuotas.get("X2", 0))
+    cuota_12 = float_safe(cuotas.get("12", 0))
+
     print(f"🔍 PARTIDO: {home['name']} vs {away['name']}")
     print(f"Liga: {league['name']} | Fecha: {fixture['date']}")
     print(f"📊 Forma reciente: {home['name']}: {form_home} | {away['name']}: {form_away}")
     print(f"🏟️ Goles Local: {gf_home} GF / {ga_home} GC | Goles Visitante: {gf_away} GF / {ga_away} GC")
     print("💸 Cuotas:")
-    print(f"1: {cuotas.get('Home', '-')}, X: {cuotas.get('Draw', '-')}, 2: {cuotas.get('Away', '-')}")
-    print(f"1X: {cuotas.get('1X', '-')}, X2: {cuotas.get('X2', '-')}, 12: {cuotas.get('12', '-')}")
+    print(f"1: {cuota_home}, X: {cuota_draw}, 2: {cuota_away}")
+    print(f"1X: {cuota_1x}, X2: {cuota_x2}, 12: {cuota_12}")
 
     pick = None
     justificacion = ""
 
-    if wins_home >= 3 and gf_home >= 1.6 and ga_away >= 1.5 and cuotas.get("Home", 0) >= 1.60:
-        pick = f"{home['name']} ML @ {cuotas.get('Home')}"
+    if wins_home >= 3 and gf_home >= 1.6 and ga_away >= 1.5 and cuota_home >= 1.60:
+        pick = f"{home['name']} ML @ {cuota_home}"
         justificacion = "Local fuerte en casa, visitante concede mucho."
-    elif wins_away >= 3 and gf_away >= 1.5 and ga_home >= 1.5 and cuotas.get("Away", 0) >= 2.20:
-        pick = f"{away['name']} ML @ {cuotas.get('Away')}"
+    elif wins_away >= 3 and gf_away >= 1.5 and ga_home >= 1.5 and cuota_away >= 2.20:
+        pick = f"{away['name']} ML @ {cuota_away}"
         justificacion = "Visitante en buena forma y local débil."
-    elif form_home.count("D") >= 2 and form_away.count("D") >= 2 and cuotas.get("Draw", 0) >= 3.00:
-        pick = f"Empate @ {cuotas.get('Draw')}"
+    elif form_home.count("D") >= 2 and form_away.count("D") >= 2 and cuota_draw >= 3.00:
+        pick = f"Empate @ {cuota_draw}"
         justificacion = "Ambos empatan con frecuencia y marcan poco."
-    elif wins_home >= 2 and cuotas.get("1X", 0) <= 1.30:
-        pick = f"1X @ {cuotas.get('1X')}"
+    elif wins_home >= 2 and cuota_1x <= 1.30:
+        pick = f"1X @ {cuota_1x}"
         justificacion = "Local sólido, al menos no pierde."
-    elif wins_away >= 2 and cuotas.get("X2", 0) <= 1.60:
-        pick = f"X2 @ {cuotas.get('X2')}"
+    elif wins_away >= 2 and cuota_x2 <= 1.60:
+        pick = f"X2 @ {cuota_x2}"
         justificacion = "Visitante con buen rendimiento reciente."
 
     if pick:
