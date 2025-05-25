@@ -1,161 +1,153 @@
-
-import requests
-import json
 import os
+import json
+import requests
 from datetime import datetime
 import pytz
 from send_telegram import enviar_mensaje
 
+CHAT_ID_VIP = os.getenv("CHAT_ID_VIP")
+CHAT_ID_FREE = os.getenv("CHAT_ID_FREE")
 API_KEY = os.getenv("API_FOOTBALL_KEY")
-BASE_URL = "https://v3.football.api-sports.io"
 HEADERS = {"x-apisports-key": API_KEY}
+BASE_URL = "https://v3.football.api-sports.io"
 
-LIGAS_VALIDAS = [140, 39, 78, 61, 94, 88, 203, 128, 11, 13]
-CANAL_VIP = "-1001285733813"
-CANAL_FREE = "@dgpickspro17"
+LIGAS_VALIDAS = [
+    1, 2, 3, 4, 9, 11, 13, 16, 39, 40, 61, 62, 71, 72, 73, 45, 78, 79, 88, 94, 103,
+    106, 113, 119, 128, 129, 130, 135, 136, 137, 140, 141, 143, 144, 162, 164, 169,
+    172, 179, 188, 197, 203, 207, 210, 218, 239, 242, 244, 253, 257, 262, 263, 265,
+    268, 271, 281, 345, 357
+]
+
 
 def obtener_partidos_del_dia():
     hoy = datetime.utcnow().strftime("%Y-%m-%d")
     url = f"{BASE_URL}/fixtures?date={hoy}"
-    response = requests.get(url, headers=HEADERS).json()
-    return [p for p in response.get("response", []) if p["league"]["id"] in LIGAS_VALIDAS]
-
-def buscar_partidos_api(team_name):
-    search = requests.get(f"{BASE_URL}/teams?search={team_name}", headers=HEADERS).json()
-    team_info = search["response"][0] if search["response"] else None
-    if not team_info:
-        return []
-    team_id = team_info["team"]["id"]
-    url = f"{BASE_URL}/fixtures?team={team_id}&season=2024&status=FT"
     r = requests.get(url, headers=HEADERS).json()
-    return r.get("response", [])
+    return [p for p in r.get("response", []) if p["league"]["id"] in LIGAS_VALIDAS]
 
-def cargar_historial_local():
-    historial = []
-    carpeta = "historial/unificados/"
-    for archivo in os.listdir(carpeta):
-        if archivo.endswith(".json"):
-            with open(os.path.join(carpeta, archivo), "r", encoding="utf-8") as f:
-                historial += json.load(f)
-    return historial
 
-def obtener_forma_combinada(nombre_equipo, historial):
-    local = [p for p in historial if p["equipo_local"] == nombre_equipo or p["equipo_visitante"] == nombre_equipo]
+def obtener_cuotas_por_fixture(fixture_id):
+    url = f"{BASE_URL}/odds?fixture={fixture_id}"
+    r = requests.get(url, headers=HEADERS).json()
+    for entry in r.get("response", []):
+        if entry["bookmaker"]["name"] == "Bet365":
+            for m in entry.get("bets", []):
+                if m["name"] == "Match Winner":
+                    odds = {b["value"]: b["odd"] for b in m["values"]}
+                    return (
+                        float(odds.get("Home", 0)),
+                        float(odds.get("Draw", 0)),
+                        float(odds.get("Away", 0))
+                    )
+    return (0, 0, 0)
 
-    # Buscar desde API
-    api_partidos = buscar_partidos_api(nombre_equipo)
-    for partido in api_partidos:
-        fix = partido["fixture"]
-        teams = partido["teams"]
-        goals = partido["goals"]
-        historial_format = {
-            "fecha": fix["date"][:10],
-            "equipo_local": teams["home"]["name"],
-            "equipo_visitante": teams["away"]["name"],
-            "goles_local": goals["home"],
-            "goles_visitante": goals["away"]
-        }
-        local.append(historial_format)
 
-    # Ordenar y tomar últimos 10
-    partidos = sorted(local, key=lambda x: x["fecha"], reverse=True)[:10]
-    stats = {"victorias": 0, "empates": 0, "derrotas": 0, "goles_a_favor": 0, "goles_en_contra": 0}
-
+def obtener_forma_equipo(nombre_equipo):
+    resultados = []
+    search_url = f"{BASE_URL}/teams?search={nombre_equipo}"
+    search = requests.get(search_url, headers=HEADERS).json()
+    if not search["response"]:
+        return []
+    team_id = search["response"][0]["team"]["id"]
+    url = f"{BASE_URL}/fixtures?team={team_id}&season=2024&status=FT"
+    partidos = requests.get(url, headers=HEADERS).json().get("response", [])
     for p in partidos:
-        if p["equipo_local"] == nombre_equipo:
-            gf, gc = p["goles_local"], p["goles_visitante"]
-        else:
-            gf, gc = p["goles_visitante"], p["goles_local"]
-        stats["goles_a_favor"] += gf
-        stats["goles_en_contra"] += gc
-        if gf > gc:
-            stats["victorias"] += 1
-        elif gf == gc:
-            stats["empates"] += 1
-        else:
-            stats["derrotas"] += 1
+        resultados.append({
+            "local": p["teams"]["home"]["name"],
+            "visitante": p["teams"]["away"]["name"],
+            "goles_local": p["goals"]["home"],
+            "goles_visitante": p["goals"]["away"],
+            "fecha": p["fixture"]["date"]
+        })
+    return sorted(resultados, key=lambda x: x["fecha"], reverse=True)[:10]
 
-    total = len(partidos)
-    stats["prom_gf"] = round(stats["goles_a_favor"] / total, 2) if total else 0
-    stats["prom_gc"] = round(stats["goles_en_contra"] / total, 2) if total else 0
-    return stats
+
+def calcular_stats(equipo, historial):
+    v, e, d, gf, gc = 0, 0, 0, 0, 0
+    for p in historial:
+        if p["local"] == equipo:
+            g_favor, g_contra = p["goles_local"], p["goles_visitante"]
+        else:
+            g_favor, g_contra = p["goles_visitante"], p["goles_local"]
+        gf += g_favor
+        gc += g_contra
+        if g_favor > g_contra:
+            v += 1
+        elif g_favor == g_contra:
+            e += 1
+        else:
+            d += 1
+    total = len(historial)
+    prom_gf = round(gf / total, 2) if total else 0
+    prom_gc = round(gc / total, 2) if total else 0
+    return v, e, d, gf, gc, prom_gf, prom_gc
+
 
 def formatear_hora_local(utc_str):
-    utc_dt = datetime.strptime(utc_str, "%Y-%m-%dT%H:%M:%S%z")
-    hora_cdmx = utc_dt.astimezone(pytz.timezone("America/Mexico_City")).strftime("%H:%M")
-    hora_esp = utc_dt.astimezone(pytz.timezone("Europe/Madrid")).strftime("%H:%M")
-    return hora_cdmx, hora_esp
+    dt = datetime.strptime(utc_str, "%Y-%m-%dT%H:%M:%S%z")
+    hora_mx = dt.astimezone(pytz.timezone("America/Mexico_City")).strftime("%H:%M")
+    hora_es = dt.astimezone(pytz.timezone("Europe/Madrid")).strftime("%H:%M")
+    return hora_mx, hora_es
 
-def analizar_fixture(fix, historial):
+
+def generar_mensaje_fixture(fix):
     local = fix["teams"]["home"]["name"]
-    visitante = fix["teams"]["away"]["name"]
+    visita = fix["teams"]["away"]["name"]
     liga = fix["league"]["name"]
     fecha = fix["fixture"]["date"]
-
-    odds = fix.get("odds", {}).get("1X2", {}) or {}
-    cuota_local = odds.get("1", 0)
-    cuota_empate = odds.get("X", 0)
-    cuota_visitante = odds.get("2", 0)
-
-    if not (1.4 < cuota_local < 3.5 and 1.4 < cuota_visitante < 3.5):
+    fixture_id = fix["fixture"]["id"]
+    hora_mx, hora_es = formatear_hora_local(fecha)
+    cuota_local, cuota_empate, cuota_visita = obtener_cuotas_por_fixture(fixture_id)
+    if not (1.40 <= cuota_local <= 3.50 and 1.40 <= cuota_visita <= 3.50):
         return None
 
-    forma_local = obtener_forma_combinada(local, historial)
-    forma_visita = obtener_forma_combinada(visitante, historial)
+    forma_local = obtener_forma_equipo(local)
+    forma_visita = obtener_forma_equipo(visita)
+    if not forma_local or not forma_visita:
+        return None
 
-    score_local = forma_local["victorias"] * 3 + forma_local["goles_a_favor"] - forma_local["goles_en_contra"]
-    score_visita = forma_visita["victorias"] * 3 + forma_visita["goles_a_favor"] - forma_visita["goles_en_contra"]
+    vl, el, dl, gfl, gcl, prom_gfl, prom_gcl = calcular_stats(local, forma_local)
+    vv, ev, dv, gfv, gcv, prom_gfv, prom_gcv = calcular_stats(visita, forma_visita)
 
-    if score_local > score_visita + 2:
+    score_l = vl * 3 + gfl - gcl
+    score_v = vv * 3 + gfv - gcv
+    marcador_l = round((prom_gfl + prom_gcv) / 2)
+    marcador_v = round((prom_gfv + prom_gcl) / 2)
+
+    if score_l > score_v + 2:
         pick = f"Gana {local} @ {cuota_local}"
-    elif score_visita > score_local + 2:
-        pick = f"Gana {visitante} @ {cuota_visitante}"
-    elif abs(score_local - score_visita) <= 1 and 3.0 <= cuota_empate <= 3.6:
+    elif score_v > score_l + 2:
+        pick = f"Gana {visita} @ {cuota_visita}"
+    elif abs(score_l - score_v) <= 1 and 3.0 <= cuota_empate <= 3.6:
         pick = f"Empate @ {cuota_empate}"
     else:
         return None
 
-    gl = round((forma_local["prom_gf"] + forma_visita["prom_gc"]) / 2)
-    gv = round((forma_visita["prom_gf"] + forma_local["prom_gc"]) / 2)
-    hora_cdmx, hora_esp = formatear_hora_local(fecha)
-
-    texto = (
-        f"📅 {fecha[:10]} | {liga}
-"
-        f"⚽ {local} vs {visitante}
-"
-        f"🕐 Hora del partido:
-🇲🇽 {hora_cdmx} CDMX
-🇪🇸 {hora_esp} España
-"
-        f"💸 Cuotas → Local: {cuota_local} | Empate: {cuota_empate} | Visitante: {cuota_visitante}
-"
-        f"🧠 Pick sugerido: {pick}
-"
-        f"🔮 Marcador estimado: {local} {gl} – {gv} {visitante}
-"
-        f"🔵 Local: {forma_local['victorias']}V {forma_local['empates']}E {forma_local['derrotas']}D | GF: {forma_local['goles_a_favor']} GC: {forma_local['goles_en_contra']} | Prom: {forma_local['prom_gf']}-{forma_local['prom_gc']}
-"
-        f"🔴 Visitante: {forma_visita['victorias']}V {forma_visita['empates']}E {forma_visita['derrotas']}D | GF: {forma_visita['goles_a_favor']} GC: {forma_visita['goles_en_contra']} | Prom: {forma_visita['prom_gf']}-{forma_visita['prom_gc']}
-"
-        f"{'-'*40}"
+    return (
+        f"📅 {fecha[:10]} | {liga}\n"
+        f"⚽ {local} vs {visita}\n"
+        f"🕐 Hora del partido:\n🇲🇽 {hora_mx} CDMX\n🇪🇸 {hora_es} España\n"
+        f"💸 Cuotas → Local: {cuota_local} | Empate: {cuota_empate} | Visitante: {cuota_visita}\n"
+        f"🔮 Marcador estimado: {local} {marcador_l} – {marcador_v} {visita}\n"
+        f"🔵 Local: {vl}V {el}E {dl}D | GF: {gfl} GC: {gcl} | Prom: {prom_gfl}-{prom_gcl}\n"
+        f"🔴 Visitante: {vv}V {ev}E {dv}D | GF: {gfv} GC: {gcv} | Prom: {prom_gfv}-{prom_gcv}\n"
+        f"🧠 Pick sugerido: {pick}\n#DG_PICKS"
     )
-    return texto
+
 
 def main():
     fixtures = obtener_partidos_del_dia()
-    historial_local = cargar_historial_local()
+    mensajes = []
+    for fix in fixtures:
+        msg = generar_mensaje_fixture(fix)
+        if msg:
+            mensajes.append(msg)
 
-    picks = []
-    for f in fixtures:
-        resultado = analizar_fixture(f, historial_local)
-        if resultado:
-            picks.append(resultado)
-
-    for i, mensaje in enumerate(picks):
-        enviar_mensaje(mensaje, CANAL_VIP)
+    for i, mensaje in enumerate(mensajes):
+        enviar_mensaje(mensaje, CHAT_ID_VIP)
         if i < 2:
-            enviar_mensaje(mensaje, CANAL_FREE)
+            enviar_mensaje(mensaje, CHAT_ID_FREE)
+
 
 if __name__ == "__main__":
     main()
