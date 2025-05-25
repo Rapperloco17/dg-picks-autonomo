@@ -8,7 +8,7 @@ API_KEY = os.getenv("API_FOOTBALL_KEY")
 BASE_URL = "https://v3.football.api-sports.io"
 HEADERS = {"x-apisports-key": API_KEY}
 
-# Lista de ligas válidas (integrada)
+# Lista de ligas válidas
 LIGAS_VALIDAS = [
     1, 2, 3, 4, 9, 11, 13, 16, 39, 40, 61, 62, 71, 72, 73, 45, 78, 79, 88, 94,
     103, 106, 113, 119, 128, 129, 130, 135, 136, 137, 140, 141, 143, 144, 162,
@@ -36,7 +36,27 @@ def obtener_partidos_hoy():
 
     return partidos_validos
 
+def obtener_cuotas_ganador(id_fixture):
+    url = f"{BASE_URL}/odds?fixture={id_fixture}&bet=1"  # bet=1 para 1X2
+    response = requests.get(url, headers=HEADERS)
+    data = response.json()
+
+    try:
+        valores = data["response"][0]["bookmakers"][0]["bets"][0]["values"]
+        cuotas = {
+            "local": valores[0]["odd"],
+            "empate": valores[1]["odd"],
+            "visitante": valores[2]["odd"]
+        }
+    except (IndexError, KeyError):
+        cuotas = {"local": "N/A", "empate": "N/A", "visitante": "N/A"}
+
+    return cuotas
+
 if __name__ == "__main__":
     partidos = obtener_partidos_hoy()
     for p in partidos:
+        cuotas = obtener_cuotas_ganador(p["id_fixture"])
         print(f'{p["liga"]}: {p["local"]} vs {p["visitante"]} — {p["hora"]}')
+        print(f'Cuotas: 🏠 {cuotas["local"]} | 🤝 {cuotas["empate"]} | 🛫 {cuotas["visitante"]}')
+        print("-" * 60)
