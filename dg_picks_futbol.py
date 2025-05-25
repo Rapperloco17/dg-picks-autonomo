@@ -42,12 +42,13 @@ def obtener_cuotas(fixture_id):
     url = f"{BASE_URL}/odds?fixture={fixture_id}&bookmaker=6"
     response = requests.get(url, headers=HEADERS)
     data = response.json().get("response", [])
-    if not data:
+    try:
+        odds_data = data[0]["bookmakers"][0]["bets"]
+        for bet in odds_data:
+            if bet["name"] == "Match Winner":
+                return {o["value"]: float(o["odd"]) for o in bet["odds"]}
+    except (IndexError, KeyError):
         return None
-    odds_data = data[0]["bookmakers"][0]["bets"]
-    for bet in odds_data:
-        if bet["name"] == "Match Winner":
-            return {o["value"]: float(o["odd"]) for o in bet["odds"]}
     return None
 
 def analizar_partido(f):
@@ -58,25 +59,25 @@ def analizar_partido(f):
     hora = f['fixture']['timestamp']
     hora_local = datetime.fromtimestamp(hora).strftime("%H:%M")
 
-    stats = obtener_estadisticas_partido(fixture_id)
-    if len(stats) < 2:
+    cuotas = obtener_cuotas(fixture_id)
+    if not cuotas:
+        print(f"⚠️ No se encontraron cuotas para el partido {local} vs {visitante}")
         return None
 
-    goles_local = int(f['goals']['home']) if f['goals']['home'] is not None else 0
-    goles_visitante = int(f['goals']['away']) if f['goals']['away'] is not None else 0
+    if not any(1.40 <= cuotas.get(t, 0) <= 4.00 for t in cuotas):
+        print(f"❌ Cuotas fuera de rango para el partido {local} vs {visitante}")
+        return None
+
+    stats = obtener_estadisticas_partido(fixture_id)
+    if len(stats) < 2:
+        print(f"⚠️ No hay estadísticas suficientes para el partido {local} vs {visitante}")
+        return None
 
     tiros_local = next((int(s['statistics'][0]['value']) for s in stats if s['team']['name'] == local and s['statistics'][0]['type'] == "Shots on Goal"), None)
     tiros_visitante = next((int(s['statistics'][0]['value']) for s in stats if s['team']['name'] == visitante and s['statistics'][0]['type'] == "Shots on Goal"), None)
 
     posesion_local = next((int(s['statistics'][9]['value'].replace('%','')) for s in stats if s['team']['name'] == local and s['statistics'][9]['type'] == "Ball Possession"), None)
     posesion_visitante = next((int(s['statistics'][9]['value'].replace('%','')) for s in stats if s['team']['name'] == visitante and s['statistics'][9]['type'] == "Ball Possession"), None)
-
-    cuotas = obtener_cuotas(fixture_id)
-    if not cuotas:
-        return None
-
-    if not any(1.40 <= cuotas.get(t, 0) <= 4.00 for t in cuotas):
-        return None
 
     h2h = obtener_h2h(f['teams']['home']['id'], f['teams']['away']['id'])
     victorias_local = sum(1 for match in h2h if match['teams']['home']['name'] == local and match['teams']['home']['winner'])
@@ -104,4 +105,4 @@ for f in fixtures:
             print(analisis)
             print("\n" + "="*50 + "\n")
     except Exception as e:
-        print(f"❌ Error analizando partido {f['teams']['home']['name']} vs {f['teams']['away']['name']}: {e}")
+        print(f"❌ Error inesperado analizando partido {f['teams']['home']['name']} vs {f['teams']['away']['name']}: {e}")
