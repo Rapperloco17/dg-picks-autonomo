@@ -39,9 +39,8 @@ for archivo in archivos:
         except Exception as e:
             print(f"Error en {archivo}: {e}")
 
-# Guardamos el dataset combinado para ML
-df = pd.DataFrame(data_final)
-df.to_excel("dataset_ml_base.xlsx", index=False)
-df.to_json("dataset_ml_base.json", orient="records", indent=4, force_ascii=False)
+# Guardamos solo el JSON para evitar uso de openpyxl
+with open("dataset_ml_base.json", "w", encoding="utf-8") as f_json:
+    json.dump(data_final, f_json, indent=4, ensure_ascii=False)
 
-print("✅ Dataset generado: dataset_ml_base.xlsx y dataset_ml_base.json")
+print("✅ Dataset generado correctamente en dataset_ml_base.json")
