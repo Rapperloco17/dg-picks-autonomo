@@ -48,9 +48,6 @@ def obtener_cuotas(fixture_id):
             if mercado["name"] == "Match Winner":
                 for o in mercado["values"]:
                     cuotas[o["value"]] = float_safe(o["odd"])
-            elif mercado["name"] == "Double Chance":
-                for o in mercado["values"]:
-                    cuotas[o["value"]] = float_safe(o["odd"])
         return cuotas
     except Exception:
         return {}
@@ -82,17 +79,22 @@ def imprimir_analisis(p):
     cuota_home = float_safe(cuotas.get("Home", 0))
     cuota_away = float_safe(cuotas.get("Away", 0))
     cuota_draw = float_safe(cuotas.get("Draw", 0))
-    cuota_1x = float_safe(cuotas.get("1X", 0))
-    cuota_x2 = float_safe(cuotas.get("X2", 0))
-    cuota_12 = float_safe(cuotas.get("12", 0))
+
+    goles_esperados_home = round((gf_home + ga_away) / 2, 2)
+    goles_esperados_away = round((gf_away + ga_home) / 2, 2)
+    goles_totales = goles_esperados_home + goles_esperados_away
+
+    prob_btts = "Alta (80%)" if goles_esperados_home >= 1.0 and goles_esperados_away >= 1.0 else "Baja (40%)"
+    prob_over25 = "Probable (70%)" if goles_totales >= 2.5 else "Poco probable (30%)"
 
     print(f"🔍 PARTIDO: {home['name']} vs {away['name']}")
     print(f"Liga: {league['name']} | Fecha: {fixture['date']}")
     print(f"📊 Forma reciente: {home['name']}: {form_home} | {away['name']}: {form_away}")
     print(f"🏟️ Goles Local: {gf_home} GF / {ga_home} GC | Goles Visitante: {gf_away} GF / {ga_away} GC")
+    print(f"🎯 Marcador estimado: {goles_esperados_home} – {goles_esperados_away}")
+    print(f"📈 Probabilidad estimada: BTTS: {prob_btts} | Over 2.5 goles: {prob_over25}")
     print("💸 Cuotas:")
     print(f"1: {cuota_home}, X: {cuota_draw}, 2: {cuota_away}")
-    print(f"1X: {cuota_1x}, X2: {cuota_x2}, 12: {cuota_12}")
 
     pick = None
     justificacion = ""
@@ -106,12 +108,6 @@ def imprimir_analisis(p):
     elif form_home.count("D") >= 2 and form_away.count("D") >= 2 and cuota_draw >= 3.00:
         pick = f"Empate @ {cuota_draw}"
         justificacion = "Ambos empatan con frecuencia y marcan poco."
-    elif wins_home >= 2 and cuota_1x <= 1.30:
-        pick = f"1X @ {cuota_1x}"
-        justificacion = "Local sólido, al menos no pierde."
-    elif wins_away >= 2 and cuota_x2 <= 1.60:
-        pick = f"X2 @ {cuota_x2}"
-        justificacion = "Visitante con buen rendimiento reciente."
 
     if pick:
         print(f"✅ PICK RECOMENDADO: {pick}")
