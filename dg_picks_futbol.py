@@ -88,7 +88,6 @@ def analizar_partido(f):
     mensaje += f"📈 Últimos H2H: {victorias_local} victorias {local} / {victorias_visitante} {visitante}\n"
     mensaje += f"💸 Cuotas ML: {local} @ {cuotas.get(local)} | Empate @ {cuotas.get('Draw')} | {visitante} @ {cuotas.get(visitante)}\n"
 
-    # Decisión tentativa (muy básica aún, puede afinarse)
     mejor_equipo = local if victorias_local >= victorias_visitante else visitante
     cuota_mejor = cuotas.get(mejor_equipo)
     if cuota_mejor and 1.40 <= cuota_mejor <= 4.00:
@@ -96,16 +95,13 @@ def analizar_partido(f):
         return mensaje
     return None
 
-def main():
-    fixtures = obtener_fixtures_hoy()
-    for f in fixtures:
-        try:
-            analisis = analizar_partido(f)
-            if analisis:
-                print(analisis)
-                print("\n" + "="*50 + "\n")
-        except Exception as e:
-            print(f"❌ Error analizando partido {f['teams']['home']['name']} vs {f['teams']['away']['name']}: {e}")
-
-if __name__ == "__main__":
-    main()
+# 🔥 Se ejecuta todo directamente aquí
+fixtures = obtener_fixtures_hoy()
+for f in fixtures:
+    try:
+        analisis = analizar_partido(f)
+        if analisis:
+            print(analisis)
+            print("\n" + "="*50 + "\n")
+    except Exception as e:
+        print(f"❌ Error analizando partido {f['teams']['home']['name']} vs {f['teams']['away']['name']}: {e}")
