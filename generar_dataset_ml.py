@@ -18,12 +18,12 @@ for archivo in archivos:
 
     for partido in data:
         try:
-            local = partido["equipo_local"]
-            visitante = partido["equipo_visitante"]
-            goles_local = int(partido["goles_local"])
-            goles_visitante = int(partido["goles_visitante"])
-            fecha = partido.get("fecha", "")
-            liga = partido.get("liga", "")
+            local = partido["teams"]["home"]["name"]
+            visitante = partido["teams"]["away"]["name"]
+            goles_local = int(partido["goals"]["home"])
+            goles_visitante = int(partido["goals"]["away"])
+            fecha = partido.get("fixture", {}).get("date", "")
+            liga = partido.get("league", {}).get("name", "")
 
             over_2_5 = 1 if goles_local + goles_visitante > 2.5 else 0
             btts = 1 if goles_local > 0 and goles_visitante > 0 else 0
