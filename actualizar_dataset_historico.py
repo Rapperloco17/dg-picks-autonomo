@@ -29,6 +29,13 @@ def descargar_archivo(file_id, destino):
     with open(destino, "wb") as f:
         f.write(r.content)
 
+def eliminar_archivos_temp():
+    archivos = ["dataset_ml_base.json", "modelo_over25.pkl", "modelo_btts.pkl"]
+    for archivo in archivos:
+        if os.path.exists(archivo):
+            os.remove(archivo)
+            print(f"🧹 Archivo eliminado: {archivo}")
+
 def main():
     print("🧠 Buscando dataset previo en Telegram...")
     file_id = obtener_ultimo_json_del_bot()
@@ -43,5 +50,11 @@ def main():
 
     entrenar_modelos_y_enviar()
 
+    print("🧹 Eliminando archivos temporales...")
+    eliminar_archivos_temp()
+
+    print("✅ Proceso de actualización completo.")
+
 if __name__ == "__main__":
     main()
+
