@@ -1,7 +1,7 @@
 
 import requests
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 
 API_KEY = os.getenv("API_FOOTBALL_KEY")
@@ -30,14 +30,14 @@ def obtener_partidos_hoy():
                 "liga": fixture["league"]["name"],
                 "local": fixture["teams"]["home"]["name"],
                 "visitante": fixture["teams"]["away"]["name"],
-                "hora": fixture["fixture"]["date"],
+                "hora_utc": fixture["fixture"]["date"],
                 "id_fixture": fixture["fixture"]["id"]
             })
 
     return partidos_validos
 
 def obtener_cuotas_ganador(id_fixture):
-    url = f"{BASE_URL}/odds?fixture={id_fixture}&bet=1"  # bet=1 para 1X2
+    url = f"{BASE_URL}/odds?fixture={id_fixture}&bet=1"
     response = requests.get(url, headers=HEADERS)
     data = response.json()
 
@@ -53,10 +53,18 @@ def obtener_cuotas_ganador(id_fixture):
 
     return cuotas
 
+def convertir_horas(hora_utc_str):
+    hora_utc = datetime.fromisoformat(hora_utc_str.replace("Z", "+00:00"))
+    hora_mexico = hora_utc.astimezone(pytz.timezone("America/Mexico_City")).strftime("%H:%M")
+    hora_espana = hora_utc.astimezone(pytz.timezone("Europe/Madrid")).strftime("%H:%M")
+    return hora_mexico, hora_espana
+
 if __name__ == "__main__":
     partidos = obtener_partidos_hoy()
     for p in partidos:
         cuotas = obtener_cuotas_ganador(p["id_fixture"])
-        print(f'{p["liga"]}: {p["local"]} vs {p["visitante"]} — {p["hora"]}')
+        hora_mex, hora_esp = convertir_horas(p["hora_utc"])
+        print(f'{p["liga"]}: {p["local"]} vs {p["visitante"]}')
+        print(f'🕐 Hora 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}')
         print(f'Cuotas: 🏠 {cuotas["local"]} | 🤝 {cuotas["empate"]} | 🛫 {cuotas["visitante"]}')
         print("-" * 60)
