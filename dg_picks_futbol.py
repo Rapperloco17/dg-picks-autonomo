@@ -8,7 +8,6 @@ API_KEY = os.getenv("API_FOOTBALL_KEY")
 BASE_URL = "https://v3.football.api-sports.io"
 HEADERS = {"x-apisports-key": API_KEY}
 
-# Lista fija de ligas válidas (whitelist)
 LIGAS_VALIDAS = [
     1, 2, 3, 4, 9, 11, 13, 16,
     39, 40, 45, 61, 62, 71, 72, 73,
@@ -39,15 +38,17 @@ def obtener_h2h(local_id, visitante_id):
     return response.json().get("response", [])[:5]
 
 def obtener_cuotas(fixture_id):
-    url = f"{BASE_URL}/odds?fixture={fixture_id}&bookmaker=6"
+    url = f"{BASE_URL}/odds?fixture={fixture_id}"
     response = requests.get(url, headers=HEADERS)
     data = response.json().get("response", [])
+    if not data:
+        return None
     try:
-        odds_data = data[0]["bookmakers"][0]["bets"]
-        for bet in odds_data:
-            if bet["name"] == "Match Winner":
-                return {o["value"]: float(o["odd"]) for o in bet["odds"]}
-    except (IndexError, KeyError):
+        for bookmaker in data[0]["bookmakers"]:
+            for bet in bookmaker["bets"]:
+                if bet["name"] == "Match Winner":
+                    return {o["value"]: float(o["odd"]) for o in bet["odds"]}
+    except Exception:
         return None
     return None
 
@@ -96,7 +97,7 @@ def analizar_partido(f):
         return mensaje
     return None
 
-# 🔥 Se ejecuta todo directamente aquí
+# 🔥 Ejecutar
 fixtures = obtener_fixtures_hoy()
 for f in fixtures:
     try:
