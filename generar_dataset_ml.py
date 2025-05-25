@@ -2,9 +2,12 @@
 import os
 import json
 import pandas as pd
+import requests
 
-# Carpeta donde están los archivos históricos
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+USER_ID = "7450739156"
 CARPETA = "historial"
+ARCHIVO_SALIDA = "dataset_ml_base.json"
 archivos = [f for f in os.listdir(CARPETA) if f.startswith("resultados_") and f.endswith(".json")]
 
 data_final = []
@@ -39,8 +42,23 @@ for archivo in archivos:
         except Exception as e:
             print(f"Error en {archivo}: {e}")
 
-# Guardamos solo el JSON para evitar uso de openpyxl
-with open("dataset_ml_base.json", "w", encoding="utf-8") as f_json:
+# Guardar JSON localmente
+with open(ARCHIVO_SALIDA, "w", encoding="utf-8") as f_json:
     json.dump(data_final, f_json, indent=4, ensure_ascii=False)
 
 print("✅ Dataset generado correctamente en dataset_ml_base.json")
+
+# Enviar por Telegram como archivo
+if TOKEN and USER_ID:
+    url = f"https://api.telegram.org/bot{TOKEN}/sendDocument"
+    with open(ARCHIVO_SALIDA, "rb") as file:
+        response = requests.post(
+            url,
+            data={"chat_id": USER_ID},
+            files={"document": file},
+            timeout=30
+        )
+    if response.status_code == 200:
+        print("✅ Archivo enviado por Telegram con éxito.")
+    else:
+        print(f"⚠️ Error al enviar por Telegram: {response.text}")
