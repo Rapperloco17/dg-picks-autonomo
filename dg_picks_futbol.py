@@ -16,6 +16,12 @@ LIGAS_VALIDAS = [
     268, 271, 281, 345, 357
 ]
 
+def float_safe(valor):
+    try:
+        return float(valor)
+    except:
+        return 0.0
+
 def obtener_partidos_de_hoy():
     hoy = datetime.now().strftime('%Y-%m-%d')
     url = f"{BASE_URL}/fixtures?date={hoy}"
@@ -41,19 +47,13 @@ def obtener_cuotas(fixture_id):
         for mercado in odds:
             if mercado["name"] == "Match Winner":
                 for o in mercado["values"]:
-                    cuotas[o["value"]] = float(o["odd"])
+                    cuotas[o["value"]] = float_safe(o["odd"])
             elif mercado["name"] == "Double Chance":
                 for o in mercado["values"]:
-                    cuotas[o["value"]] = float(o["odd"])
+                    cuotas[o["value"]] = float_safe(o["odd"])
         return cuotas
     except Exception:
         return {}
-
-def float_safe(valor):
-    try:
-        return float(valor)
-    except:
-        return 0.0
 
 def imprimir_analisis(p):
     home = p["teams"]["home"]
@@ -69,10 +69,10 @@ def imprimir_analisis(p):
     if not stats_home or not stats_away:
         return
 
-    gf_home = stats_home.get("goals", {}).get("for", {}).get("average", {}).get("home", 0)
-    ga_home = stats_home.get("goals", {}).get("against", {}).get("average", {}).get("home", 0)
-    gf_away = stats_away.get("goals", {}).get("for", {}).get("average", {}).get("away", 0)
-    ga_away = stats_away.get("goals", {}).get("against", {}).get("average", {}).get("away", 0)
+    gf_home = float_safe(stats_home.get("goals", {}).get("for", {}).get("average", {}).get("home", 0))
+    ga_home = float_safe(stats_home.get("goals", {}).get("against", {}).get("average", {}).get("home", 0))
+    gf_away = float_safe(stats_away.get("goals", {}).get("for", {}).get("average", {}).get("away", 0))
+    ga_away = float_safe(stats_away.get("goals", {}).get("against", {}).get("average", {}).get("away", 0))
 
     form_home = stats_home.get("form", "")[-5:]
     form_away = stats_away.get("form", "")[-5:]
