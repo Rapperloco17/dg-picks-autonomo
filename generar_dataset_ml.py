@@ -6,9 +6,9 @@ import requests
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 USER_ID = "7450739156"
-CARPETA = "historial"
+CARPETA = "historial/unificados"
 ARCHIVO_SALIDA = "dataset_ml_base.json"
-archivos = [f for f in os.listdir(CARPETA) if f.startswith("resultados_") and f.endswith(".json")]
+archivos = [f for f in os.listdir(CARPETA) if f.endswith(".json") and f.startswith("resultados_")]
 
 data_final = []
 
@@ -46,10 +46,10 @@ for archivo in archivos:
 with open(ARCHIVO_SALIDA, "w", encoding="utf-8") as f_json:
     json.dump(data_final, f_json, indent=4, ensure_ascii=False)
 
-print("✅ Dataset generado correctamente en dataset_ml_base.json")
+print(f"✅ Dataset generado correctamente: {len(data_final)} partidos guardados.")
 
-# Enviar por Telegram como archivo
-if TOKEN and USER_ID:
+# Enviar por Telegram como archivo si hay datos
+if TOKEN and USER_ID and len(data_final) > 0:
     url = f"https://api.telegram.org/bot{TOKEN}/sendDocument"
     with open(ARCHIVO_SALIDA, "rb") as file:
         response = requests.post(
@@ -62,3 +62,5 @@ if TOKEN and USER_ID:
         print("✅ Archivo enviado por Telegram con éxito.")
     else:
         print(f"⚠️ Error al enviar por Telegram: {response.text}")
+else:
+    print("⚠️ Archivo no enviado. No hay datos o falta configuración.")
