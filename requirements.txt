@@ -4,4 +4,5 @@ beautifulsoup4
 pandas
 schedule
 openai==0.28
-
+scikit-learn
+joblib
