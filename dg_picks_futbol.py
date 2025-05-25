@@ -1,58 +1,111 @@
-1	World Cup
-2	UEFA Champions League
-3	UEFA Europa League
-4	Euro Championship
-9	Copa America
-11	CONMEBOL Sudamericana
-13	CONMEBOL Libertadores
-16	CONCACAF Champions League
-39	Premier League
-40	Championship
-61	Ligue 1
-62	Ligue 2
-71	Serie A
-72	Serie B
-73	Copa Do Brasil
-45	FA Cup
-78	Bundesliga
-79	2. Bundesliga
-88	Eredivisie
-94	Primeira Liga
-103	Eliteserien
-106	Ekstraklasa
-113	Allsvenskan
-119	Superliga
-128	Liga Profesional Argentina
-129	Primera Nacional
-130	Copa Argentina
-135	Serie A
-136	Serie B
-137	Coppa Italia
-140	La Liga
-141	Segunda División
-143	Copa del Rey
-144	Jupiler Pro League
-162	Primera División
-164	Úrvalsdeild
-169	Super League
-172	First League
-179	Premiership
-188	A-League
-197	Super League 1
-203	Süper Lig
-207	Super League
-210	HNL
-218	Bundesliga
-239	Primera A
-242	Liga Pro
-244	Veikkausliiga
-253	Major League Soccer
-257	US Open Cup
-262	Liga MX
-263	Liga de Expansión MX
-265	Primera División
-268	Primera División - Apertura
-271	NB I
-281	Primera División
-345	Czech Liga
-357	Premier Division
+
+import requests
+import os
+from datetime import datetime
+import pytz
+
+API_KEY = os.getenv("API_FOOTBALL_KEY")
+BASE_URL = "https://v3.football.api-sports.io"
+HEADERS = {"x-apisports-key": API_KEY}
+
+# Lista fija de ligas válidas (whitelist)
+LIGAS_VALIDAS = [
+    1, 2, 3, 4, 9, 11, 13, 16,
+    39, 40, 45, 61, 62, 71, 72, 73,
+    78, 79, 88, 94, 103, 106, 113, 119,
+    128, 129, 130, 135, 136, 137,
+    140, 141, 143, 144, 162, 164, 169, 172,
+    179, 188, 197, 203, 207, 210, 218, 239,
+    242, 244, 253, 257, 262, 263, 265, 268,
+    271, 281, 345, 357
+]
+
+def obtener_fixtures_hoy():
+    hoy = datetime.now(pytz.timezone("America/Mexico_City")).strftime("%Y-%m-%d")
+    url = f"{BASE_URL}/fixtures?date={hoy}"
+    response = requests.get(url, headers=HEADERS)
+    data = response.json()
+    fixtures = [f for f in data['response'] if f['league']['id'] in LIGAS_VALIDAS]
+    return fixtures
+
+def obtener_estadisticas_partido(fixture_id):
+    url = f"{BASE_URL}/fixtures/statistics?fixture={fixture_id}"
+    response = requests.get(url, headers=HEADERS)
+    return response.json().get("response", [])
+
+def obtener_h2h(local_id, visitante_id):
+    url = f"{BASE_URL}/fixtures/headtohead?h2h={local_id}-{visitante_id}"
+    response = requests.get(url, headers=HEADERS)
+    return response.json().get("response", [])[:5]
+
+def obtener_cuotas(fixture_id):
+    url = f"{BASE_URL}/odds?fixture={fixture_id}&bookmaker=6"
+    response = requests.get(url, headers=HEADERS)
+    data = response.json().get("response", [])
+    if not data:
+        return None
+    odds_data = data[0]["bookmakers"][0]["bets"]
+    for bet in odds_data:
+        if bet["name"] == "Match Winner":
+            return {o["value"]: float(o["odd"]) for o in bet["odds"]}
+    return None
+
+def analizar_partido(f):
+    fixture_id = f['fixture']['id']
+    local = f['teams']['home']['name']
+    visitante = f['teams']['away']['name']
+    league = f['league']['name']
+    hora = f['fixture']['timestamp']
+    hora_local = datetime.fromtimestamp(hora).strftime("%H:%M")
+
+    stats = obtener_estadisticas_partido(fixture_id)
+    if len(stats) < 2:
+        return None
+
+    goles_local = int(f['goals']['home']) if f['goals']['home'] is not None else 0
+    goles_visitante = int(f['goals']['away']) if f['goals']['away'] is not None else 0
+
+    tiros_local = next((int(s['statistics'][0]['value']) for s in stats if s['team']['name'] == local and s['statistics'][0]['type'] == "Shots on Goal"), None)
+    tiros_visitante = next((int(s['statistics'][0]['value']) for s in stats if s['team']['name'] == visitante and s['statistics'][0]['type'] == "Shots on Goal"), None)
+
+    posesion_local = next((int(s['statistics'][9]['value'].replace('%','')) for s in stats if s['team']['name'] == local and s['statistics'][9]['type'] == "Ball Possession"), None)
+    posesion_visitante = next((int(s['statistics'][9]['value'].replace('%','')) for s in stats if s['team']['name'] == visitante and s['statistics'][9]['type'] == "Ball Possession"), None)
+
+    cuotas = obtener_cuotas(fixture_id)
+    if not cuotas:
+        return None
+
+    if not any(1.40 <= cuotas.get(t, 0) <= 4.00 for t in cuotas):
+        return None
+
+    h2h = obtener_h2h(f['teams']['home']['id'], f['teams']['away']['id'])
+    victorias_local = sum(1 for match in h2h if match['teams']['home']['name'] == local and match['teams']['home']['winner'])
+    victorias_visitante = sum(1 for match in h2h if match['teams']['away']['name'] == visitante and match['teams']['away']['winner'])
+
+    mensaje = f"🏟️ {local} vs {visitante} ({league})\n🕘 Hora: {hora_local}\n"
+    mensaje += f"📊 Tiros a gol: {local} {tiros_local} - {tiros_visitante} {visitante}\n"
+    mensaje += f"📊 Posesión: {local} {posesion_local}% - {posesion_visitante}% {visitante}\n"
+    mensaje += f"📈 Últimos H2H: {victorias_local} victorias {local} / {victorias_visitante} {visitante}\n"
+    mensaje += f"💸 Cuotas ML: {local} @ {cuotas.get(local)} | Empate @ {cuotas.get('Draw')} | {visitante} @ {cuotas.get(visitante)}\n"
+
+    # Decisión tentativa (muy básica aún, puede afinarse)
+    mejor_equipo = local if victorias_local >= victorias_visitante else visitante
+    cuota_mejor = cuotas.get(mejor_equipo)
+    if cuota_mejor and 1.40 <= cuota_mejor <= 4.00:
+        mensaje += f"✅ Pick: {mejor_equipo} ML\n✅ Valor detectado en la cuota"
+        return mensaje
+    return None
+
+def main():
+    fixtures = obtener_fixtures_hoy()
+    for f in fixtures:
+        try:
+            analisis = analizar_partido(f)
+            if analisis:
+                print(analisis)
+                print("\n" + "="*50 + "\n")
+        except Exception as e:
+            print(f"❌ Error analizando partido {f['teams']['home']['name']} vs {f['teams']['away']['name']}: {e}")
+
+if __name__ == "__main__":
+    main()
