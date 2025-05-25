@@ -1,84 +1,50 @@
-
 import requests
 import os
 import json
-import datetime
-from entrenar_modelo_ml import enviar_por_telegram
-from entrenar_modelo_ml import entrenar_modelos
+from entrenar_modelo_ml import entrenar_modelos_y_enviar
 
-API_KEY = os.getenv("API_FOOTBALL_KEY")
-HEADERS = {"x-apisports-key": API_KEY}
-BASE_URL = "https://v3.football.api-sports.io"
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+BOT_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
+CHAT_ID_ADMIN = "7450739156"  # <-- Puedes reemplazarlo por variable
 
-LIGAS_VALIDAS = [
-    1, 2, 3, 4, 9, 11, 13, 16, 39, 40, 61, 62, 71, 72, 73, 45, 78, 79, 88, 94,
-    103, 106, 113, 119, 128, 129, 130, 135, 136, 137, 140, 141, 143, 144, 162,
-    164, 169, 172, 179, 188, 197, 203, 207, 210, 218, 239, 242, 244, 253, 257,
-    262, 263, 265, 268, 271, 281, 345, 357
-]
+def obtener_ultimo_json_del_bot():
+    url = f"{BOT_API_URL}/getUpdates"
+    response = requests.get(url)
+    updates = response.json()
 
-def cargar_dataset():
-    try:
-        with open("input/dataset_ml_base.json", "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
-        return []
+    for result in reversed(updates.get("result", [])):
+        message = result.get("message", {})
+        doc = message.get("document")
+        if doc and doc["file_name"].endswith(".json"):
+            file_id = doc["file_id"]
+            return file_id
+    return None
 
-def guardar_dataset(data):
-    with open("input/dataset_ml_base.json", "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+def descargar_archivo(file_id, destino):
+    # Obtener la ruta del archivo
+    file_info_url = f"{BOT_API_URL}/getFile?file_id={file_id}"
+    file_info = requests.get(file_info_url).json()
+    file_path = file_info["result"]["file_path"]
 
-def ya_existe(partido, dataset):
-    return any(
-        p["fecha"] == partido["fecha"] and
-        p["liga"] == partido["liga"] and
-        p["local"] == partido["local"] and
-        p["visitante"] == partido["visitante"]
-        for p in dataset
-    )
+    # Descargar archivo
+    file_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
+    r = requests.get(file_url)
+    with open(destino, "wb") as f:
+        f.write(r.content)
 
-def formatear_partido(f):
-    goles_local = f["goals"]["home"]
-    goles_visitante = f["goals"]["away"]
-    return {
-        "fecha": f["fixture"]["date"][:10],
-        "liga": f["league"]["name"],
-        "local": f["teams"]["home"]["name"],
-        "visitante": f["teams"]["away"]["name"],
-        "goles_local": goles_local,
-        "goles_visitante": goles_visitante,
-        "btts": int(goles_local > 0 and goles_visitante > 0),
-        "over_2_5": int((goles_local + goles_visitante) > 2.5),
-        "resultado": "local" if goles_local > goles_visitante else "visitante" if goles_local < goles_visitante else "empate"
-    }
+def main():
+    print("🧠 Buscando dataset previo en Telegram...")
+    file_id = obtener_ultimo_json_del_bot()
 
-def actualizar():
-    dataset = cargar_dataset()
-    nuevos = []
-    hoy = datetime.datetime.utcnow().date()
-    for dias_atras in range(0, 11):  # Desde 14 mayo hasta hoy
-        fecha = hoy - datetime.timedelta(days=dias_atras)
-        for liga_id in LIGAS_VALIDAS:
-            res = requests.get(f"{BASE_URL}/fixtures", headers=HEADERS, params={
-                "league": liga_id,
-                "season": 2024,
-                "date": fecha,
-                "status": "FT"
-            })
-            if res.status_code != 200:
-                continue
-            partidos = res.json().get("response", [])
-            for f in partidos:
-                partido = formatear_partido(f)
-                if not ya_existe(partido, dataset):
-                    dataset.append(partido)
-                    nuevos.append(partido)
+    if not file_id:
+        print("❌ No se encontró un archivo JSON en los mensajes recientes.")
+        return
 
-    guardar_dataset(dataset)
-    print(f"✅ Dataset actualizado con {len(nuevos)} partidos nuevos.")
-    enviar_por_telegram("input/dataset_ml_base.json")
+    print("⬇️ Descargando archivo...")
+    descargar_archivo(file_id, "dataset_ml_base.json")
 
-    # Entrenar de nuevo
-    entrenar_modelos()
+    print("✅ Dataset descargado como dataset_ml_base.json")
+    entrenar_modelos_y_enviar()
 
-actualizar()
+if __name__ == "__main__":
+    main()
