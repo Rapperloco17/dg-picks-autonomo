@@ -140,6 +140,34 @@ def evaluar_advertencia(pick, stats_local, stats_away):
                 advertencia = "⚠️ Cuidado: el visitante no viene fuerte fuera de casa."
     return advertencia
 
+def calcular_score(stats_local, stats_away, goles_local, goles_away, cuota):
+    score = 0
+    if abs(goles_local - goles_away) >= 2:
+        score += 2
+    if stats_local["forma"].startswith("3") or stats_local["forma"].startswith("4") or stats_local["forma"].startswith("5"):
+        score += 1
+    if isinstance(stats_local["tiros"], (int, float)) and stats_local["tiros"] >= 4:
+        score += 1
+    if isinstance(stats_local["posesion"], (int, float)) and stats_local["posesion"] >= 55:
+        score += 1
+    try:
+        cuota_valor = float(cuota)
+        if 1.55 <= cuota_valor <= 3.50:
+            score += 1
+    except:
+        pass
+    return score
+
+def interpretar_score(score):
+    if score >= 5:
+        return f"💎 PICK DESTACADO (Score: {score}/6)"
+    elif score == 4:
+        return f"✅ PICK CON VALOR (Score: {score}/6)"
+    elif score <= 2:
+        return f"⚠️ PICK DUDOSO (Score: {score}/6)"
+    else:
+        return f"Score: {score}/6"
+
 if __name__ == "__main__":
     try:
         partidos = obtener_partidos_hoy()
@@ -172,6 +200,9 @@ if __name__ == "__main__":
             advertencia = evaluar_advertencia(pick, stats_local, stats_away)
             if advertencia:
                 print(advertencia)
+            cuota_principal = pick.split("@")[-1].strip() if "@" in pick else "0"
+            score = calcular_score(stats_local, stats_away, goles_local, goles_away, cuota_principal)
+            print(interpretar_score(score))
             print("-" * 60)
     except Exception as e:
         print("❌ Error crítico. Se detiene la ejecución:")
