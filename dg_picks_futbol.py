@@ -36,22 +36,16 @@ def obtener_partidos_hoy():
 
     return partidos_validos
 
-def obtener_cuotas_ganador(id_fixture):
-    url = f"{BASE_URL}/odds?fixture={id_fixture}&bet=1"
+def obtener_cuotas_por_mercado(fixture_id, bet_id):
+    url = f"{BASE_URL}/odds?fixture={fixture_id}&bet={bet_id}"
     response = requests.get(url, headers=HEADERS)
     data = response.json()
 
     try:
         valores = data["response"][0]["bookmakers"][0]["bets"][0]["values"]
-        cuotas = {
-            "local": valores[0]["odd"],
-            "empate": valores[1]["odd"],
-            "visitante": valores[2]["odd"]
-        }
+        return valores
     except (IndexError, KeyError):
-        cuotas = {"local": "N/A", "empate": "N/A", "visitante": "N/A"}
-
-    return cuotas
+        return []
 
 def convertir_horas(hora_utc_str):
     hora_utc = datetime.fromisoformat(hora_utc_str.replace("Z", "+00:00"))
@@ -62,9 +56,20 @@ def convertir_horas(hora_utc_str):
 if __name__ == "__main__":
     partidos = obtener_partidos_hoy()
     for p in partidos:
-        cuotas = obtener_cuotas_ganador(p["id_fixture"])
+        cuotas_ml = obtener_cuotas_por_mercado(p["id_fixture"], 1)  # ML
+        cuotas_ou = obtener_cuotas_por_mercado(p["id_fixture"], 5)  # Over/Under
+        cuotas_btts = obtener_cuotas_por_mercado(p["id_fixture"], 10)  # BTTS
+
         hora_mex, hora_esp = convertir_horas(p["hora_utc"])
         print(f'{p["liga"]}: {p["local"]} vs {p["visitante"]}')
         print(f'🕐 Hora 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}')
-        print(f'Cuotas: 🏠 {cuotas["local"]} | 🤝 {cuotas["empate"]} | 🛫 {cuotas["visitante"]}')
+
+        if len(cuotas_ml) >= 3:
+            print(f'Cuotas: 🏠 {cuotas_ml[0]["odd"]} | 🤝 {cuotas_ml[1]["odd"]} | 🛫 {cuotas_ml[2]["odd"]}')
+        else:
+            print('Cuotas: 🏠 ❌ | 🤝 ❌ | 🛫 ❌')
+
+        cuota_over = next((x["odd"] for x in cuotas_ou if "Over 2.5" in x["value"]), "❌")
+        cuota_btts = next((x["odd"] for x in cuotas_btts if x["value"].lower() == "yes"), "❌")
+        print(f'Over 2.5: {cuota_over} | BTTS: {cuota_btts}')
         print("-" * 60)
