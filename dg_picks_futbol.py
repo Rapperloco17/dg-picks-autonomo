@@ -4,12 +4,12 @@ import os
 from datetime import datetime
 import pytz
 import statistics
+import math
 
 API_KEY = os.getenv("API_FOOTBALL_KEY")
 BASE_URL = "https://v3.football.api-sports.io"
 HEADERS = {"x-apisports-key": API_KEY}
 
-# Lista de ligas válidas
 LIGAS_VALIDAS = [
     1, 2, 3, 4, 9, 11, 13, 16, 39, 40, 61, 62, 71, 72, 73, 45, 78, 79, 88, 94,
     103, 106, 113, 119, 128, 129, 130, 135, 136, 137, 140, 141, 143, 144, 162,
@@ -36,25 +36,23 @@ def obtener_partidos_hoy():
                 "home_id": fixture["teams"]["home"]["id"],
                 "away_id": fixture["teams"]["away"]["id"]
             })
-
     return partidos_validos
 
 def obtener_cuotas_por_mercado(fixture_id, bet_id):
     url = f"{BASE_URL}/odds?fixture={fixture_id}&bet={bet_id}"
     response = requests.get(url, headers=HEADERS)
     data = response.json()
-
     try:
-        valores = data["response"][0]["bookmakers"][0]["bets"][0]["values"]
-        return valores
-    except (IndexError, KeyError):
+        return data["response"][0]["bookmakers"][0]["bets"][0]["values"]
+    except:
         return []
 
 def convertir_horas(hora_utc_str):
     hora_utc = datetime.fromisoformat(hora_utc_str.replace("Z", "+00:00"))
-    hora_mexico = hora_utc.astimezone(pytz.timezone("America/Mexico_City")).strftime("%H:%M")
-    hora_espana = hora_utc.astimezone(pytz.timezone("Europe/Madrid")).strftime("%H:%M")
-    return hora_mexico, hora_espana
+    return (
+        hora_utc.astimezone(pytz.timezone("America/Mexico_City")).strftime("%H:%M"),
+        hora_utc.astimezone(pytz.timezone("Europe/Madrid")).strftime("%H:%M")
+    )
 
 def obtener_ultimos_partidos(equipo_id):
     url = f"{BASE_URL}/fixtures?team={equipo_id}&last=10"
@@ -64,12 +62,24 @@ def obtener_ultimos_partidos(equipo_id):
     goles = []
     tiros = []
     posesion = []
+    ganados = perdidos = empatados = 0
 
     for match in data.get("response", []):
         if match["teams"]["home"]["id"] == equipo_id:
-            goles.append(match["goals"]["home"])
+            gf = match["goals"]["home"]
+            gc = match["goals"]["away"]
         else:
-            goles.append(match["goals"]["away"])
+            gf = match["goals"]["away"]
+            gc = match["goals"]["home"]
+
+        goles.append(gf)
+        if gf > gc:
+            ganados += 1
+        elif gf < gc:
+            perdidos += 1
+        else:
+            empatados += 1
+
         fixture_id = match["fixture"]["id"]
         stats_url = f"{BASE_URL}/fixtures/statistics?fixture={fixture_id}&team={equipo_id}"
         stats_res = requests.get(stats_url, headers=HEADERS).json()
@@ -82,25 +92,42 @@ def obtener_ultimos_partidos(equipo_id):
         except:
             continue
 
-    promedio_goles = round(statistics.mean(goles), 2) if goles else "N/A"
-    promedio_tiros = round(statistics.mean(tiros), 2) if tiros else "N/A"
-    promedio_posesion = round(statistics.mean(posesion), 1) if posesion else "N/A"
-
     return {
-        "goles_prom": promedio_goles,
-        "tiros_prom": promedio_tiros,
-        "posesion_prom": promedio_posesion,
-        "forma": goles
+        "goles_prom": round(statistics.mean(goles), 2) if goles else 0,
+        "tiros_prom": round(statistics.mean(tiros), 2) if tiros else "N/A",
+        "posesion_prom": round(statistics.mean(posesion), 1) if posesion else "N/A",
+        "forma": goles,
+        "ganados": ganados,
+        "empatados": empatados,
+        "perdidos": perdidos
     }
 
 def obtener_h2h(equipo1_id, equipo2_id):
     url = f"{BASE_URL}/fixtures/headtohead?h2h={equipo1_id}-{equipo2_id}&last=5"
     response = requests.get(url, headers=HEADERS)
     data = response.json()
-    resultados = []
-    for match in data.get("response", []):
-        resultados.append(f"{match['teams']['home']['name']} {match['goals']['home']} - {match['goals']['away']} {match['teams']['away']['name']}")
-    return resultados
+    return [
+        f'{m["teams"]["home"]["name"]} {m["goals"]["home"]} - {m["goals"]["away"]} {m["teams"]["away"]["name"]}'
+        for m in data.get("response", [])
+    ]
+
+def predecir_marcador(gl_home, gl_away):
+    factor_local = 1.15
+    factor_visit = 0.95
+    goles_local = round(gl_home * factor_local)
+    goles_away = round(gl_away * factor_visit)
+    return goles_local, goles_away
+
+def elegir_pick(goles_local, goles_away, cuota_over, cuota_btts, cuotas_ml):
+    total_goles = goles_local + goles_away
+    if total_goles >= 3 and cuota_over != "❌":
+        return f"🎯 Pick sugerido: Over 2.5 goles @ {cuota_over}"
+    elif goles_local >= 1 and goles_away >= 1 and cuota_btts != "❌":
+        return f"🎯 Pick sugerido: Ambos Anotan (BTTS) @ {cuota_btts}"
+    elif cuotas_ml and cuotas_ml[0] != "N/A":
+        return f"🎯 Pick sugerido: Gana local @ {cuotas_ml[0]}"
+    else:
+        return "🎯 Pick sugerido: Sin valor claro"
 
 if __name__ == "__main__":
     partidos = obtener_partidos_hoy()
@@ -109,27 +136,19 @@ if __name__ == "__main__":
         cuotas_ou = obtener_cuotas_por_mercado(p["id_fixture"], 5)
         cuotas_btts = obtener_cuotas_por_mercado(p["id_fixture"], 10)
 
-        hora_mex, hora_esp = convertir_horas(p["hora_utc"])
-
-        print(f'{p["liga"]}: {p["local"]} vs {p["visitante"]}')
-        print(f'🕐 Hora 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}')
-        if len(cuotas_ml) >= 3:
-            print(f'Cuotas: 🏠 {cuotas_ml[0]["odd"]} | 🤝 {cuotas_ml[1]["odd"]} | 🛫 {cuotas_ml[2]["odd"]}')
-        else:
-            print('Cuotas: 🏠 ❌ | 🤝 ❌ | 🛫 ❌')
-
         cuota_over = next((x["odd"] for x in cuotas_ou if "Over 2.5" in x["value"]), "❌")
         cuota_btts = next((x["odd"] for x in cuotas_btts if x["value"].lower() == "yes"), "❌")
-        print(f'Over 2.5: {cuota_over} | BTTS: {cuota_btts}')
 
+        hora_mex, hora_esp = convertir_horas(p["hora_utc"])
         stats_local = obtener_ultimos_partidos(p["home_id"])
         stats_visitante = obtener_ultimos_partidos(p["away_id"])
 
-        print(f'Forma {p["local"]}: {stats_local["forma"]} | Goles prom: {stats_local["goles_prom"]} | Tiros: {stats_local["tiros_prom"]} | Posesión: {stats_local["posesion_prom"]}%')
-        print(f'Forma {p["visitante"]}: {stats_visitante["forma"]} | Goles prom: {stats_visitante["goles_prom"]} | Tiros: {stats_visitante["tiros_prom"]} | Posesión: {stats_visitante["posesion_prom"]}%')
+        goles_local, goles_visitante = predecir_marcador(stats_local["goles_prom"], stats_visitante["goles_prom"])
 
-        h2h = obtener_h2h(p["home_id"], p["away_id"])
-        print("Últimos 5 enfrentamientos:")
-        for r in h2h:
-            print(f'🔹 {r}')
+        print(f'{p["liga"]}: {p["local"]} vs {p["visitante"]}')
+        print(f'🕐 Hora 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}')
+        print(f'Cuotas: 🏠 {cuotas_ml[0]["odd"] if cuotas_ml else "❌"} | 🤝 {cuotas_ml[1]["odd"] if len(cuotas_ml)>1 else "❌"} | 🛫 {cuotas_ml[2]["odd"] if len(cuotas_ml)>2 else "❌"}')
+        print(f'Over 2.5: {cuota_over} | BTTS: {cuota_btts}')
+        print(f'Predicción marcador: {p["local"]} {goles_local} - {goles_visitante} {p["visitante"]}')
+        print(elegir_pick(goles_local, goles_away=goles_visitante, cuota_over=cuota_over, cuota_btts=cuota_btts, cuotas_ml=cuotas_ml))
         print("-" * 60)
