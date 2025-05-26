@@ -1,4 +1,3 @@
-
 import requests
 import os
 from datetime import datetime
@@ -168,6 +167,40 @@ def interpretar_score(score):
     else:
         return f"Score: {score}/6"
 
+def calcular_probabilidades_btts_over(equipo_id, condicion):
+    url = f"https://v3.football.api-sports.io/fixtures?team={equipo_id}&last=20"
+    response = requests.get(url, headers=HEADERS)
+    data = response.json()
+
+    btts_count = 0
+    over25_count = 0
+    total_partidos = 0
+
+    for match in data.get("response", []):
+        if condicion == "local" and match["teams"]["home"]["id"] != equipo_id:
+            continue
+        if condicion == "visitante" and match["teams"]["away"]["id"] != equipo_id:
+            continue
+
+        goles_local = match["goals"]["home"]
+        goles_visitante = match["goals"]["away"]
+
+        if goles_local is None or goles_visitante is None:
+            continue
+
+        total_partidos += 1
+        if goles_local + goles_visitante >= 3:
+            over25_count += 1
+        if goles_local > 0 and goles_visitante > 0:
+            btts_count += 1
+
+    if total_partidos == 0:
+        return {"btts": 0, "over": 0}
+    return {
+        "btts": round((btts_count / total_partidos) * 100),
+        "over": round((over25_count / total_partidos) * 100)
+    }
+
 if __name__ == "__main__":
     try:
         partidos = obtener_partidos_hoy()
@@ -203,6 +236,13 @@ if __name__ == "__main__":
             cuota_principal = pick.split("@")[-1].strip() if "@" in pick else "0"
             score = calcular_score(stats_local, stats_away, goles_local, goles_away, cuota_principal)
             print(interpretar_score(score))
+
+            prob_local = calcular_probabilidades_btts_over(p["home_id"], "local")
+            prob_away = calcular_probabilidades_btts_over(p["away_id"], "visitante")
+            print(f'📊 Probabilidades (últimos 20 partidos):')
+            print(f'- {p["local"]}: BTTS {prob_local["btts"]}% | Over 2.5 {prob_local["over"]}%')
+            print(f'- {p["visitante"]}: BTTS {prob_away["btts"]}% | Over 2.5 {prob_away["over"]}%')
+
             print("-" * 60)
     except Exception as e:
         print("❌ Error crítico. Se detiene la ejecución:")
