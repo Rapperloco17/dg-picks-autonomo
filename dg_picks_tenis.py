@@ -4,28 +4,39 @@ from datetime import datetime
 
 API_KEY = "62445b378b11906da093a6ae6513242ae3de2134660c3aefbf74872bbcdccdc2"
 BASE_URL = "https://api.api-tennis.com/tennis/"
-HEADERS = {"x-api-key": API_KEY}
 
 ATP_ID = "265"
 CHALLENGER_ID = "281"
 
-# Simulamos función para obtener fixtures del día (luego se conecta al endpoint real)
+# Obtener partidos del día para ATP y Challenger
 def obtener_fixtures():
-    print("📥 Obteniendo partidos ATP y Challenger del día...")
-    # Aquí iría la lógica real con requests a /fixtures por torneo
-    return [
-        {
-            "match": "Giovanni Fonio vs Titouan Droguet",
-            "jugador_1": "Giovanni Fonio",
-            "jugador_2": "Titouan Droguet",
-            "hora": "03:00",
-            "superficie": "Clay",
-            "stats": {
-                "fonio": {"breaks_1set": 7, "ultimos_partidos": 9},
-                "droguet": {"bp_concedidos": 1.8, "saque_debil": True}
-            }
-        }
-    ]
+    print("📥 Consultando fixtures reales desde API...")
+    fixtures = []
+    for event_id in [ATP_ID, CHALLENGER_ID]:
+        url = f"{BASE_URL}fixtures?eventId={event_id}"
+        try:
+            response = requests.get(url, headers={"x-api-key": API_KEY})
+            data = response.json()
+            for match in data.get("results", []):
+                player1 = match.get("homeTeam", {}).get("name", "")
+                player2 = match.get("awayTeam", {}).get("name", "")
+                hora = match.get("startTime", "")[-5:]  # HH:MM
+                superficie = match.get("surface", "Unknown")
+                
+                fixtures.append({
+                    "match": f"{player1} vs {player2}",
+                    "jugador_1": player1,
+                    "jugador_2": player2,
+                    "hora": hora,
+                    "superficie": superficie,
+                    "stats": {
+                        "fonio": {"breaks_1set": 7, "ultimos_partidos": 9},
+                        "droguet": {"bp_concedidos": 1.8, "saque_debil": True}
+                    }
+                })
+        except Exception as e:
+            print(f"⚠️ Error al obtener fixtures de evento {event_id}: {e}")
+    return fixtures
 
 # Simula análisis de rompimiento
 def analizar_rompimientos(partido):
@@ -73,4 +84,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
