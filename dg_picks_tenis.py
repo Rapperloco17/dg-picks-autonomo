@@ -11,8 +11,9 @@ CHALLENGER_ID = "281"
 # Solo imprime la estructura de los fixtures reales para inspección
 def obtener_fixtures():
     print("📥 Inspeccionando estructura de fixtures reales desde API...")
+    hoy = datetime.now().strftime('%Y-%m-%d')
     for event_id in [ATP_ID, CHALLENGER_ID]:
-        url = f"{BASE_URL}?method=get_fixtures&APIkey={API_KEY}&eventId={event_id}"
+        url = f"{BASE_URL}?method=get_fixtures&APIkey={API_KEY}&eventId={event_id}&date_start={hoy}&date_stop={hoy}"
         try:
             response = requests.get(url)
             data = response.json()
