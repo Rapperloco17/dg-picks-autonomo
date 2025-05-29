@@ -1,93 +1,77 @@
 import requests
-import json
 from datetime import datetime
 
 API_KEY = "62445b378b11906da093a6ae6513242ae3de2134660c3aefbf74872bbcdccdc2"
-BASE_URL = "https://api.api-tennis.com/tennis/"
+BASE_URL = "https://api.api-tennis.com"
+CATEGORIAS = "ATP,Challenger"
 
-ATP_ID = "265"
-CHALLENGER_ID = "281"
+def obtener_partidos_dia():
+    hoy = datetime.now().strftime("%Y-%m-%d")
+    url = f"{BASE_URL}/tennis/?method=get_matches&date={hoy}&category={CATEGORIAS}&APIkey={API_KEY}"
 
-# Obtener partidos del día con campos reales de jugadores y hora
-def obtener_fixtures():
-    print("📥 Consultando partidos reales desde API...")
-    hoy = datetime.now().strftime('%Y-%m-%d')
-    fixtures = []
+    response = requests.get(url)
+    data = response.json()
 
-    for event_id in [ATP_ID, CHALLENGER_ID]:
-        url = f"{BASE_URL}?method=get_fixtures&APIkey={API_KEY}&eventId={event_id}&date_start={hoy}&date_stop={hoy}"
-        try:
-            response = requests.get(url)
-            data = response.json()
-            for match in data.get("result", []):
-                player1 = match.get("event_first_player", "")
-                player2 = match.get("event_second_player", "")
-                hora = match.get("event_time", "")[:5]
-                ronda = match.get("tournament_round", "")
-                fecha = match.get("event_date", hoy)
+    if not data.get("result"):
+        print("⚠️ No se encontraron partidos.")
+        return []
 
-                fixtures.append({
-                    "match": f"{player1} vs {player2}",
-                    "jugador_1": player1,
-                    "jugador_2": player2,
-                    "hora": hora,
-                    "fecha": fecha,
-                    "ronda": ronda,
-                    "superficie": "Desconocida",
-                    "stats": {
-                        "fonio": {"breaks_1set": 7, "ultimos_partidos": 9},
-                        "droguet": {"bp_concedidos": 1.8, "saque_debil": True}
-                    }
-                })
-        except Exception as e:
-            print(f"⚠️ Error al obtener fixtures de evento {event_id}: {e}")
+    return data["result"]
 
-    return fixtures
-
-# Simula análisis de rompimiento
-def analizar_rompimientos(partido):
-    stats = partido["stats"]
-    fonio_break_rate = stats["fonio"]["breaks_1set"] / stats["fonio"]["ultimos_partidos"]
-    droguet_concede = stats["droguet"]["bp_concedidos"] >= 1.5
-
-    if fonio_break_rate >= 0.7 and droguet_concede:
-        return {
-            "match": partido["match"],
-            "pick": f"{partido['jugador_1']} rompe en el primer set",
-            "motivo": "Fonio ha roto el servicio en el primer set en 7 de sus últimos 9 partidos en arcilla. Droguet tiene bajo % de puntos ganados con segundo servicio.",
-            "combinada": True,
-            "hora": partido["hora"],
-            "superficie": partido["superficie"],
-            "ronda": partido["ronda"],
-            "fecha_generado": datetime.now().strftime("%Y-%m-%d %H:%M")
-        }
-    else:
+def obtener_stats_jugador(nombre_jugador):
+    url = f"{BASE_URL}/tennis/?method=get_players_stats&player={nombre_jugador}&APIkey={API_KEY}"
+    response = requests.get(url)
+    data = response.json()
+    
+    if not data.get("result"):
         return None
 
-# Flujo principal del módulo
-def main():
-    partidos = obtener_fixtures()
+    stats = data["result"][0]  # solo tomamos el más reciente
+    return stats
+
+def analizar_rompimiento(stats):
+    if not stats:
+        return 0
+
+    try:
+        clay_stats = stats["surface"]["Clay"]
+        breaks = clay_stats["return_games_won"]
+        return float(breaks)
+    except:
+        return 0
+
+def generar_picks_rompimiento():
+    partidos = obtener_partidos_dia()
     picks = []
 
     for partido in partidos:
-        pick = analizar_rompimientos(partido)
-        if pick:
+        jugador1 = partido["player1"]
+        jugador2 = partido["player2"]
+        torneo = partido.get("tournament", "Sin torneo")
+        hora = partido.get("match_time", "Hora desconocida")
+
+        stats1 = obtener_stats_jugador(jugador1)
+        stats2 = obtener_stats_jugador(jugador2)
+
+        romp1 = analizar_rompimiento(stats1)
+        romp2 = analizar_rompimiento(stats2)
+
+        if romp1 >= 25:  # criterio base: al menos 25% de games al resto ganados
+            pick = f"🎾 {jugador1} rompe el servicio en el 1er set\n🏆 Torneo: {torneo} | 🕐 Hora: {hora}"
+            pick += f"\n📊 {jugador1} gana {romp1:.1f}% de juegos al resto en arcilla."
             picks.append(pick)
-            print("\n🎾 Pick generado:")
-            print(f"Partido: {pick['match']}")
-            print(f"Ronda: {pick['ronda']} | Hora: {pick['hora']} | Superficie: {pick['superficie']}")
-            print(f"🔐 Pick: {pick['pick']}")
-            print(f"📝 Motivo: {pick['motivo']}")
-            if pick['combinada']:
-                print("🧨 Este partido tiene potencial para combinada.")
 
-    # Guardar como JSON
+        if romp2 >= 25:
+            pick = f"🎾 {jugador2} rompe el servicio en el 1er set\n🏆 Torneo: {torneo} | 🕐 Hora: {hora}"
+            pick += f"\n📊 {jugador2} gana {romp2:.1f}% de juegos al resto en arcilla."
+            picks.append(pick)
+
     if picks:
-        with open("picks_tenis.json", "w") as f:
-            json.dump(picks, f, indent=4)
-        print(f"\n✅ {len(picks)} pick(s) guardado(s) en 'picks_tenis.json'")
+        for p in picks:
+            print("\n🔐 PICK DETECTADO 🔐\n" + p)
     else:
-        print("❌ No se generaron picks hoy.")
+        print("❌ No se detectaron picks de rompimiento con valor hoy.")
 
+# Ejecutar
 if __name__ == "__main__":
-    main()
+    generar_picks_rompimiento()
