@@ -13,16 +13,16 @@ def obtener_fixtures():
     print("📥 Consultando fixtures reales desde API...")
     fixtures = []
     for event_id in [ATP_ID, CHALLENGER_ID]:
-        url = f"{BASE_URL}fixtures?eventId={event_id}"
+        url = f"{BASE_URL}?method=get_fixtures&APIkey={API_KEY}&eventId={event_id}"
         try:
-            response = requests.get(url, headers={"x-api-key": API_KEY})
+            response = requests.get(url)
             data = response.json()
-            for match in data.get("results", []):
+            for match in data.get("result", []):
                 player1 = match.get("homeTeam", {}).get("name", "")
                 player2 = match.get("awayTeam", {}).get("name", "")
-                hora = match.get("startTime", "")[-5:]  # HH:MM
+                hora = match.get("start_time", "")[-5:]  # HH:MM
                 superficie = match.get("surface", "Unknown")
-                
+
                 fixtures.append({
                     "match": f"{player1} vs {player2}",
                     "jugador_1": player1,
