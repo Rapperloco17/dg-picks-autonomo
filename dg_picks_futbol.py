@@ -205,6 +205,7 @@ if __name__ == "__main__":
     try:
         try:
         try:
+        try:
         partidos = obtener_partidos_hoy()
         for p in partidos:
         cuotas_ml = obtener_cuotas_por_mercado(p["id_fixture"], 1)
@@ -251,6 +252,10 @@ if __name__ == "__main__":
         print("❌ Error crítico:")
         traceback.print_exc()
 
+        except Exception as e:
+        import traceback
+        print("❌ Error crítico:")
+        traceback.print_exc()
     except Exception as e:
         import traceback
         print("❌ Error crítico:")
