@@ -105,6 +105,7 @@ if __name__ == "__main__":
             print(f'- {p["local"]}: BTTS {prob_local["btts"]}% | Over 2.5 {prob_local["over"]}%')
             print(f'- {p["visitante"]}: BTTS {prob_away["btts"]}% | Over 2.5 {prob_away["over"]}%')
 
+            # Análisis BTTS
             btts_local = prob_local["btts"]
             btts_visit = prob_away["btts"]
 
