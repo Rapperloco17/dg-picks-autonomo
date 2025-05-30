@@ -203,6 +203,7 @@ def calcular_probabilidades_btts_over(equipo_id, condicion):
 
 if __name__ == "__main__":
     try:
+    try:
         partidos = obtener_partidos_hoy()
         for p in partidos:
             cuotas_ml = obtener_cuotas_por_mercado(p["id_fixture"], 1)
@@ -244,3 +245,7 @@ if __name__ == "__main__":
             print(f'- {p["visitante"]}: BTTS {prob_away["btts"]}% | Over 2.5 {prob_away["over"]}%')
 
             print("-" * 60)
+    except Exception as e:
+        import traceback
+        print("❌ Error crítico:")
+        traceback.print_exc()
