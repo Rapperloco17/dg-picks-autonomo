@@ -26,6 +26,10 @@ CONFIG = {
     }
 }
 
+# Contador global de solicitudes
+REQUEST_COUNT = 0
+MAX_REQUESTS = 1000  # Límite de la API de prueba
+
 def get_nested(data: Dict, *keys, default=None) -> any:
     """Accede a claves anidadas de un diccionario de forma segura."""
     for key in keys:
@@ -35,10 +39,15 @@ def get_nested(data: Dict, *keys, default=None) -> any:
             return default
     return data
 
-def obtener_partidos_atp(timezone: str = "America/Mexico_City", max_partidos: int = 5) -> List[Dict]:
+def obtener_partidos_atp(timezone: str = "America/Mexico_City", max_partidos: int = 3) -> List[Dict]:
     """Obtiene los partidos programados para hoy de la ATP desde la API de Sportradar."""
+    global REQUEST_COUNT
     if not SPORTRADAR_API_KEY:
         raise ValueError("❌ La clave API de Sportradar no está configurada.")
+    
+    if REQUEST_COUNT >= MAX_REQUESTS:
+        print(f"❌ Límite de {MAX_REQUESTS} solicitudes alcanzado.")
+        return []
     
     fecha = datetime.now(pytz.timezone(timezone)).strftime("%Y-%m-%d")
     url = f"{BASE_URL}/schedules/{fecha}/schedule.json?api_key={SPORTRADAR_API_KEY}"
@@ -46,28 +55,37 @@ def obtener_partidos_atp(timezone: str = "America/Mexico_City", max_partidos: in
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
-        time.sleep(1)  # Pausa para respetar límites de la API
+        REQUEST_COUNT += 1
+        print(f"📈 Solicitudes realizadas: {REQUEST_COUNT}/{MAX_REQUESTS}")
+        time.sleep(2)  # Pausa de 2 segundos
         partidos = get_nested(response.json(), "sport_events", default=[])
         
-        # Filtrar solo partidos de la ATP (busca "ATP" en el nombre del torneo)
+        # Filtrar solo partidos de la ATP
         partidos_atp = [
             p for p in partidos 
             if get_nested(p, "tournament", "name", default="").upper().find("ATP") != -1
         ]
-        return partidos_atp[:max_partidos]  # Limita a 5 partidos ATP
+        return partidos_atp[:max_partidos]  # Limita a 3 partidos ATP
     except requests.exceptions.RequestException as e:
         print(f"❌ Error al obtener partidos ATP: {e}")
         return []
 
 def obtener_estadisticas(match_id: str) -> Optional[Dict]:
     """Obtiene las estadísticas de un partido específico desde la API con reintentos."""
+    global REQUEST_COUNT
+    if REQUEST_COUNT >= MAX_REQUESTS:
+        print(f"❌ Límite de {MAX_REQUESTS} solicitudes alcanzado.")
+        return None
+    
     url = f"{BASE_URL}/matches/{match_id}/summary.json?api_key={SPORTRADAR_API_KEY}"
     max_retries = 3
     for attempt in range(max_retries):
         try:
             response = requests.get(url, timeout=10)
             response.raise_for_status()
-            time.sleep(1)  # Pausa mínima
+            REQUEST_COUNT += 1
+            print(f"📈 Solicitudes realizadas: {REQUEST_COUNT}/{MAX_REQUESTS}")
+            time.sleep(2)  # Pausa de 2 segundos
             return response.json()
         except requests.exceptions.HTTPError as e:
             if response.status_code == 429:
