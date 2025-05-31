@@ -6,3 +6,6 @@ schedule
 openai==0.28
 scikit-learn
 joblib
+python-dateutil
+colorama
+pytz
