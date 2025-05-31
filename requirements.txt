@@ -9,3 +9,8 @@ python-dateutil
 colorama
 pytz
 openai>=1.0.0
+fastapi==0.115.0
+uvicorn==0.30.6
+requests==2.32.3
+pandas==2.2.3
+python-dotenv==1.0.1
