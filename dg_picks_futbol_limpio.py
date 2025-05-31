@@ -27,6 +27,10 @@ if not API_KEY:
     print(Fore.RED + "❌ Error: API_FOOTBALL_KEY no está configurada." + Style.RESET_ALL)
     sys.exit(1)
 
+# Configurar límite de partidos (configurable vía variable de entorno)
+MAX_PARTIDOS = int(os.getenv("MAX_PARTIDOS", 10))  # Por defecto 10 si no está configurada
+logging.info(f"Límite de partidos configurado: {MAX_PARTIDOS}")
+
 BASE_URL = "https://v3.football.api-sports.io"
 HEADERS = {"x-apisports-key": API_KEY}
 REQUEST_TIMEOUT = 10  # Timeout de 10 segundos para todas las solicitudes
@@ -48,7 +52,7 @@ def obtener_partidos_hoy():
         data = response.json()
         logging.info(f"Respuesta recibida: {len(data.get('response', []))} partidos encontrados")
         partidos_validos = []
-        for fixture in data.get("response", []):  # Eliminar límite [:3], procesar todos
+        for fixture in data.get("response", [])[:MAX_PARTIDOS]:  # Usar el límite configurable
             if fixture["league"]["id"] in LIGAS_VALIDAS:
                 if fixture["fixture"]["status"]["short"] != "NS":
                     continue
