@@ -53,18 +53,21 @@ def obtener_partidos_hoy():
         logging.info(f"Respuesta recibida: {len(data.get('response', []))} partidos encontrados")
         partidos_validos = []
         for fixture in data.get("response", [])[:MAX_PARTIDOS]:
-            if fixture["league"]["id"] in LIGAS_VALIDAS:
-                if fixture["fixture"]["status"]["short"] != "NS":
-                    continue
-                partidos_validos.append({
-                    "liga": fixture["league"]["name"],
-                    "local": fixture["teams"]["home"]["name"],
-                    "visitante": fixture["teams"]["away"]["name"],
-                    "hora_utc": fixture["fixture"]["date"],
-                    "id_fixture": fixture["fixture"]["id"],
-                    "home_id": fixture["teams"]["home"]["id"],
-                    "away_id": fixture["teams"]["away"]["id"]
-                })
+            if fixture["league"]["id"] not in LIGAS_VALIDAS:
+                logging.info(f"Partido descartado por liga inválida: {fixture['league']['name']} (ID: {fixture['league']['id']})")
+                continue
+            if fixture["fixture"]["status"]["short"] != "NS":
+                logging.info(f"Partido descartado por estado: {fixture['teams']['home']['name']} vs {fixture['teams']['away']['name']} (Estado: {fixture['fixture']['status']['short']})")
+                continue
+            partidos_validos.append({
+                "liga": fixture["league"]["name"],
+                "local": fixture["teams"]["home"]["name"],
+                "visitante": fixture["teams"]["away"]["name"],
+                "hora_utc": fixture["fixture"]["date"],
+                "id_fixture": fixture["fixture"]["id"],
+                "home_id": fixture["teams"]["home"]["id"],
+                "away_id": fixture["teams"]["away"]["id"]
+            })
         logging.info(f"Se encontraron {len(partidos_validos)} partidos válidos.")
         return partidos_validos
     except requests.Timeout:
@@ -336,7 +339,7 @@ if __name__ == "__main__":
                     cuota_principal = pick.split("@")[-1].strip() if "@" in pick else "0"
                     score = calcular_score(stats_local, stats_away, goles_local, goles_away, cuota_principal)
 
-                    # Imprimir todos los partidos, incluso los descartados
+                    # Imprimir todos los partidos
                     print(f'{p["liga"]}: {p["local"]} vs {p["visitante"]}')
                     print(f'🕐 Hora 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}')
                     print(f'Cuotas: 🏠 {cuotas_ml[0]["odd"] if cuotas_ml and len(cuotas_ml) > 0 else "❌"} | '
@@ -368,28 +371,7 @@ if __name__ == "__main__":
                     print(f'- {p["visitante"]}: BTTS {prob_away["btts"]}% | Over 2.5 {prob_away["over"]}%')
                     print("-" * 60)
 
-                    # Solo agregar a picks_valiosos y escribir en CSV si el score es >= 4
-                    if score < 4:
-                        logging.info(f"Partido descartado para picks valiosos (score: {score})")
-                        writer.writerow([
-                            p["liga"],
-                            f"{p['local']} vs {p['visitante']}",
-                            hora_mex,
-                            hora_esp,
-                            f"🏠 {cuotas_ml[0]['odd'] if cuotas_ml and len(cuotas_ml) > 0 else '❌'} | 🤝 {cuotas_ml[1]['odd'] if cuotas_ml and len(cuotas_ml) > 1 else '❌'} | 🛫 {cuotas_ml[2]['odd'] if cuotas_ml and len(cuotas_ml) > 2 else '❌'}",
-                            cuota_over,
-                            cuota_btts,
-                            btts_pred,
-                            f"GF {stats_local['gf']} | GC {stats_local['gc']} | Tiros {stats_local['tiros']} | Posesión {stats_local['posesion']}% | Tarjetas Amarillas {stats_local['tarjetas_amarillas']} | Corners {stats_local['corners']} | Forma: {stats_local['forma']}",
-                            f"GF {stats_away['gf']} | GC {stats_away['gc']} | Tiros {stats_away['tiros']} | Posesión {stats_away['posesion']}% | Tarjetas Amarillas {stats_away['tarjetas_amarillas']} | Corners {stats_away['corners']} | Forma: {stats_away['forma']}",
-                            f"{p['local']} {goles_local} - {goles_away} {p['visitante']}",
-                            pick_display,
-                            advertencia,
-                            interpretar_score(score)
-                        ])
-                        time.sleep(1)
-                        continue
-
+                    # Incluir todos los partidos en picks_valiosos y CSV
                     picks_valiosos.append({
                         "partido": f"{p['local']} vs {p['visitante']}",
                         "liga": p["liga"],
@@ -423,13 +405,13 @@ if __name__ == "__main__":
                     continue
 
         if picks_valiosos:
-            logging.info("Resumen de Picks Valiosos (Score >= 4):")
-            print("\n📊 Resumen de Picks Valiosos (Score >= 4):")
+            logging.info("Resumen de todos los partidos procesados:")
+            print("\n📊 Resumen de todos los partidos procesados:")
             for pick in picks_valiosos:
                 print(f"{pick['liga']}: {pick['partido']} - {pick['pick']} ({pick['score']})")
         else:
-            logging.info("No se encontraron picks valiosos.")
-            print("⚠️ No se encontraron picks valiosos.")
+            logging.info("No se encontraron partidos válidos.")
+            print("⚠️ No se encontraron partidos válidos.")
 
         logging.info("Script finalizado.")
         print("✅ Script finalizado.")
