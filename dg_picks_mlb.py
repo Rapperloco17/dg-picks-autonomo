@@ -1,213 +1,11 @@
 import os
 import requests
 import logging
-import csv
+import sqlite3
 from datetime import datetime, timedelta
 import pytz
 from openai import OpenAI
-
-# Configuración de logging
-logging.basicConfig(filename='mlb_picks.log', level=logging.INFO, 
-                    format='%(asctime)s - %(levelname)s - %(message)s')
-
-# Validar variables de entorno
-required_env_vars = ["OPENAI_API_KEY", "TELEGRAM_BOT_TOKEN", "CHAT_ID_VIP", "CHAT_ID_FREE", "ODDS_API_KEY"]
-for var in required_env_vars:
-    if not os.getenv(var):
-        logging.error(f"Falta la variable de entorno: {var}")
-        raise ValueError(f"Falta la variable de entorno: {var}")
-
-# Configuraciones
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-token_telegram = os.getenv("TELEGRAM_BOT_TOKEN")
-chat_id_vip = os.getenv("CHAT_ID_VIP")
-chat_id_free = os.getenv("CHAT_ID_FREE")
-ODDS_API_KEY = os.getenv("ODDS_API_KEY")
-
-# Constantes
-ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/baseball_mlb/odds"
-MLB_STATS_BASE_URL = "https://statsapi.mlb.com/api/v1/schedule"
-MLB_PLAYER_STATS_URL = "https://statsapi.mlb.com/api/v1/people/{}?hydrate=stats(group=[pitching],type=[season])"
-MLB_TEAM_STATS_URL = "https://statsapi.mlb.com/api/v1/teams/{}/stats"
-MLB_RESULTS_URL = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&teamId={}&startDate={}&endDate={}"
-HEADERS = {"User-Agent": "DG Picks"}
-MX_TZ = pytz.timezone("America/Mexico_City")
-HOY = datetime.now(MX_TZ).strftime("%Y-%m-%d")
-
-def get_today_mlb_games():
-    try:
-        params = {"sportId": 1, "date": HOY, "hydrate": "team,linescore,probablePitcher"}
-        response = requests.get(MLB_STATS_BASE_URL, headers=HEADERS, params=params)
-        response.raise_for_status()
-        data = response.json()
-        games = []
-        for date_info in data.get("dates", []):
-            for game in date_info.get("games", []):
-                home_pitcher = game["teams"]["home"].get("probablePitcher", {})
-                away_pitcher = game["teams"]["away"].get("probablePitcher", {})
-                games.append({
-                    "home_team": game["teams"]["home"]["team"]["name"],
-                    "away_team": game["teams"]["away"]["team"]["name"],
-                    "home_pitcher_id": home_pitcher.get("id"),
-                    "away_pitcher_id": away_pitcher.get("id"),
-                    "home_team_id": game["teams"]["home"]["team"]["id"],
-                    "away_team_id": game["teams"]["away"]["team"]["id"]
-                })
-        return games
-    except requests.RequestException as e:
-        logging.error(f"Error al obtener juegos de MLB: {e}")
-        return []
-
-def get_team_era(team_id):
-    try:
-        url = MLB_TEAM_STATS_URL.format(team_id)
-        response = requests.get(url, headers=HEADERS)
-        response.raise_for_status()
-        data = response.json()
-        return float(data["stats"][0]["splits"][0]["stat"].get("era", 4.5))
-    except:
-        logging.error(f"Error al obtener ERA del equipo ID {team_id}")
-        return 4.5
-
-def get_pitcher_stats(pitcher_id, team_id):
-    if not pitcher_id:
-        return {"era": get_team_era(team_id)}
-    try:
-        url = MLB_PLAYER_STATS_URL.format(pitcher_id)
-        response = requests.get(url, headers=HEADERS)
-        response.raise_for_status()
-        data = response.json()
-        splits = data.get("people", [{}])[0].get("stats", [{}])[0].get("splits", [])
-        return splits[0].get("stat", {"era": get_team_era(team_id)}) if splits else {"era": get_team_era(team_id)}
-    except requests.RequestException as e:
-        logging.error(f"Error al obtener stats del pitcher ID {pitcher_id}: {e}")
-        return {"era": get_team_era(team_id)}
-
-def get_team_form(team_id, start_date, end_date):
-    try:
-        url = MLB_RESULTS_URL.format(team_id, start_date, end_date)
-        response = requests.get(url, headers=HEADERS)
-        response.raise_for_status()
-        data = response.json()
-        resultados = []
-        for fecha in data.get("dates", []):
-            for game in fecha.get("games", []):
-                if game.get("status", {}).get("detailedState") != "Final": continue
-                home = game["teams"]["home"]
-                away = game["teams"]["away"]
-                if home["team"]["id"] == team_id:
-                    anotadas, recibidas = home["score"], away["score"]
-                else:
-                    anotadas, recibidas = away["score"], home["score"]
-                resultados.append((anotadas, recibidas))
-        if not resultados: return {"anotadas": 0, "recibidas": 0}
-        ultimos = resultados[-5:]
-        return {
-            "anotadas": round(sum(x[0] for x in ultimos) / len(ultimos), 2),
-            "recibidas": round(sum(x[1] for x in ultimos) / len(ultimos), 2)
-        }
-    except requests.RequestException as e:
-        logging.error(f"Error al obtener forma del equipo ID {team_id}: {e}")
-        return {"anotadas": 0, "recibidas": 0}
-
-def get_team_avg(team_id):
-    try:
-        response = requests.get(MLB_TEAM_STATS_URL.format(team_id), headers=HEADERS)
-        response.raise_for_status()
-        data = response.json()
-        return float(data["stats"][0]["splits"][0]["stat"]["battingAvg"])
-    except (requests.RequestException, KeyError, ValueError) as e:
-        logging.error(f"Error al obtener promedio de bateo del equipo ID {team_id}: {e}")
-        return 0.25
-
-def ajustar_por_era(base, era):
-    try:
-        era = float(era)
-        if era
-
-System: I notice you're asking about the importance of historical data for improving your betting script, particularly for moneyline picks. Since your previous question focused on the reliability of the moneyline logic, I’ll address why historical data is critical for ensuring your picks are trustworthy and suggest specific ways to incorporate it into your script. I’ll also include a practical implementation to validate your moneyline picks using historical data, building on the code you provided. Let’s dive in, ¡papi!
-
----
-
-### Why Historical Data is Important for Your Betting Script
-
-Historical data is crucial for making your **moneyline**, **run line**, and **totals** picks more reliable and profitable. Here’s why it matters and how it directly impacts your script:
-
-1. **Validating Prediction Accuracy**:
-   - Historical data lets you test how well your `diferencia_carreras` (for moneyline) and `estimado_total` (for totals) predict actual game outcomes.
-   - Example: If your moneyline picks with `abs(diferencia_carreras) >= 1.7` correctly predict the winner 65% of the time, you can trust the threshold. If it’s only 50%, you need to adjust it.
-
-2. **Optimizing Thresholds**:
-   - The current thresholds (1.7 for "normal" and 2.7 for "candado" moneyline picks) are guesses. Historical data helps you find the optimal values that maximize wins or profits.
-   - Example: Testing might show that `abs(diferencia_carreras) >= 2.0` yields a 70% win rate, better than 1.7.
-
-3. **Identifying Team and Context Trends**:
-   - Historical data reveals patterns, like teams performing better at home, against specific pitchers, or in certain stadiums.
-   - Example: The Yankees might win 80% of home games against teams with pitchers who have an ERA > 4.0.
-
-4. **Assessing Profitability**:
-   - By comparing your picks’ odds with actual results, you can calculate the return on investment (ROI). This ensures your strategy is financially sound.
-   - Example: A moneyline pick at 1.80 odds needs to win at least 55.6% of the time to break even.
-
-5. **Refining the Model**:
-   - Historical data lets you test additional factors (e.g., home/away splits, bullpen ERA, or head-to-head records) to improve predictions.
-   - Example: Adding a home-field advantage adjustment (+0.5 to `diferencia_carreras`) might boost accuracy.
-
-6. **Avoiding Overfitting or Bias**:
-   - Without historical data, you might rely on a model that seems logical but fails in practice (e.g., overestimating ERA’s impact). Historical data grounds your strategy in real outcomes.
-
-**Bottom Line**: Historical data is like a playbook—it shows you what works, what doesn’t, and how to tweak your script to make smarter, more profitable picks. Without it, you’re betting on untested assumptions.
-
----
-
-### How to Use Historical Data to Improve Your Script
-
-Here’s a step-by-step plan to integrate historical data into your script, focusing on validating and improving **moneyline** picks (but applicable to run line and totals too):
-
-1. **Collect Historical Game Data**:
-   - Use the MLB Stats API (`MLB_RESULTS_URL`) to fetch game results from the past 30 days or the 2024 season.
-   - Extract: teams, scores, winner, pitcher IDs, team batting averages, and other stats used in your model.
-   - Store in a CSV or SQLite database for easy analysis.
-
-2. **Simulate Picks on Historical Data**:
-   - Run your existing logic (e.g., calculate `diferencia_carreras`) on past games to generate hypothetical picks.
-   - Compare picks to actual winners to calculate accuracy.
-
-3. **Analyze and Optimize Thresholds**:
-   - Test different `diferencia_carreras` thresholds (e.g., 1.5, 1.7, 2.0) to find the one with the highest win rate or ROI.
-   - Example: If `abs(diferencia_carreras) >= 2.0` wins 70% of the time vs. 65% for 1.7, update the threshold.
-
-4. **Add Contextual Factors**:
-   - Use historical data to test if factors like home/away performance or head-to-head records improve predictions.
-   - Example: Add a +0.5 boost to `diferencia_carreras` for home teams and check if it increases accuracy.
-
-5. **Track Ongoing Performance**:
-   - Save every pick (with odds, estimated difference, and actual result) to a CSV to monitor long-term performance.
-   - Example: `[2025-05-30, "Red Sox vs Yankees", "Moneyline", "Yankees", 1.75, "candado", 2.7, 77.0%, "Win"]`.
-
-6. **Visualize Results**:
-   - Create charts to see trends, like how `diferencia_carreras` correlates with wins or how accurate your picks are by team.
-
----
-
-### Updated Script with Historical Data Validation
-
-Below is an updated version of your script that adds:
-- A function to collect historical game data.
-- A function to validate moneyline picks using historical data.
-- A CSV to store results for analysis.
-- Adjusted thresholds based on a hypothetical analysis (you’ll need to run real data to confirm).
-
-This code replaces the `main()` function from your previous script and adds new functions for historical validation. It focuses on moneyline but can be extended to run line and totals.
-
-<xaiArtifact artifact_id="77ce6c8f-68c8-4220-b743-aad737dd4d77" artifact_version_id="03eb7f33-cc76-4368-b90c-c53ce4242fcb" title="mlb_betting_picks.py" contentType="text/python">
-import os
-import requests
-import logging
-import csv
-from datetime import datetime, timedelta
-import pytz
-from openai import OpenAI
+from collections import defaultdict
 
 # Configuración de logging
 logging.basicConfig(filename='mlb_picks.log', level=logging.INFO, 
@@ -233,20 +31,81 @@ MLB_STATS_BASE_URL = "https://statsapi.mlb.com/api/v1/schedule"
 MLB_PLAYER_STATS_URL = "https://statsapi.mlb.com/api/v1/people/{}?hydrate=stats(group=[pitching],type=[season])"
 MLB_TEAM_STATS_URL = "https://statsapi.mlb.com/api/v1/teams/{}/stats"
 MLB_RESULTS_URL = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&startDate={}&endDate={}&hydrate=team,linescore,probablePitcher"
+MLB_HEAD_TO_HEAD_URL = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&teamId={}&opponentId={}&season={}"
 HEADERS = {"User-Agent": "DG Picks"}
 MX_TZ = pytz.timezone("America/Mexico_City")
 HOY = datetime.now(MX_TZ).strftime("%Y-%m-%d")
 
-def get_team_era(team_id):
+# Inicializar base de datos SQLite
+conn = sqlite3.connect('picks_history.db')
+cursor = conn.cursor()
+cursor.execute('''CREATE TABLE IF NOT EXISTS picks (
+    date TEXT, partido TEXT, mercado TEXT, pick TEXT, cuota REAL, tipo TEXT, 
+    diferencia_carreras REAL, probabilidad REAL, acierto INTEGER, winner TEXT
+)''')
+conn.commit()
+
+def get_team_era(team_id, start_date=None, end_date=None):
+    try:
+        if start_date and end_date:
+            url = MLB_RESULTS_URL.format(start_date, end_date)
+            response = requests.get(url, headers=HEADERS)
+            response.raise_for_status()
+            data = response.json()
+            games = [game for date_info in data.get("dates", []) for game in date_info.get("games", []) 
+                     if game["teams"]["home"]["team"]["id"] == team_id or game["teams"]["away"]["team"]["id"] == team_id]
+            if not games: return 4.5
+            total_era, count = 0, 0
+            for game in games[:5]:  # Últimos 5 juegos
+                pitcher_id = game["teams"]["home"].get("probablePitcher", {}).get("id") if game["teams"]["home"]["team"]["id"] == team_id else game["teams"]["away"].get("probablePitcher", {}).get("id")
+                if pitcher_id:
+                    stats = get_pitcher_stats(pitcher_id, team_id)
+                    total_era += float(stats.get("era", 4.5))
+                    count += 1
+            return total_era / count if count > 0 else 4.5
+        else:
+            url = MLB_TEAM_STATS_URL.format(team_id)
+            response = requests.get(url, headers=HEADERS)
+            response.raise_for_status()
+            data = response.json()
+            return float(data["stats"][0]["splits"][0]["stat"].get("era", 4.5))
+    except:
+        logging.error(f"Error al obtener ERA del equipo ID {team_id}")
+        return 4.5
+
+def get_bullpen_era(team_id):
     try:
         url = MLB_TEAM_STATS_URL.format(team_id)
         response = requests.get(url, headers=HEADERS)
         response.raise_for_status()
         data = response.json()
-        return float(data["stats"][0]["splits"][0]["stat"].get("era", 4.5))
+        return float(data["stats"][0]["splits"][0]["stat"].get("bullpen_era", 4.0))
     except:
-        logging.error(f"Error al obtener ERA del equipo ID {team_id}")
-        return 4.5
+        logging.error(f"Error al obtener ERA del bullpen del equipo ID {team_id}")
+        return 4.0
+
+def get_head_to_head(team_id, opponent_id, season):
+    try:
+        url = MLB_HEAD_TO_HEAD_URL.format(team_id, opponent_id, season)
+        response = requests.get(url, headers=HEADERS)
+        response.raise_for_status()
+        data = response.json()
+        wins = 0
+        games = 0
+        for date_info in data.get("dates", []):
+            for game in date_info.get("games", []):
+                if game.get("status", {}).get("detailedState") != "Final": continue
+                home = game["teams"]["home"]
+                away = game["teams"]["away"]
+                if home["team"]["id"] == team_id and home["score"] > away["score"]:
+                    wins += 1
+                elif away["team"]["id"] == team_id and away["score"] > home["score"]:
+                    wins += 1
+                games += 1
+        return wins / games if games > 0 else 0.5
+    except requests.RequestException as e:
+        logging.error(f"Error al obtener enfrentamientos previos: {e}")
+        return 0.5
 
 def get_pitcher_stats(pitcher_id, team_id):
     if not pitcher_id:
@@ -269,6 +128,9 @@ def get_team_form(team_id, start_date, end_date):
         response.raise_for_status()
         data = response.json()
         resultados = []
+        home_wins = 0
+        away_wins = 0
+        total_games = 0
         for fecha in data.get("dates", []):
             for game in fecha.get("games", []):
                 if game.get("status", {}).get("detailedState") != "Final" or team_id not in [game["teams"]["home"]["team"]["id"], game["teams"]["away"]["team"]["id"]]:
@@ -277,18 +139,25 @@ def get_team_form(team_id, start_date, end_date):
                 away = game["teams"]["away"]
                 if home["team"]["id"] == team_id:
                     anotadas, recibidas = home["score"], away["score"]
+                    if home["score"] > away["score"]:
+                        home_wins += 1
                 else:
                     anotadas, recibidas = away["score"], home["score"]
+                    if away["score"] > home["score"]:
+                        away_wins += 1
                 resultados.append((anotadas, recibidas))
-        if not resultados: return {"anotadas": 0, "recibidas": 0}
+                total_games += 1
+        if not resultados: return {"anotadas": 0, "recibidas": 0, "home_win_rate": 0.5, "away_win_rate": 0.5}
         ultimos = resultados[-5:]
         return {
             "anotadas": round(sum(x[0] for x in ultimos) / len(ultimos), 2),
-            "recibidas": round(sum(x[1] for x in ultimos) / len(ultimos), 2)
+            "recibidas": round(sum(x[1] for x in ultimos) / len(ultimos), 2),
+            "home_win_rate": home_wins / total_games if total_games > 0 else 0.5,
+            "away_win_rate": away_wins / total_games if total_games > 0 else 0.5
         }
     except requests.RequestException as e:
         logging.error(f"Error al obtener forma del equipo ID {team_id}: {e}")
-        return {"anotadas": 0, "recibidas": 0}
+        return {"anotadas": 0, "recibidas": 0, "home_win_rate": 0.5, "away_win_rate": 0.5}
 
 def get_team_avg(team_id):
     try:
@@ -303,22 +172,34 @@ def get_team_avg(team_id):
 def ajustar_por_era(base, era):
     try:
         era = float(era)
-        if era < 2.5: return base - 0.7
-        elif era < 3.5: return base - 0.3
-        elif era < 4.5: return base
-        elif era < 5.5: return base + 0.5
-        else: return base + 0.8
+        if era < 2.5:
+            return base - 0.7
+        elif era < 3.5:
+            return base - 0.3
+        elif era < 4.5:
+            return base
+        elif era < 5.5:
+            return base + 0.5
+        else:
+            return base + 0.8
     except ValueError:
+        logging.warning(f"Error al convertir ERA a float: {era}, usando valor base")
         return base
 
 def ajustar_por_avg(base, avg):
     try:
-        if avg < 0.230: return base - 0.5
-        elif avg < 0.250: return base - 0.2
-        elif avg < 0.270: return base
-        elif avg < 0.290: return base + 0.3
-        else: return base + 0.6
+        if avg < 0.230:
+            return base - 0.5
+        elif avg < 0.250:
+            return base - 0.2
+        elif avg < 0.270:
+            return base
+        elif avg < 0.290:
+            return base + 0.3
+        else:
+            return base + 0.6
     except TypeError:
+        logging.warning(f"Error con el promedio de bateo: {avg}, usando valor base")
         return base
 
 def get_odds(date=HOY):
@@ -340,10 +221,10 @@ def get_odds(date=HOY):
 def generar_mensaje_ia(partido, pick, cuota, linea, estimado, mercado):
     try:
         prompt = f"""Genera un mensaje estilo canal premium de apuestas para Telegram.
-        Partido: {partido}
-        Mercado: {mercado}
-        Pick: {pick} @ {cuota} | Línea: {linea} | Estimado: {estimado}.
-        No menciones IA ni OpenAI. Termina con '✅ Valor detectado en la cuota'."""
+Partido: {partido}
+Mercado: {mercado}
+Pick: {pick} @ {cuota} | Línea: {linea} | Estimado: {estimado}.
+No menciones IA ni OpenAI. Termina con '✅ Valor detectado en la cuota'."""
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
@@ -394,76 +275,153 @@ def get_historical_games(start_date, end_date):
         logging.error(f"Error al obtener juegos históricos: {e}")
         return []
 
+def optimize_thresholds(results):
+    thresholds = [1.5, 1.7, 1.9, 2.0, 2.3, 2.5, 2.7, 3.0]
+    best_threshold = 1.7
+    best_candado = 2.7
+    best_accuracy = 0
+    for t in thresholds:
+        for c in thresholds:
+            if c <= t: continue
+            correct = 0
+            total = 0
+            for r in results:
+                if abs(r["diferencia_carreras"]) >= t:
+                    total += 1
+                    if r["acierto"]:
+                        correct += 1
+            accuracy = (correct / total * 100) if total > 0 else 0
+            if accuracy > best_accuracy:
+                best_accuracy = accuracy
+                best_threshold = t
+                best_candado = c
+    return best_threshold, best_candado, best_accuracy
+
 def validate_historical_picks():
-    # Obtener juegos de los últimos 30 días
     end_date = datetime.now(MX_TZ) - timedelta(days=1)
     start_date = end_date - timedelta(days=30)
     games = get_historical_games(start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+    season = start_date.strftime("%Y")
     
     results = []
+    total_profit = 0
     for game in games:
         home = game["home_team"]
         away = game["away_team"]
         partido = f"{away} vs {home}"
-        form_home = get_team_form(game["home_team_id"], (datetime.strptime(game["date"], "%Y-%m-%d") - timedelta(days=10)).strftime("%Y-%m-%d"), game["date"])
-        form_away = get_team_form(game["away_team_id"], (datetime.strptime(game["date"], "%Y-%m-%d") - timedelta(days=10)).strftime("%Y-%m-%d"), game["date"])
+        date = game["date"]
+        form_home = get_team_form(game["home_team_id"], (datetime.strptime(date, "%Y-%m-%d") - timedelta(days=10)).strftime("%Y-%m-%d"), date)
+        form_away = get_team_form(game["away_team_id"], (datetime.strptime(date, "%Y-%m-%d") - timedelta(days=10)).strftime("%Y-%m-%d"), date)
         avg_home = get_team_avg(game["home_team_id"])
         avg_away = get_team_avg(game["away_team_id"])
         era_home = float(get_pitcher_stats(game["home_pitcher_id"], game["home_team_id"]).get("era", 4.5))
         era_away = float(get_pitcher_stats(game["away_pitcher_id"], game["away_team_id"]).get("era", 4.5))
+        bullpen_era_home = get_bullpen_era(game["home_team_id"])
+        bullpen_era_away = get_bullpen_era(game["away_team_id"])
+        head_to_head = get_head_to_head(game["home_team_id"], game["away_team_id"], season)
 
         ajustado_home = ajustar_por_avg(ajustar_por_era(form_home["anotadas"], era_away), avg_home)
         ajustado_away = ajustar_por_avg(ajustar_por_era(form_away["anotadas"], era_home), avg_away)
-        diferencia_carreras = ajustado_home - ajustado_away + 0.5  # Bonus por jugar en casa
+        # Ajustes adicionales
+        ajustado_home += (bullpen_era_away - bullpen_era_home) * 0.1  # Impacto del bullpen
+        ajustado_away += (bullpen_era_home - bullpen_era_away) * 0.1
+        diferencia_carreras = ajustado_home - ajustado_away
+        # Ajuste por rendimiento en casa/visitante y enfrentamientos previos
+        diferencia_carreras += (form_home["home_win_rate"] - form_away["away_win_rate"]) * 0.5
+        diferencia_carreras += (head_to_head - 0.5) * 0.3
         probabilidad = max(10, min(90, 50 + (diferencia_carreras * 10)))
 
         pick = None
         tipo = None
+        cuota = 1.8  # Cuota promedio estimada si no hay datos históricos
+        odds = get_odds(date)
+        for odd in odds:
+            if (game["home_team_id"] == odd.get("home_team_id", 0) or 
+                game["away_team_id"] == odd.get("away_team_id", 0) or
+                (home.lower() == odd.get("home_team", "").lower() and 
+                 away.lower() == odd.get("away_team", "").lower())):
+                for market in odd.get("bookmakers", [{}])[0].get("markets", []):
+                    if market["key"] == "h2h":
+                        best_odds = max(
+                            (outcome for bookmaker in odd["bookmakers"] for outcome in bookmaker.get("markets", []) 
+                             if bookmaker["markets"][0]["key"] == "h2h" for outcome in bookmaker["markets"][0]["outcomes"]),
+                            key=lambda x: x["price"]
+                        )
+                        pick_team = home if diferencia_carreras > 0 else away
+                        cuota = next((o["price"] for o in market["outcomes"] if o["name"] == pick_team), 1.8)
+
         if abs(diferencia_carreras) >= 1.7:
             pick = home if diferencia_carreras > 0 else away
             tipo = "candado" if abs(diferencia_carreras) >= 2.7 else "normal"
         
         if pick:
             acierto = pick == game["winner"]
+            profit = (cuota - 1) if acierto else -1
+            total_profit += profit
             results.append({
-                "date": game["date"],
+                "date": date,
                 "partido": partido,
                 "pick": pick,
                 "tipo": tipo,
                 "diferencia_carreras": diferencia_carreras,
                 "probabilidad": probabilidad,
                 "acierto": acierto,
-                "winner": game["winner"]
+                "winner": game["winner"],
+                "cuota": cuota,
+                "profit": profit
             })
-            logging.info(f"Validación: {partido} | Pick: {pick} ({tipo}) | Dif: {diferencia_carreras:.2f} | Prob: {probabilidad:.1f}% | Acierto: {acierto}")
+            cursor.execute('''INSERT INTO picks (date, partido, mercado, pick, cuota, tipo, diferencia_carreras, probabilidad, acierto, winner)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                           (date, partido, "Moneyline", pick, cuota, tipo, diferencia_carreras, probabilidad, int(acierto), game["winner"]))
+            conn.commit()
+            logging.info(f"Validación: {partido} | Pick: {pick} ({tipo}) | Dif: {diferencia_carreras:.2f} | Prob: {probabilidad:.1f}% | Acierto: {acierto} | Cuota: {cuota:.2f} | Profit: {profit:.2f}")
 
-    # Guardar resultados en CSV
-    with open('historical_validation.csv', 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(["Date", "Partido", "Pick", "Tipo", "Diferencia_Carreras", "Probabilidad", "Acierto", "Ganador"])
-        for result in results:
-            writer.writerow([result["date"], result["partido"], result["pick"], result["tipo"], 
-                            result["diferencia_carreras"], result["probabilidad"], result["acierto"], result["winner"]])
-
-    # Calcular tasa de aciertos
     if results:
         aciertos = sum(1 for r in results if r["acierto"])
         tasa_aciertos = (aciertos / len(results)) * 100
+        roi = (total_profit / len(results)) * 100
+        best_threshold, best_candado, best_accuracy = optimize_thresholds(results)
         logging.info(f"Tasa de aciertos (Moneyline): {tasa_aciertos:.1f}% ({aciertos}/{len(results)})")
-        return tasa_aciertos
-    return 0
+        logging.info(f"ROI: {roi:.1f}% | Total Profit: {total_profit:.2f}")
+        logging.info(f"Mejor umbral: {best_threshold:.1f} (normal), {best_candado:.1f} (candado) | Accuracy: {best_accuracy:.1f}%")
+        return best_threshold, best_candado, tasa_aciertos, roi
+    return 1.7, 2.7, 0, 0
 
 def main():
     logging.info("🔍 Ejecutando DG Picks MLB completo")
     
-    # Validar modelo con datos históricos (opcional, descomentar para ejecutar)
-    # tasa_aciertos = validate_historical_picks()
-    # logging.info(f"Validación histórica completada. Tasa de aciertos: {tasa_aciertos:.1f}%")
+    # Validar modelo con datos históricos
+    best_threshold, best_candado, tasa_aciertos, roi = validate_historical_picks()
+    logging.info(f"Validación histórica completada. Tasa de aciertos: {tasa_aciertos:.1f}% | ROI: {roi:.1f}%")
     
-    juegos = get_today_mlb_games()
+    # Obtener juegos de hoy
+    try:
+        params = {"sportId": 1, "date": HOY, "hydrate": "team,linescore,probablePitcher"}
+        response = requests.get(MLB_STATS_BASE_URL, headers=HEADERS, params=params)
+        response.raise_for_status()
+        data = response.json()
+        juegos = []
+        for date_info in data.get("dates", []):
+            for game in date_info.get("games", []):
+                home_pitcher = game["teams"]["home"].get("probablePitcher", {})
+                away_pitcher = game["teams"]["away"].get("probablePitcher", {})
+                juegos.append({
+                    "home_team": game["teams"]["home"]["team"]["name"],
+                    "away_team": game["teams"]["away"]["team"]["name"],
+                    "home_pitcher_id": home_pitcher.get("id"),
+                    "away_pitcher_id": away_pitcher.get("id"),
+                    "home_team_id": game["teams"]["home"]["team"]["id"],
+                    "away_team_id": game["teams"]["away"]["team"]["id"]
+                })
+    except requests.RequestException as e:
+        logging.error(f"Error al obtener juegos de MLB: {e}")
+        return
+
     odds = get_odds()
     picks_enviados = {"h2h": 0, "spreads": 0, "totals": 0}
+    picks = {"h2h": [], "spreads": [], "totals": []}
 
+    season = datetime.now(MX_TZ).strftime("%Y")
     for juego in juegos:
         home = juego["home_team"]
         away = juego["away_team"]
@@ -474,11 +432,18 @@ def main():
         avg_away = get_team_avg(juego["away_team_id"])
         era_home = float(get_pitcher_stats(juego["home_pitcher_id"], juego["home_team_id"]).get("era", 4.5))
         era_away = float(get_pitcher_stats(juego["away_pitcher_id"], juego["away_team_id"]).get("era", 4.5))
+        bullpen_era_home = get_bullpen_era(juego["home_team_id"])
+        bullpen_era_away = get_bullpen_era(juego["away_team_id"])
+        head_to_head = get_head_to_head(juego["home_team_id"], juego["away_team_id"], season)
 
         ajustado_home = ajustar_por_avg(ajustar_por_era(form_home["anotadas"], era_away), avg_home)
         ajustado_away = ajustar_por_avg(ajustar_por_era(form_away["anotadas"], era_home), avg_away)
+        ajustado_home += (bullpen_era_away - bullpen_era_home) * 0.1
+        ajustado_away += (bullpen_era_home - bullpen_era_away) * 0.1
         estimado_total = round((ajustado_home + ajustado_away + form_home["recibidas"] + form_away["recibidas"]) / 2, 2)
-        diferencia_carreras = ajustado_home - ajustado_away + 0.5  # Bonus por jugar en casa
+        diferencia_carreras = ajustado_home - ajustado_away
+        diferencia_carreras += (form_home["home_win_rate"] - form_away["away_win_rate"]) * 0.5
+        diferencia_carreras += (head_to_head - 0.5) * 0.3
         probabilidad = max(10, min(90, 50 + (diferencia_carreras * 10)))
 
         logging.info(f"Juego: {partido}, Ajustado Home: {ajustado_home}, Ajustado Away: {ajustado_away}, Estimado Total: {estimado_total}, Dif Carreras: {diferencia_carreras}, Prob: {probabilidad:.1f}%")
@@ -501,10 +466,7 @@ def main():
                         if abs(diferencia) >= 2:
                             tipo = "candado" if abs(diferencia) >= 3 else "normal"
                             pick = "Over" if diferencia > 0 else "Under"
-                            mensaje = generar_mensaje_ia(partido, f"{pick} {linea}", cuota, linea, f"{estimado_total} carreras", "Totals")
-                            enviar_a_telegram(mensaje, tipo)
-                            logging.info(f"Pick Totals: {pick} {linea} @ {cuota} ({tipo}) | {partido}")
-                            picks_enviados["totals"] += 1
+                            picks["totals"].append((partido, f"{pick} {linea}", cuota, linea, f"{estimado_total} carreras", "Totals", tipo, probabilidad))
 
                     if market["key"] == "h2h" and picks_enviados["h2h"] < 2:
                         best_odds = max(
@@ -512,17 +474,11 @@ def main():
                              if bookmaker["markets"][0]["key"] == "h2h" for outcome in bookmaker["markets"][0]["outcomes"]),
                             key=lambda x: x["price"]
                         )
-                        if abs(diferencia_carreras) >= 1.7:
+                        if abs(diferencia_carreras) >= best_threshold:
                             pick = home if diferencia_carreras > 0 else away
                             cuota = next((o["price"] for o in market["outcomes"] if o["name"] == pick), 1.0)
-                            tipo = "candado" if abs(diferencia_carreras) >= 2.7 else "normal"
-                            mensaje = generar_mensaje_ia(partido, f"{pick}", cuota, "N/A", f"{diferencia_carreras:+.2f} carreras ventaja | Prob: {probabilidad:.1f}%", "Moneyline")
-                            enviar_a_telegram(mensaje, tipo)
-                            logging.info(f"Pick Moneyline: {pick} @ {cuota} ({tipo}) | {partido} | Prob: {probabilidad:.1f}%")
-                            picks_enviados["h2h"] += 1
-                            with open('picks_history.csv', 'a', newline='') as f:
-                                writer = csv.writer(f)
-                                writer.writerow([HOY, partido, "Moneyline", pick, cuota, tipo, diferencia_carreras, probabilidad])
+                            tipo = "candado" if abs(diferencia_carreras) >= best_candado else "normal"
+                            picks["h2h"].append((partido, f"{pick}", cuota, "N/A", f"{diferencia_carreras:+.2f} carreras ventaja | Prob: {probabilidad:.1f}%", "Moneyline", tipo, probabilidad))
 
                     if market["key"] == "spreads" and picks_enviados["spreads"] < 2:
                         best_odds = max(
@@ -534,4 +490,21 @@ def main():
                         cuota = best_odds["price"]
                         pick_team = home if diferencia_carreras > 0 else away
                         if abs(diferencia_carreras) >= 2:
-                            tipo = "
+                            tipo = "candado" if abs(diferencia_carreras) >= 3 else "normal"
+                            pick = f"{pick_team} {linea:+.1f}"
+                            picks["spreads"].append((partido, pick, cuota, linea, f"{diferencia_carreras:+.2f} carreras ventaja | Prob: {probabilidad:.1f}%", "Run Line", tipo, probabilidad))
+
+    # Enviar los picks con mayor probabilidad
+    for market in picks:
+        picks[market].sort(key=lambda x: x[7], reverse=True)  # Ordenar por probabilidad
+        for pick in picks[market][:2]:  # Máximo 2 picks por mercado
+            partido, pick_text, cuota, linea, estimado, mercado, tipo, prob = pick
+            mensaje = generar_mensaje_ia(partido, pick_text, cuota, linea, estimado, mercado)
+            enviar_a_telegram(mensaje, tipo)
+            logging.info(f"Pick {mercado}: {pick_text} @ {cuota} ({tipo}) | {partido} | Prob: {prob:.1f}%")
+            picks_enviados[market] += 1
+
+    conn.close()
+
+if __name__ == "__main__":
+    main()
