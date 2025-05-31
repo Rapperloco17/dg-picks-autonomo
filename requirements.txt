@@ -3,12 +3,9 @@ requests
 beautifulsoup4
 pandas
 schedule
-openai==0.28
 scikit-learn
 joblib
 python-dateutil
 colorama
 pytz
 openai>=1.0.0
-requests
-pytz
