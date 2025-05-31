@@ -112,13 +112,25 @@ def get_team_form(team_id):
     print(f"Forma equipo ID {team_id}: {form}")
     return form
 
-def sugerir_pick(equipo, form_eq, pitcher_eq, cuota_ml, cuota_spread):
+def sugerir_pick(equipo, form_eq, pitcher_eq, cuota_ml=None, cuota_spread=None):
     try:
         era = float(pitcher_eq.get("era", 99))
         anotadas = form_eq.get("anotadas", 0)
         record = form_eq.get("record", "-")
         print(f"Sugiriendo pick para {equipo}: ERA={era}, Anotadas={anotadas}, Cuota ML={cuota_ml}, Cuota Spread={cuota_spread}")
 
+        # Si no hay cuotas, usamos solo ERA y forma reciente
+        if cuota_ml is None and cuota_spread is None:
+            if anotadas >= 4.0 and era < 4.0:
+                return f"✅ {equipo} ML (sin cuota) | Motivo: buena ofensiva ({anotadas}/juego) y pitcher sólido (ERA {era}) – Forma {record}"
+            elif anotadas >= 4.5 and era < 3.7:
+                return f"✅ {equipo} -1.5 (sin cuota) | Motivo: ofensiva encendida y ERA dominante – Forma {record}"
+            elif anotadas >= 4.5:
+                return f"⚠️ {equipo} anota mucho ({anotadas}/juego), considerar Over"
+            else:
+                return "⚠️ Partido parejo o sin valor claro"
+
+        # Lógica original con cuotas
         if cuota_ml and cuota_ml < 1.70 and anotadas >= 3.5 and era < 4.0:
             return f"✅ {equipo} ML @ {cuota_ml} | Cuota baja ideal para parlay – ERA {era}, anotadas {anotadas}/juego, forma {record}"
         elif cuota_ml and 1.70 <= cuota_ml <= 2.50 and anotadas >= 3.5 and era < 4.5:
@@ -148,78 +160,119 @@ def main():
         form_away = get_team_form(game['away_team_id'])
 
         matched = False
-        for odd in odds:
-            if matched:
-                break
-            if isinstance(odd, dict):
-                print(f"Intentando emparejar: {away} vs {home} con {odd.get('away_team')} vs {odd.get('home_team')}")
-                home_match = home.lower().replace(" ", "") in odd["home_team"].lower().replace(" ", "")
-                away_match = away.lower().replace(" ", "") in odd["away_team"].lower().replace(" ", "")
-                if home_match and away_match:
-                    matched = True
-                    print(f"Partido emparejado: {away} vs {home}")
-                    try:
-                        cuotas = {}
-                        over_line = None
-                        over_price = None
-                        for m in odd["bookmakers"][0]["markets"]:
-                            if m["key"] == "h2h":
-                                for o in m["outcomes"]:
-                                    cuotas[o["name"]] = o["price"]
-                            if m["key"] == "spreads":
-                                for o in m["outcomes"]:
-                                    if o["point"] == -1.5:
-                                        cuotas[f"{o['name']} -1.5"] = o["price"]
-                            elif m["key"] == "totals":
-                                for o in m["outcomes"]:
-                                    if o["name"].lower() == "over":
-                                        over_line = o["point"]
-                                        over_price = o["price"]
-
-                        print(f"\n🧾 {away} vs {home}")
-                        print("   Cuotas:", cuotas)
+        if odds:  # Solo intentamos emparejar si hay cuotas
+            for odd in odds:
+                if matched:
+                    break
+                if isinstance(odd, dict):
+                    print(f"Intentando emparejar: {away} vs {home} con {odd.get('away_team')} vs {odd.get('home_team')}")
+                    home_match = home.lower().replace(" ", "") in odd["home_team"].lower().replace(" ", "")
+                    away_match = away.lower().replace(" ", "") in odd["away_team"].lower().replace(" ", "")
+                    if home_match and away_match:
+                        matched = True
+                        print(f"Partido emparejado: {away} vs {home}")
                         try:
-                            era_away_str = pitcher_away.get("era", "❌")
-                            era_home_str = pitcher_home.get("era", "❌")
-                            era_away = float(era_away_str)
-                            era_home = float(era_home_str)
-                        except:
-                            era_away = "❌ Sin datos"
-                            era_home = "❌ Sin datos"
+                            cuotas = {}
+                            over_line = None
+                            over_price = None
+                            for m in odd["bookmakers"][0]["markets"]:
+                                if m["key"] == "h2h":
+                                    for o in m["outcomes"]:
+                                        cuotas[o["name"]] = o["price"]
+                                if m["key"] == "spreads":
+                                    for o in m["outcomes"]:
+                                        if o["point"] == -1.5:
+                                            cuotas[f"{o['name']} -1.5"] = o["price"]
+                                elif m["key"] == "totals":
+                                    for o in m["outcomes"]:
+                                        if o["name"].lower() == "over":
+                                            over_line = o["point"]
+                                            over_price = o["price"]
 
-                        print("   ERA Pitchers:", era_away, "vs", era_home)
-                        print("   Forma (últimos 5):", form_away.get("record", "❌"), "vs", form_home.get("record", "❌"))
-                        print("   Anotadas / Recibidas:", f"{form_away.get('anotadas', '-')}/{form_away.get('recibidas', '-')}", "vs", f"{form_home.get('anotadas', '-')}/{form_home.get('recibidas', '-')}")
-                        total_combinado = (
-                            form_home.get("anotadas", 0) + form_home.get("recibidas", 0) +
-                            form_away.get("anotadas", 0) + form_away.get("recibidas", 0)
-                        ) / 2
-                        print(f"   📊 Total combinado estimado: {round(total_combinado, 2)} carreras")
-                        if over_line and over_price:
-                            promedio_total = form_home.get("anotadas", 0) + form_away.get("anotadas", 0)
-                            if promedio_total > over_line:
-                                print(f"   🔥 Pick sugerido: Over {over_line} @ {over_price} | Promedio combinado: {promedio_total} carreras")
+                            print(f"\n🧾 {away} vs {home}")
+                            print("   Cuotas:", cuotas)
+                            try:
+                                era_away_str = pitcher_away.get("era", "❌")
+                                era_home_str = pitcher_home.get("era", "❌")
+                                era_away = float(era_away_str)
+                                era_home = float(era_home_str)
+                            except:
+                                era_away = "❌ Sin datos"
+                                era_home = "❌ Sin datos"
 
-                        anotadas_home = form_home.get("anotadas", 0)
-                        anotadas_away = form_away.get("anotadas", 0)
-                        era_home = float(pitcher_home.get("era", 99))
-                        era_away = float(pitcher_away.get("era", 99))
+                            print("   ERA Pitchers:", era_away, "vs", era_home)
+                            print("   Forma (últimos 5):", form_away.get("record", "❌"), "vs", form_home.get("record", "❌"))
+                            print("   Anotadas / Recibidas:", f"{form_away.get('anotadas', '-')}/{form_away.get('recibidas', '-')}", "vs", f"{form_home.get('anotadas', '-')}/{form_home.get('recibidas', '-')}")
+                            total_combinado = (
+                                form_home.get("anotadas", 0) + form_home.get("recibidas", 0) +
+                                form_away.get("anotadas", 0) + form_away.get("recibidas", 0)
+                            ) / 2
+                            print(f"   📊 Total combinado estimado: {round(total_combinado, 2)} carreras")
+                            if over_line and over_price:
+                                promedio_total = form_home.get("anotadas", 0) + form_away.get("anotadas", 0)
+                                if promedio_total > over_line:
+                                    print(f"   🔥 Pick sugerido: Over {over_line} @ {over_price} | Promedio combinado: {promedio_total} carreras")
 
-                        ventaja_home = anotadas_home > anotadas_away and era_home < era_away
-                        ventaja_away = anotadas_away > anotadas_home and era_away < era_home
+                            anotadas_home = form_home.get("anotadas", 0)
+                            anotadas_away = form_away.get("anotadas", 0)
+                            era_home = float(pitcher_home.get("era", 99))
+                            era_away = float(pitcher_away.get("era", 99))
 
-                        if ventaja_home and not ventaja_away:
-                            pick_home = sugerir_pick(home, form_home, pitcher_home, cuotas.get(home), cuotas.get(f"{home} -1.5"))
-                            print("   🧠", pick_home)
-                        elif ventaja_away and not ventaja_home:
-                            pick_away = sugerir_pick(away, form_away, pitcher_away, cuotas.get(away), cuotas.get(f"{away} -1.5"))
-                            print("   🧠", pick_away)
-                        else:
-                            print("   ⚠️ Partido parejo o sin ventaja clara, descartado")
-                    except Exception as e:
-                        print("   ❌ Error en análisis:", e)
+                            ventaja_home = anotadas_home > anotadas_away and era_home < era_away
+                            ventaja_away = anotadas_away > anotadas_home and era_away < era_home
+
+                            if ventaja_home and not ventaja_away:
+                                pick_home = sugerir_pick(home, form_home, pitcher_home, cuotas.get(home), cuotas.get(f"{home} -1.5"))
+                                print("   🧠", pick_home)
+                            elif ventaja_away and not ventaja_home:
+                                pick_away = sugerir_pick(away, form_away, pitcher_away, cuotas.get(away), cuotas.get(f"{away} -1.5"))
+                                print("   🧠", pick_away)
+                            else:
+                                print("   ⚠️ Partido parejo o sin ventaja clara, descartado")
+                        except Exception as e:
+                            print("   ❌ Error en análisis:", e)
+                else:
+                    print(f"Elemento no válido en odds: {odd}")
+
+        # Si no hay cuotas, generamos picks basados solo en estadísticas
+        if not matched:
+            print(f"\n🧾 {away} vs {home} (sin cuotas disponibles)")
+            try:
+                era_away_str = pitcher_away.get("era", "❌")
+                era_home_str = pitcher_home.get("era", "❌")
+                era_away = float(era_away_str)
+                era_home = float(era_home_str)
+            except:
+                era_away = "❌ Sin datos"
+                era_home = "❌ Sin datos"
+
+            print("   ERA Pitchers:", era_away, "vs", era_home)
+            print("   Forma (últimos 5):", form_away.get("record", "❌"), "vs", form_home.get("record", "❌"))
+            print("   Anotadas / Recibidas:", f"{form_away.get('anotadas', '-')}/{form_away.get('recibidas', '-')}", "vs", f"{form_home.get('anotadas', '-')}/{form_home.get('recibidas', '-')}")
+            total_combinado = (
+                form_home.get("anotadas", 0) + form_home.get("recibidas", 0) +
+                form_away.get("anotadas", 0) + form_away.get("recibidas", 0)
+            ) / 2
+            print(f"   📊 Total combinado estimado: {round(total_combinado, 2)} carreras")
+
+            anotadas_home = form_home.get("anotadas", 0)
+            anotadas_away = form_away.get("anotadas", 0)
+            era_home = float(pitcher_home.get("era", 99))
+            era_away = float(pitcher_away.get("era", 99))
+
+            ventaja_home = anotadas_home > anotadas_away and era_home < era_away
+            ventaja_away = anotadas_away > anotadas_home and era_away < era_home
+
+            if ventaja_home and not ventaja_away:
+                pick_home = sugerir_pick(home, form_home, pitcher_home)
+                print("   🧠", pick_home)
+            elif ventaja_away and not ventaja_home:
+                pick_away = sugerir_pick(away, form_away, pitcher_away)
+                print("   🧠", pick_away)
             else:
-                print(f"Elemento no válido en odds: {odd}")
+                print("   ⚠️ Partido parejo o sin ventaja clara, descartado")
+
+    print("✅ Análisis completo")
 
 if __name__ == "__main__":
     main()
