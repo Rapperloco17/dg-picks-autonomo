@@ -11,13 +11,13 @@ MLB_RESULTS_URL = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&teamId={}&
 HEADERS = {"User-Agent": "DG Picks"}
 
 MX_TZ = pytz.timezone("America/Mexico_City")
-HOY = "2025-05-31"  # Forzado para asegurar que la fecha sea correcta
+HOY = "2025-05-31"
 
 def get_today_mlb_games():
     params = {"sportId": 1, "date": HOY, "hydrate": "team,linescore,probablePitcher"}
     response = requests.get(MLB_STATS_BASE_URL, headers=HEADERS, params=params)
     data = response.json()
-    print(f"Datos de MLB API: {data}")  # Depuración
+    print(f"Datos de MLB API: {data}")
     games = []
     for date_info in data.get("dates", []):
         for game in date_info.get("games", []):
@@ -31,7 +31,7 @@ def get_today_mlb_games():
                 "home_team_id": game["teams"]["home"]["team"]["id"],
                 "away_team_id": game["teams"]["away"]["team"]["id"]
             })
-    print(f"Juegos detectados para hoy: {len(games)}")  # Depuración
+    print(f"Juegos detectados para hoy: {len(games)}")
     return games
 
 def get_odds_for_mlb():
@@ -43,7 +43,8 @@ def get_odds_for_mlb():
     }
     response = requests.get(ODDS_API_URL, headers=HEADERS, params=params)
     odds_data = response.json()
-    print(f"Cuotas obtenidas: {len(odds_data)} eventos")  # Depuración
+    print(f"Cuotas obtenidas: {len(odds_data)} eventos")
+    print(f"Datos de Odds API: {odds_data}")  # Añadido para depurar
     return odds_data
 
 def get_pitcher_stats(pitcher_id):
@@ -55,7 +56,9 @@ def get_pitcher_stats(pitcher_id):
     if not data.get("people") or not data["people"][0].get("stats"):
         return {}
     splits = data["people"][0]["stats"][0].get("splits", [])
-    return splits[0].get("stat", {}) if splits else {}
+    stats = splits[0].get("stat", {}) if splits else {}
+    print(f"Stats pitcher ID {pitcher_id}: {stats}")  # Añadido para depurar
+    return stats
 
 def get_team_stats(team_id):
     url = MLB_TEAM_STATS_URL.format(team_id)
@@ -93,17 +96,20 @@ def get_team_form(team_id):
     promedio_anotadas = round(sum(x[0] for x in ultimos) / len(ultimos), 2)
     promedio_recibidas = round(sum(x[1] for x in ultimos) / len(ultimos), 2)
     victorias = sum(1 for x in ultimos if x[2])
-    return {
+    form = {
         "anotadas": promedio_anotadas,
         "recibidas": promedio_recibidas,
         "record": f"{victorias}G-{5 - victorias}P"
     }
+    print(f"Forma equipo ID {team_id}: {form}")  # Añadido para depurar
+    return form
 
 def sugerir_pick(equipo, form_eq, pitcher_eq, cuota_ml, cuota_spread):
     try:
         era = float(pitcher_eq.get("era", 99))
         anotadas = form_eq.get("anotadas", 0)
         record = form_eq.get("record", "-")
+        print(f"Sugiriendo pick para {equipo}: ERA={era}, Anotadas={anotadas}, Cuota ML={cuota_ml}, Cuota Spread={cuota_spread}")  # Añadido para depurar
 
         if cuota_ml and cuota_ml < 1.70 and anotadas >= 3.5 and era < 4.0:
             return f"✅ {equipo} ML @ {cuota_ml} | Cuota baja ideal para parlay – ERA {era}, anotadas {anotadas}/juego, forma {record}"
@@ -137,10 +143,14 @@ def main():
         for odd in odds:
             if matched:
                 break
-            print(f"Intentando emparejar: {away} vs {home} con {odd.get('away_team')} vs {odd.get('home_team')}")  # Depuración
-            if home.lower() in odd["home_team"].lower() and away.lower() in odd["away_team"].lower():
+            # Intentar emparejamiento por nombres (ya que The Odds API no parece proporcionar IDs de equipos)
+            print(f"Intentando emparejar: {away} vs {home} con {odd.get('away_team')} vs {odd.get('home_team')}")
+            # Ajustamos la lógica para ser más flexible con los nombres
+            home_match = home.lower().replace(" ", "") in odd["home_team"].lower().replace(" ", "")
+            away_match = away.lower().replace(" ", "") in odd["away_team"].lower().replace(" ", "")
+            if home_match and away_match:
                 matched = True
-                print(f"Partido emparejado: {away} vs {home}")  # Depuración
+                print(f"Partido emparejado: {away} vs {home}")
                 try:
                     cuotas = {}
                     over_line = None
