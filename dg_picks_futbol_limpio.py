@@ -48,7 +48,7 @@ def obtener_partidos_hoy():
         data = response.json()
         logging.info(f"Respuesta recibida: {len(data.get('response', []))} partidos encontrados")
         partidos_validos = []
-        for fixture in data.get("response", [])[:3]:  # Limitar a 3 partidos para pruebas
+        for fixture in data.get("response", []):  # Eliminar límite [:3], procesar todos
             if fixture["league"]["id"] in LIGAS_VALIDAS:
                 if fixture["fixture"]["status"]["short"] != "NS":
                     continue
@@ -113,7 +113,7 @@ def obtener_estadisticas_equipo(equipo_id, condicion):
         gf, gc, tiros, posesion, tarjetas_amarillas, corners = [], [], [], [], [], []
         ganados = empatados = perdidos = 0
 
-        for match in data.get("response", [])[:5]:  # Limitar a 5 partidos recientes
+        for match in data.get("response", [])[:5]:
             if condicion == "local" and match["teams"]["home"]["id"] != equipo_id:
                 continue
             if condicion == "visitante" and match["teams"]["away"]["id"] != equipo_id:
