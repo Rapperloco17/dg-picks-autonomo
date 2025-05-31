@@ -1,1 +1,2 @@
-python dg_picks_futbol_limpio (1).py
+web: python "dg_picks_futbol_limpio.py"
+
