@@ -42,10 +42,11 @@ def obtener_partidos_hoy():
     hoy = datetime.now(pytz.utc).strftime("%Y-%m-%d")
     url = f"{BASE_URL}/fixtures?date={hoy}"
     try:
-        logging.info(f"Obteniendo partidos para la fecha {hoy}")
+        logging.info(f"Iniciando solicitud para obtener partidos de la fecha {hoy}")
         response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         data = response.json()
+        logging.info(f"Respuesta recibida: {len(data.get('response', []))} partidos encontrados")
         partidos_validos = []
         for fixture in data.get("response", [])[:3]:  # Limitar a 3 partidos para pruebas
             if fixture["league"]["id"] in LIGAS_VALIDAS:
@@ -68,16 +69,18 @@ def obtener_partidos_hoy():
         return []
     except requests.RequestException as e:
         logging.error(f"Error al obtener partidos: {e}")
+        print(Fore.RED + f"❌ Error al obtener partidos: {e}" + Style.RESET_ALL)
         return []
 
 def obtener_cuotas_por_mercado(fixture_id, bet_id):
     try:
         url = f"{BASE_URL}/odds?fixture={fixture_id}&bet={bet_id}"
-        logging.info(f"Obteniendo cuotas para fixture {fixture_id}, bet {bet_id}")
+        logging.info(f"Iniciando solicitud de cuotas para fixture {fixture_id}, bet {bet_id}")
         response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         data = response.json()
         if data.get("response") and data["response"][0].get("bookmakers"):
+            logging.info(f"Cuotas obtenidas para fixture {fixture_id}, bet {bet_id}")
             return data["response"][0]["bookmakers"][0]["bets"][0]["values"]
         logging.warning(f"Sin datos de cuotas para fixture {fixture_id}, bet {bet_id}")
         return []
@@ -102,7 +105,7 @@ def convertir_horas(hora_utc_str):
 def obtener_estadisticas_equipo(equipo_id, condicion):
     url = f"{BASE_URL}/fixtures?team={equipo_id}&last=20"
     try:
-        logging.info(f"Obteniendo estadísticas para equipo {equipo_id}, condición {condicion}")
+        logging.info(f"Iniciando solicitud de estadísticas para equipo {equipo_id}, condición {condicion}")
         response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         data = response.json()
@@ -110,7 +113,7 @@ def obtener_estadisticas_equipo(equipo_id, condicion):
         gf, gc, tiros, posesion, tarjetas_amarillas, corners = [], [], [], [], [], []
         ganados = empatados = perdidos = 0
 
-        for match in data.get("response", [])[:5]:  # Limitar a 5 partidos recientes para pruebas
+        for match in data.get("response", [])[:5]:  # Limitar a 5 partidos recientes
             if condicion == "local" and match["teams"]["home"]["id"] != equipo_id:
                 continue
             if condicion == "visitante" and match["teams"]["away"]["id"] != equipo_id:
@@ -137,6 +140,7 @@ def obtener_estadisticas_equipo(equipo_id, condicion):
                         perdidos += 1
 
                 stats_url = f"{BASE_URL}/fixtures/statistics?fixture={fixture_id}&team={equipo_id}"
+                logging.info(f"Solicitando estadísticas para fixture {fixture_id}, equipo {equipo_id}")
                 stats_res = requests.get(stats_url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
                 stats_res.raise_for_status()
                 stats_data = stats_res.json()
@@ -245,7 +249,7 @@ def interpretar_score(score):
 def calcular_probabilidades_btts_over(equipo_id, condicion):
     try:
         url = f"{BASE_URL}/fixtures?team={equipo_id}&last=20"
-        logging.info(f"Calculando probabilidades BTTS/Over para equipo {equipo_id}")
+        logging.info(f"Iniciando solicitud para calcular probabilidades BTTS/Over para equipo {equipo_id}")
         response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         data = response.json()
@@ -254,7 +258,7 @@ def calcular_probabilidades_btts_over(equipo_id, condicion):
         over25_count = 0
         total_partidos = 0
 
-        for match in data.get("response", [])[:5]:  # Limitar a 5 partidos recientes
+        for match in data.get("response", [])[:5]:
             if condicion == "local" and match["teams"]["home"]["id"] != equipo_id:
                 continue
             if condicion == "visitante" and match["teams"]["away"]["id"] != equipo_id:
