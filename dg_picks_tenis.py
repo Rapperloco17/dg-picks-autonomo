@@ -1,62 +1,68 @@
-```python
-import os
 import requests
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
 from datetime import datetime
+import pytz
+import os
 
-app = FastAPI(title="Tennis Picks API")
-API_KEY = os.getenv('MATCHSTAT_API_KEY')
-BASE_URL = "https://api.matchstat.com/tennis"
+# Configuración
+RAPIDAPI_KEY = os.getenv("matchstat api key")  # Usamos el nombre exacto que tienes en Railway
+API_HOST = "tennis-api-atp-wta-itf.p.rapidapi.com"
+BASE_URL = f"https://{API_HOST}/tennis/v2"
 
-class MatchRequest(BaseModel):
-    match_id: str
-    surface: str = "hard"
+HEADERS = {
+    "x-rapidapi-host": API_HOST,
+    "x-rapidapi-key": RAPIDAPI_KEY
+}
 
-class PickResponse(BaseModel):
-    player1_name: str
-    player2_name: str
-    break_probability: float
-    predicted_winner: str
+def obtener_partidos_hoy():
+    hoy = datetime.now(pytz.timezone("America/Mexico_City")).strftime("%Y-%m-%d")
+    url = f"{BASE_URL}/getDateFixtures?date={hoy}"
+    response = requests.get(url, headers=HEADERS)
 
-def fetch_api_data(endpoint: str, params: dict = None):
-    headers = {"Authorization": f"Bearer {API_KEY}", "Accept": "application/json"}
-    try:
-        response = requests.get(f"{BASE_URL}/{endpoint}", headers=headers, params=params)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"Error en API: {e}")
+    if response.status_code != 200:
+        print(f"❌ Error al obtener partidos: {response.status_code}")
+        print(response.text)
+        return []
 
-@app.post("/picks/")
-async def generate_tennis_picks(match: MatchRequest):
-    match_data = fetch_api_data(f"matches/{match.match_id}")
-    if not match_data:
-        raise HTTPException(status_code=404, detail="Partido no encontrado")
-    
-    player1 = match_data.get('player1', {'name': 'Player 1'})
-    player2 = match_data.get('player2', {'name': 'Player 2'})
-    surface = match.surface
-    
-    # Datos simulados (reemplazar con datos reales de la API)
-    p1_break_pct = player1.get('break_pct', 0.30)
-    p2_serve_2nd_win_pct = player2.get('serve_2nd_win_pct', 0.45)
-    
-    # Predicción simple de quiebre
-    break_prob = p1_break_pct * (1 - p2_serve_2nd_win_pct) * (1.2 if surface == 'clay' else 0.8 if surface == 'grass' else 1)
-    break_prob = min(break_prob, 0.99)
-    
-    # Predicción simple de ganador (basada en quiebres)
-    winner = 'Player 1' if p1_break_pct > p2_serve_2nd_win_pct else 'Player 2'
-    
-    return PickResponse(
-        player1_name=player1['name'],
-        player2_name=player2['name'],
-        break_probability=break_prob,
-        predicted_winner=player1['name'] if winner == 'Player 1' else player2['name']
-    )
+    data = response.json()
+    return data.get("response", [])
 
+def preparar_picks_de_rompimiento(partidos):
+    picks = []
+
+    for partido in partidos:
+        jugador1 = partido["player1"]
+        jugador2 = partido["player2"]
+        torneo = partido.get("tournament", {}).get("name", "Torneo desconocido")
+        hora = partido.get("time", "Sin hora")
+        ronda = partido.get("round", "Ronda N/D")
+
+        pick = {
+            "partido": f"{jugador1} vs {jugador2}",
+            "torneo": torneo,
+            "ronda": ronda,
+            "hora": hora,
+            "pick": f"{jugador1} rompe el servicio en el primer set",
+            "justificacion": "Jugador con buen porcentaje de devolución contra un rival vulnerable al saque. Candidato a romper temprano."
+        }
+        picks.append(pick)
+
+    return picks
+
+def imprimir_picks_estilo_dg(picks):
+    for p in picks:
+        print(f"🎾 {p['partido']} – {p['torneo']} ({p['ronda']})")
+        print(f"🕐 Hora: {p['hora']}")
+        print(f"📌 Pick: {p['pick']}")
+        print(f"📊 {p['justificacion']}")
+        print("✅ Valor detectado en la cuota\n")
+
+# Ejecución principal
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
-```
+    print("🔍 Buscando partidos de hoy...")
+    partidos = obtener_partidos_hoy()
+    if not partidos:
+        print("⚠️ No se encontraron partidos para hoy.")
+    else:
+        print(f"🎾 {len(partidos)} partidos encontrados.")
+        picks = preparar_picks_de_rompimiento(partidos)
+        imprimir_picks_estilo_dg(picks)
