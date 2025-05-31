@@ -78,7 +78,10 @@ def obtener_partidos_rango_fechas():
                 logging.error(f"Error al obtener partidos para liga {league_id} del {date}: {e}")
                 print(Fore.RED + f"❌ Error al obtener partidos para liga {league_id} del {date}: {e}" + Style.RESET_ALL)
                 continue
-    logging.info(f"Se encontraron {len(partidos_validos)} partidos válidos en el rango de fechas.")
+    
+    # Ordenar partidos por hora_utc
+    partidos_validos.sort(key=lambda x: parser.isoparse(x["hora_utc"]))
+    logging.info(f"Se encontraron {len(partidos_validos)} partidos válidos en el rango de fechas, ordenados por horario.")
     return partidos_validos
 
 def obtener_cuotas_por_mercado(fixture_id, bet_id):
@@ -130,6 +133,14 @@ def obtener_h2h(home_id, away_id):
         total_red_cards = []
         has_red_cards = False
 
+        if not data.get("response"):
+            logging.warning(f"No se encontraron datos H2H para equipos {home_id} y {away_id}")
+            return {
+                "record": "N/A", "home_avg_goals": 0, "away_avg_goals": 0, "btts_percentage": 0,
+                "total_matches": 0, "home_dominance": False, "away_dominance": False,
+                "avg_yellow_cards": 0, "avg_red_cards": 0, "avg_total_cards": 0, "intense_rivalry": False
+            }
+
         for match in data.get("response", [])[:5]:
             goles_local = match["goals"]["home"]
             goles_visitante = match["goals"]["away"]
@@ -169,7 +180,7 @@ def obtener_h2h(home_id, away_id):
                 stats_res.raise_for_status()
                 stats_data = stats_res.json()
                 if stats_data.get("response"):
-                    # Estadísticas del equipo local y visitante en este partido
+                    total_team_cards = 0
                     for team_stats in stats_data["response"]:
                         yellow_cards = 0
                         red_cards = 0
@@ -178,17 +189,18 @@ def obtener_h2h(home_id, away_id):
                                 yellow_cards = int(stat["value"])
                             if stat["type"] == "Red Cards" and isinstance(stat["value"], (int, float)):
                                 red_cards = int(stat["value"])
-                        total_yellow_cards.append(yellow_cards)
-                        total_red_cards.append(red_cards)
-                        if red_cards > 0:
-                            has_red_cards = True
-            except (requests.Timeout, requests.RequestException, KeyError, TypeError):
+                        total_team_cards += yellow_cards + red_cards
+                    total_yellow_cards.append(yellow_cards)
+                    total_red_cards.append(red_cards)
+                    if red_cards > 0:
+                        has_red_cards = True
+            except (requests.Timeout, requests.RequestException, KeyError, TypeError) as e:
+                logging.error(f"Error al obtener estadísticas de tarjetas para fixture {fixture_id}: {e}")
                 continue
 
         avg_yellow_cards = round(statistics.mean(total_yellow_cards), 1) if total_yellow_cards else 0
         avg_red_cards = round(statistics.mean(total_red_cards), 1) if total_red_cards else 0
         avg_total_cards = avg_yellow_cards + avg_red_cards
-        # Determinar si hay una rivalidad importante
         intense_rivalry = (avg_total_cards >= 4.5) or has_red_cards
 
         h2h_stats = {
@@ -233,7 +245,7 @@ def obtener_estadisticas_equipo(equipo_id):
         ganados = empatados = perdidos = 0
         partidos_usados = 0
 
-        for match in data.get("response", [])[:15]:  # Usar los últimos 15 partidos
+        for match in data.get("response", [])[:20]:  # Usar los últimos 20 partidos
             try:
                 fixture_id = match["fixture"]["id"]
                 if match["teams"]["home"]["id"] == equipo_id:
@@ -308,13 +320,19 @@ def predecir_marcador(local, visitante, h2h_stats):
     g_visit = round(((visitante["gf"] + local["gc"]) / 2 * 0.7 + h2h_stats["away_avg_goals"] * 0.3) * 0.9)
     return g_local, g_visit
 
-def elegir_pick(p, goles_local, goles_away, cuotas_ml, cuota_over, cuota_btts, h2h_stats):
-    # Obtener cuotas para mercado de tarjetas (por ejemplo, Over 4.5 tarjetas)
-    cuotas_cards = obtener_cuotas_por_mercado(p["id_fixture"], 23)  # ID 23 suele ser para mercados de tarjetas
+def elegir_pick(p, goles_local, goles_away, cuotas_ml, cuota_over, cuota_btts, h2h_stats, stats_local, stats_away):
+    # Obtener cuotas para mercado de tarjetas (Over 4.5 tarjetas)
+    cuotas_cards = obtener_cuotas_por_mercado(p["id_fixture"], 23)  # ID 23 para mercados de tarjetas
     cuota_over_cards = next((x["odd"] for x in cuotas_cards if "Over 4.5" in x["value"]), "❌")
 
-    # Si hay una rivalidad intensa y cuotas disponibles para tarjetas, priorizar pick de tarjetas
-    if h2h_stats["intense_rivalry"] and cuota_over_cards != "❌":
+    # Evaluar rivalidad intensa basada en H2H o estadísticas individuales si H2H no está disponible
+    intense_rivalry = h2h_stats["intense_rivalry"]
+    if h2h_stats["total_matches"] == 0 and isinstance(stats_local["tarjetas_amarillas"], (int, float)) and isinstance(stats_away["tarjetas_amarillas"], (int, float)):
+        avg_cards = (stats_local["tarjetas_amarillas"] + stats_away["tarjetas_amarillas"]) / 2
+        intense_rivalry = avg_cards >= 2.5  # Umbral basado en tarjetas individuales
+
+    # Si hay rivalidad intensa y cuotas disponibles para tarjetas, priorizar pick de tarjetas
+    if intense_rivalry and cuota_over_cards != "❌":
         return f"🎯 Pick sugerido: Over 4.5 tarjetas @ {cuota_over_cards} (Rivalidad intensa detectada)"
 
     if not cuotas_ml or len(cuotas_ml) < 3:
@@ -347,22 +365,26 @@ def evaluar_advertencia(pick, stats_local, stats_away, h2h_stats):
         equipo = pick.split("Gana ")[1].split(" @")[0]
         if equipo in stats_local.get("nombre", ""):
             victorias = int(stats_local["forma"].split("G")[0])
-            if victorias < 5:  # Ajustado para 15 partidos
+            if victorias < 7:  # Ajustado para 20 partidos (35% de victorias)
                 advertencia = "⚠️ Ojo: el equipo local no viene en buena forma."
         elif equipo in stats_away.get("nombre", ""):
             victorias = int(stats_away["forma"].split("G")[0])
-            if victorias < 5:  # Ajustado para 15 partidos
+            if victorias < 7:  # Ajustado para 20 partidos (35% de victorias)
                 advertencia = "⚠️ Cuidado: el visitante no viene fuerte."
-    # Advertencia adicional si hay rivalidad intensa pero no se eligió un pick de tarjetas
-    if h2h_stats["intense_rivalry"] and "tarjetas" not in pick.lower():
+    # Advertencia si hay rivalidad intensa pero no se eligió un pick de tarjetas
+    intense_rivalry = h2h_stats["intense_rivalry"]
+    if h2h_stats["total_matches"] == 0 and isinstance(stats_local["tarjetas_amarillas"], (int, float)) and isinstance(stats_away["tarjetas_amarillas"], (int, float)):
+        avg_cards = (stats_local["tarjetas_amarillas"] + stats_away["tarjetas_amarillas"]) / 2
+        intense_rivalry = avg_cards >= 2.5
+    if intense_rivalry and "tarjetas" not in pick.lower():
         advertencia += " ⚠️ Nota: Rivalidad intensa detectada, considera apuesta de tarjetas."
     return advertencia
 
-def calcular_score(stats_local, stats_away, goles_local, goles_away, cuota, h2h_stats):
+def calcular_score(stats_local, stats_away, goles_local, goles_away, cuota, h2h_stats, pick):
     score = 0
     if abs(goles_local - goles_away) >= 2:
         score += 2
-    if stats_local["forma"].startswith(("8", "9", "10", "11", "12", "13", "14", "15")):  # Ajustado para 15 partidos
+    if stats_local["forma"].startswith(("10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20")):  # Ajustado para 20 partidos
         score += 1
     if isinstance(stats_local["tiros"], (int, float)) and stats_local["tiros"] >= 4:
         score += 1
@@ -378,7 +400,11 @@ def calcular_score(stats_local, stats_away, goles_local, goles_away, cuota, h2h_
     if (h2h_stats["home_dominance"] and goles_local > goles_away) or (h2h_stats["away_dominance"] and goles_away > goles_local):
         score += 1
     # Bonus por rivalidad intensa si el pick es de tarjetas
-    if h2h_stats["intense_rivalry"] and "tarjetas" in pick.lower():
+    intense_rivalry = h2h_stats["intense_rivalry"]
+    if h2h_stats["total_matches"] == 0 and isinstance(stats_local["tarjetas_amarillas"], (int, float)) and isinstance(stats_away["tarjetas_amarillas"], (int, float)):
+        avg_cards = (stats_local["tarjetas_amarillas"] + stats_away["tarjetas_amarillas"]) / 2
+        intense_rivalry = avg_cards >= 2.5
+    if intense_rivalry and "tarjetas" in pick.lower():
         score += 1
     return score
 
@@ -394,42 +420,70 @@ def interpretar_score(score):
 def calcular_probabilidades_btts_over(equipo_id):
     try:
         url = f"{BASE_URL}/fixtures?team={equipo_id}&last=50&season={SEASON}"
-        logging.info(f"Iniciando solicitud para calcular probabilidades BTTS/Over para equipo {equipo_id}")
+        logging.info(f"Iniciando solicitud para calcular probabilidades BTTS/Over/Under para equipo {equipo_id}")
         response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         data = response.json()
 
         btts_count = 0
+        over15_count = 0
+        under15_count = 0
         over25_count = 0
+        under25_count = 0
         total_partidos = 0
 
-        for match in data.get("response", [])[:15]:  # Usar los últimos 15 partidos
+        for match in data.get("response", [])[:20]:  # Usar los últimos 20 partidos
             goles_local = match["goals"]["home"]
             goles_visitante = match["goals"]["away"]
 
             if not isinstance(goles_local, (int, float)) or not isinstance(goles_visitante, (int, float)):
                 continue
 
+            total_goles = goles_local + goles_visitante
             total_partidos += 1
-            if goles_local + goles_visitante >= 3:
-                over25_count += 1
+
+            # Calcular BTTS
             if goles_local > 0 and goles_visitante > 0:
                 btts_count += 1
 
+            # Calcular Over/Under 1.5
+            if total_goles > 1.5:
+                over15_count += 1
+            if total_goles < 1.5:
+                under15_count += 1
+
+            # Calcular Over/Under 2.5
+            if total_goles > 2.5:
+                over25_count += 1
+            if total_goles < 2.5:
+                under25_count += 1
+
         if total_partidos == 0:
-            return {"btts": 0, "over": 0}
+            return {"btts": 0, "over15": 0, "under15": 0, "over25": 0, "under25": 0}
+
         probs = {
             "btts": round((btts_count / total_partidos) * 100),
-            "over": round((over25_count / total_partidos) * 100)
+            "over15": round((over15_count / total_partidos) * 100),
+            "under15": round((under15_count / total_partidos) * 100),
+            "over25": round((over25_count / total_partidos) * 100),
+            "under25": round((under25_count / total_partidos) * 100)
         }
         logging.info(f"Probabilidades calculadas: {probs}")
         return probs
     except requests.Timeout:
         logging.error("Tiempo de espera agotado al calcular probabilidades.")
-        return {"btts": 0, "over": 0}
+        return {"btts": 0, "over15": 0, "under15": 0, "over25": 0, "under25": 0}
     except requests.RequestException as e:
         logging.error(f"Error al calcular probabilidades: {e}")
-        return {"btts": 0, "over": 0}
+        return {"btts": 0, "over15": 0, "under15": 0, "over25": 0, "under25": 0}
+
+def calcular_probabilidades_combinadas(prob_local, prob_away):
+    combined = {
+        "btts": round((prob_local["btts"] + prob_away["btts"]) / 2),
+        "over15": round((prob_local["over15"] + prob_away["over15"]) / 2),
+        "over25": round((prob_local["over25"] + prob_away["over25"]) / 2)
+    }
+    return combined
 
 if __name__ == "__main__":
     try:
@@ -440,7 +494,7 @@ if __name__ == "__main__":
 
         with open(output_file, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
-            writer.writerow(['Liga', 'Partido', 'Hora MX', 'Hora ES', 'Cuotas', 'Over 2.5', 'BTTS', 'BTTS Predicho', 'H2H', 'Stats Local', 'Stats Visitante', 'Predicción', 'Pick', 'Advertencia', 'Score'])
+            writer.writerow(['Liga', 'Partido', 'Hora MX', 'Hora ES', 'Cuotas', 'Over 2.5', 'BTTS', 'H2H', 'Predicción', 'Pick', 'Advertencia', 'Score', 'Probabilidades Partido'])
 
             partidos = obtener_partidos_rango_fechas()
             if not partidos:
@@ -467,50 +521,32 @@ if __name__ == "__main__":
                     stats_away["nombre"] = p["visitante"]
 
                     goles_local_pred, goles_away_pred = predecir_marcador(stats_local, stats_away, h2h_stats)
-                    btts_pred = "Sí" if goles_local_pred >= 1 and goles_away_pred >= 1 else "No"
 
-                    pick = elegir_pick(p, goles_local_pred, goles_away_pred, cuotas_ml, cuota_over, cuota_btts, h2h_stats)
+                    pick = elegir_pick(p, goles_local_pred, goles_away_pred, cuotas_ml, cuota_over, cuota_btts, h2h_stats, stats_local, stats_away)
                     cuota_principal = pick.split("@")[-1].strip() if "@" in pick else "0"
-                    score = calcular_score(stats_local, stats_away, goles_local_pred, goles_away_pred, cuota_principal, h2h_stats)
+                    score = calcular_score(stats_local, stats_away, goles_local_pred, goles_away_pred, cuota_principal, h2h_stats, pick)
 
-                    # Imprimir solo los partidos en el rango de fechas
-                    print(f'{p["liga"]}: {p["local"]} vs {p["visitante"]}')
-                    print(f'🕐 Hora 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}')
-                    print(f'Cuotas: 🏠 {cuotas_ml[0]["odd"] if cuotas_ml and len(cuotas_ml) > 0 else "❌"} | '
-                          f'🤝 {cuotas_ml[1]["odd"] if cuotas_ml and len(cuotas_ml) > 1 else "❌"} | '
-                          f'🛫 {cuotas_ml[2]["odd"] if cuotas_ml and len(cuotas_ml) > 2 else "❌"}')
-                    print(f'Over 2.5: {cuota_over} | BTTS: {cuota_btts} | BTTS Predicho: {btts_pred}')
-                    print(f'📊 H2H ({h2h_stats["total_matches"]} partidos): {h2h_stats["record"]} | '
-                          f'Goles Promedio: {p["local"]} {h2h_stats["home_avg_goals"]} - {h2h_stats["away_avg_goals"]} {p["visitante"]} | '
-                          f'BTTS: {h2h_stats["btts_percentage"]}% | '
-                          f'Tarjetas Promedio: Amarillas {h2h_stats["avg_yellow_cards"]} | Rojas {h2h_stats["avg_red_cards"]} | '
-                          f'Total {h2h_stats["avg_total_cards"]}')
-                    if h2h_stats["intense_rivalry"]:
-                        print(Fore.RED + "🔥 Rivalidad intensa detectada: Alta probabilidad de tarjetas." + Style.RESET_ALL)
-                    print(f'📊 {p["local"]} (Local): GF {stats_local["gf"]} | GC {stats_local["gc"]} | '
-                          f'Tiros {stats_local["tiros"]} | Posesión {stats_local["posesion"]}% | '
-                          f'Tarjetas Amarillas {stats_local["tarjetas_amarillas"]} | Corners {stats_local["corners"]} | '
-                          f'Forma: {stats_local["forma"]} ({stats_local["partidos_usados"]} partidos)')
-                    print(f'📊 {p["visitante"]} (Visitante): GF {stats_away["gf"]} | GC {stats_away["gc"]} | '
-                          f'Tiros {stats_away["tiros"]} | Posesión {stats_away["posesion"]}% | '
-                          f'Tarjetas Amarillas {stats_away["tarjetas_amarillas"]} | Corners {stats_away["corners"]} | '
-                          f'Forma: {stats_away["forma"]} ({stats_away["partidos_usados"]} partidos)')
-                    print(f'🔮 Predicción: {p["local"]} {goles_local_pred} - {goles_away_pred} {p["visitante"]}')
-                    
-                    pick_display = f"{pick} ⭐" if score >= 4 and "❌" not in pick else pick
-                    print(Fore.GREEN + pick_display + Style.RESET_ALL if score >= 4 and "❌" not in pick_display else pick_display)
-                    
-                    advertencia = evaluar_advertencia(pick, stats_local, stats_away, h2h_stats)
-                    if advertencia:
-                        print(Fore.RED + advertencia + Style.RESET_ALL)
-                    print(interpretar_score(score))
-
+                    # Calcular probabilidades combinadas
                     prob_local = calcular_probabilidades_btts_over(p["home_id"])
                     prob_away = calcular_probabilidades_btts_over(p["away_id"])
-                    print(f'📊 Probabilidades:')
-                    print(f'- {p["local"]}: BTTS {prob_local["btts"]}% | Over 2.5 {prob_local["over"]}%')
-                    print(f'- {p["visitante"]}: BTTS {prob_away["btts"]}% | Over 2.5 {prob_away["over"]}%')
-                    print("-" * 60)
+                    prob_combinada = calcular_probabilidades_combinadas(prob_local, prob_away)
+
+                    # Salida simplificada
+                    print(f'{p["liga"]}: {p["local"]} vs {p["visitante"]} - 🕐 Hora 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}')
+                    if h2h_stats["total_matches"] > 0:
+                        print(f'📊 H2H ({h2h_stats["total_matches"]} partidos): {h2h_stats["record"]} | '
+                              f'Goles Promedio: {p["local"]} {h2h_stats["home_avg_goals"]} - {h2h_stats["away_avg_goals"]} {p["visitante"]} | '
+                              f'Tarjetas Promedio: Total {h2h_stats["avg_total_cards"]}')
+                        if h2h_stats["intense_rivalry"]:
+                            print(Fore.RED + "🔥 Rivalidad intensa detectada: Alta probabilidad de tarjetas." + Style.RESET_ALL)
+                    else:
+                        print(f'📊 H2H: No hay datos disponibles')
+                    print(f'🔮 Predicción: {p["local"]} {goles_local_pred} - {goles_away_pred} {p["visitante"]}')
+                    pick_display = f"{pick} ⭐" if score >= 4 and "❌" not in pick else pick
+                    print(Fore.GREEN + pick_display + Style.RESET_ALL if score >= 4 and "❌" not in pick_display else pick_display)
+                    print(interpretar_score(score))
+                    print(f'📊 Prob Partido: BTTS {prob_combinada["btts"]}% | Over 1.5 {prob_combinada["over15"]}% | Over 2.5 {prob_combinada["over25"]}%')
+                    print("-" * 50)
 
                     picks_valiosos.append({
                         "partido": f"{p['local']} vs {p['visitante']}",
@@ -527,27 +563,25 @@ if __name__ == "__main__":
                         f"🏠 {cuotas_ml[0]['odd'] if cuotas_ml and len(cuotas_ml) > 0 else '❌'} | 🤝 {cuotas_ml[1]['odd'] if cuotas_ml and len(cuotas_ml) > 1 else '❌'} | 🛫 {cuotas_ml[2]['odd'] if cuotas_ml and len(cuotas_ml) > 2 else '❌'}",
                         cuota_over,
                         cuota_btts,
-                        btts_pred,
-                        f"{h2h_stats['record']} | Goles Promedio: {p['local']} {h2h_stats['home_avg_goals']} - {h2h_stats['away_avg_goals']} {p['visitante']} | BTTS: {h2h_stats['btts_percentage']}% | Tarjetas Promedio: {h2h_stats['avg_total_cards']}",
-                        f"GF {stats_local['gf']} | GC {stats_local['gc']} | Tiros {stats_local['tiros']} | Posesión {stats_local['posesion']}% | Tarjetas Amarillas {stats_local['tarjetas_amarillas']} | Corners {stats_local['corners']} | Forma: {stats_local['forma']}",
-                        f"GF {stats_away['gf']} | GC {stats_away['gc']} | Tiros {stats_away['tiros']} | Posesión {stats_away['posesion']}% | Tarjetas Amarillas {stats_away['tarjetas_amarillas']} | Corners {stats_away['corners']} | Forma: {stats_away['forma']}",
+                        f"{h2h_stats['record']} | Goles Promedio: {p['local']} {h2h_stats['home_avg_goals']} - {h2h_stats['away_avg_goals']} {p['visitante']} | Tarjetas Promedio: {h2h_stats['avg_total_cards']}" if h2h_stats["total_matches"] > 0 else "No hay datos H2H",
                         f"{p['local']} {goles_local_pred} - {goles_away_pred} {p['visitante']}",
                         pick_display,
-                        advertencia,
-                        interpretar_score(score)
+                        evaluar_advertencia(pick, stats_local, stats_away, h2h_stats),
+                        interpretar_score(score),
+                        f"BTTS {prob_combinada['btts']}% | Over 1.5 {prob_combinada['over15']}% | Over 2.5 {prob_combinada['over25']}%"
                     ])
 
                     time.sleep(1)
                 except Exception as e:
                     logging.error(f"Error al procesar partido {p['local']} vs {p['visitante']}: {e}")
                     print(Fore.RED + f"❌ Error al procesar {p['local']} vs {p['visitante']}: {e}" + Style.RESET_ALL)
-                    print("-" * 60)
+                    print("-" * 50)
                     time.sleep(1)
                     continue
 
         if picks_valiosos:
             logging.info("Resumen de partidos en el rango de fechas:")
-            print("\n📊 Resumen de partidos en el rango de fechas:")
+            print("\n📊 Resumen de partidos ordenados por horario:")
             for pick in picks_valiosos:
                 print(f"{pick['liga']}: {pick['partido']} - {pick['pick']} ({pick['score']})")
         else:
