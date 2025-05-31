@@ -5,17 +5,31 @@ import pytz
 import statistics
 from dateutil import parser
 import logging
+import csv
+import sys
+import time
+from colorama import init, Fore, Style
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Inicializar colorama
+init()
 
-# Validate API key
+# Configurar logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+
+# Validar API key
 API_KEY = os.getenv("API_FOOTBALL_KEY")
 if not API_KEY:
-    raise ValueError("API_FOOTBALL_KEY environment variable is not set")
+    logging.error("API_FOOTBALL_KEY no está configurada.")
+    print(Fore.RED + "❌ Error: API_FOOTBALL_KEY no está configurada." + Style.RESET_ALL)
+    sys.exit(1)
 
 BASE_URL = "https://v3.football.api-sports.io"
 HEADERS = {"x-apisports-key": API_KEY}
+REQUEST_TIMEOUT = 10  # Timeout de 10 segundos para todas las solicitudes
 
 LIGAS_VALIDAS = [
     1, 2, 3, 4, 9, 11, 13, 16, 39, 40, 61, 62, 71, 72, 73, 45, 78, 79, 88, 94,
@@ -28,11 +42,12 @@ def obtener_partidos_hoy():
     hoy = datetime.now(pytz.utc).strftime("%Y-%m-%d")
     url = f"{BASE_URL}/fixtures?date={hoy}"
     try:
-        response = requests.get(url, headers=HEADERS)
+        logging.info(f"Obteniendo partidos para la fecha {hoy}")
+        response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         data = response.json()
         partidos_validos = []
-        for fixture in data.get("response", []):
+        for fixture in data.get("response", [])[:3]:  # Limitar a 3 partidos para pruebas
             if fixture["league"]["id"] in LIGAS_VALIDAS:
                 if fixture["fixture"]["status"]["short"] != "NS":
                     continue
@@ -45,23 +60,32 @@ def obtener_partidos_hoy():
                     "home_id": fixture["teams"]["home"]["id"],
                     "away_id": fixture["teams"]["away"]["id"]
                 })
+        logging.info(f"Se encontraron {len(partidos_validos)} partidos válidos.")
         return partidos_validos
+    except requests.Timeout:
+        logging.error("Tiempo de espera agotado al obtener partidos.")
+        print(Fore.RED + "❌ Error: Tiempo de espera agotado al obtener partidos." + Style.RESET_ALL)
+        return []
     except requests.RequestException as e:
-        logging.error(f"Error fetching today's fixtures: {e}")
+        logging.error(f"Error al obtener partidos: {e}")
         return []
 
 def obtener_cuotas_por_mercado(fixture_id, bet_id):
     try:
         url = f"{BASE_URL}/odds?fixture={fixture_id}&bet={bet_id}"
-        response = requests.get(url, headers=HEADERS)
+        logging.info(f"Obteniendo cuotas para fixture {fixture_id}, bet {bet_id}")
+        response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         data = response.json()
         if data.get("response") and data["response"][0].get("bookmakers"):
             return data["response"][0]["bookmakers"][0]["bets"][0]["values"]
-        logging.warning(f"No odds data for fixture {fixture_id}, bet {bet_id}")
+        logging.warning(f"Sin datos de cuotas para fixture {fixture_id}, bet {bet_id}")
+        return []
+    except requests.Timeout:
+        logging.error("Tiempo de espera agotado al obtener cuotas.")
         return []
     except (requests.RequestException, KeyError, IndexError) as e:
-        logging.error(f"Error fetching odds for fixture {fixture_id}, bet {bet_id}: {e}")
+        logging.error(f"Error al obtener cuotas: {e}")
         return []
 
 def convertir_horas(hora_utc_str):
@@ -72,20 +96,21 @@ def convertir_horas(hora_utc_str):
             hora_utc.astimezone(pytz.timezone("Europe/Madrid")).strftime("%H:%M")
         )
     except ValueError as e:
-        logging.error(f"Error parsing date {hora_utc_str}: {e}")
+        logging.error(f"Error al parsear fecha {hora_utc_str}: {e}")
         return "N/A", "N/A"
 
 def obtener_estadisticas_equipo(equipo_id, condicion):
     url = f"{BASE_URL}/fixtures?team={equipo_id}&last=20"
     try:
-        response = requests.get(url, headers=HEADERS)
+        logging.info(f"Obteniendo estadísticas para equipo {equipo_id}, condición {condicion}")
+        response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         data = response.json()
 
-        gf, gc, tiros, posesion = [], [], [], []
+        gf, gc, tiros, posesion, tarjetas_amarillas, corners = [], [], [], [], [], []
         ganados = empatados = perdidos = 0
 
-        for match in data.get("response", []):
+        for match in data.get("response", [])[:5]:  # Limitar a 5 partidos recientes para pruebas
             if condicion == "local" and match["teams"]["home"]["id"] != equipo_id:
                 continue
             if condicion == "visitante" and match["teams"]["away"]["id"] != equipo_id:
@@ -112,7 +137,7 @@ def obtener_estadisticas_equipo(equipo_id, condicion):
                         perdidos += 1
 
                 stats_url = f"{BASE_URL}/fixtures/statistics?fixture={fixture_id}&team={equipo_id}"
-                stats_res = requests.get(stats_url, headers=HEADERS)
+                stats_res = requests.get(stats_url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
                 stats_res.raise_for_status()
                 stats_data = stats_res.json()
                 if not stats_data.get("response"):
@@ -127,19 +152,30 @@ def obtener_estadisticas_equipo(equipo_id, condicion):
                             posesion.append(int(stat["value"].replace("%", "")))
                         except (ValueError, TypeError):
                             continue
-            except (KeyError, TypeError, requests.RequestException):
+                    if stat["type"] == "Yellow Cards" and isinstance(stat["value"], (int, float)):
+                        tarjetas_amarillas.append(int(stat["value"]))
+                    if stat["type"] == "Corners" and isinstance(stat["value"], (int, float)):
+                        corners.append(int(stat["value"]))
+            except (requests.Timeout, requests.RequestException, KeyError, TypeError):
                 continue
 
-        return {
+        stats = {
             "gf": round(statistics.mean(gf), 2) if gf else 0,
             "gc": round(statistics.mean(gc), 2) if gc else 0,
             "tiros": round(statistics.mean(tiros), 1) if tiros else "N/A",
             "posesion": round(statistics.mean(posesion), 1) if posesion else "N/A",
+            "tarjetas_amarillas": round(statistics.mean(tarjetas_amarillas), 1) if tarjetas_amarillas else "N/A",
+            "corners": round(statistics.mean(corners), 1) if corners else "N/A",
             "forma": f"{ganados}G - {empatados}E - {perdidos}P"
         }
+        logging.info(f"Estadísticas obtenidas: {stats}")
+        return stats
+    except requests.Timeout:
+        logging.error("Tiempo de espera agotado al obtener estadísticas.")
+        return {"gf": 0, "gc": 0, "tiros": "N/A", "posesion": "N/A", "tarjetas_amarillas": "N/A", "corners": "N/A", "forma": "0G - 0E - 0P"}
     except requests.RequestException as e:
-        logging.error(f"Error fetching stats for team {equipo_id}: {e}")
-        return {"gf": 0, "gc": 0, "tiros": "N/A", "posesion": "N/A", "forma": "0G - 0E - 0P"}
+        logging.error(f"Error al obtener estadísticas: {e}")
+        return {"gf": 0, "gc": 0, "tiros": "N/A", "posesion": "N/A", "tarjetas_amarillas": "N/A", "corners": "N/A", "forma": "0G - 0E - 0P"}
 
 def predecir_marcador(local, visitante):
     g_local = round((local["gf"] + visitante["gc"]) / 2 * 1.1)
@@ -172,11 +208,11 @@ def evaluar_advertencia(pick, stats_local, stats_away):
         if equipo in stats_local.get("nombre", ""):
             victorias = int(stats_local["forma"].split("G")[0])
             if victorias < 2:
-                advertencia = "⚠️ Ojo: el equipo local no viene en buena forma en casa."
+                advertencia = "⚠️ Ojo: el equipo local no viene en buena forma."
         elif equipo in stats_away.get("nombre", ""):
             victorias = int(stats_away["forma"].split("G")[0])
             if victorias < 2:
-                advertencia = "⚠️ Cuidado: el visitante no viene fuerte fuera de casa."
+                advertencia = "⚠️ Cuidado: el visitante no viene fuerte."
     return advertencia
 
 def calcular_score(stats_local, stats_away, goles_local, goles_away, cuota):
@@ -209,7 +245,8 @@ def interpretar_score(score):
 def calcular_probabilidades_btts_over(equipo_id, condicion):
     try:
         url = f"{BASE_URL}/fixtures?team={equipo_id}&last=20"
-        response = requests.get(url, headers=HEADERS)
+        logging.info(f"Calculando probabilidades BTTS/Over para equipo {equipo_id}")
+        response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         data = response.json()
 
@@ -217,7 +254,7 @@ def calcular_probabilidades_btts_over(equipo_id, condicion):
         over25_count = 0
         total_partidos = 0
 
-        for match in data.get("response", []):
+        for match in data.get("response", [])[:5]:  # Limitar a 5 partidos recientes
             if condicion == "local" and match["teams"]["home"]["id"] != equipo_id:
                 continue
             if condicion == "visitante" and match["teams"]["away"]["id"] != equipo_id:
@@ -237,62 +274,131 @@ def calcular_probabilidades_btts_over(equipo_id, condicion):
 
         if total_partidos == 0:
             return {"btts": 0, "over": 0}
-        return {
+        probs = {
             "btts": round((btts_count / total_partidos) * 100),
             "over": round((over25_count / total_partidos) * 100)
         }
+        logging.info(f"Probabilidades calculadas: {probs}")
+        return probs
+    except requests.Timeout:
+        logging.error("Tiempo de espera agotado al calcular probabilidades.")
+        return {"btts": 0, "over": 0}
     except requests.RequestException as e:
-        logging.error(f"Error calculating probabilities for team {equipo_id}: {e}")
+        logging.error(f"Error al calcular probabilidades: {e}")
         return {"btts": 0, "over": 0}
 
 if __name__ == "__main__":
     try:
-        partidos = obtener_partidos_hoy()
-        if not partidos:
-            logging.warning("No valid matches found for today.")
-        for p in partidos:
-            cuotas_ml = obtener_cuotas_por_mercado(p["id_fixture"], 1)
-            cuotas_ou = obtener_cuotas_por_mercado(p["id_fixture"], 5)
-            cuotas_btts = obtener_cuotas_por_mercado(p["id_fixture"], 10)
+        logging.info("Iniciando script")
+        output_file = f"picks_{datetime.now().strftime('%Y%m%d')}.csv"
+        logging.info(f"Creando archivo de salida: {output_file}")
+        picks_valiosos = []
 
-            cuota_over = next((x["odd"] for x in cuotas_ou if "Over 2.5" in x["value"]), "❌")
-            cuota_btts = next((x["odd"] for x in cuotas_btts if x["value"].lower() == "yes"), "❌")
+        with open(output_file, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Liga', 'Partido', 'Hora MX', 'Hora ES', 'Cuotas', 'Over 2.5', 'BTTS', 'BTTS Predicho', 'Stats Local', 'Stats Visitante', 'Predicción', 'Pick', 'Advertencia', 'Score'])
 
-            hora_mex, hora_esp = convertir_horas(p["hora_utc"])
+            partidos = obtener_partidos_hoy()
+            if not partidos:
+                logging.warning("No se encontraron partidos válidos.")
+                print("⚠️ No hay partidos válidos.")
+                sys.exit(0)
 
-            stats_local = obtener_estadisticas_equipo(p["home_id"], "local")
-            stats_away = obtener_estadisticas_equipo(p["away_id"], "visitante")
-            stats_local["nombre"] = p["local"]
-            stats_away["nombre"] = p["visitante"]
+            for p in partidos:
+                logging.info(f"Procesando partido: {p['local']} vs {p['visitante']}")
+                cuotas_ml = obtener_cuotas_por_mercado(p["id_fixture"], 1)
+                cuotas_ou = obtener_cuotas_por_mercado(p["id_fixture"], 5)
+                cuotas_btts = obtener_cuotas_por_mercado(p["id_fixture"], 10)
 
-            goles_local, goles_away = predecir_marcador(stats_local, stats_away)
+                cuota_over = next((x["odd"] for x in cuotas_ou if "Over 2.5" in x["value"]), "❌")
+                cuota_btts = next((x["odd"] for x in cuotas_btts if x["value"].lower() == "yes"), "❌")
 
-            print(f'{p["liga"]}: {p["local"]} vs {p["visitante"]}')
-            print(f'🕐 Hora 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}')
-            print(f'Cuotas: 🏠 {cuotas_ml[0]["odd"] if cuotas_ml and len(cuotas_ml) > 0 else "❌"} | '
-                  f'🤝 {cuotas_ml[1]["odd"] if cuotas_ml and len(cuotas_ml) > 1 else "❌"} | '
-                  f'🛫 {cuotas_ml[2]["odd"] if cuotas_ml and len(cuotas_ml) > 2 else "❌"}')
-            print(f'Over 2.5: {cuota_over} | BTTS: {cuota_btts}')
-            print(f'📊 {p["local"]} (Local): GF {stats_local["gf"]} | GC {stats_local["gc"]} | '
-                  f'Tiros {stats_local["tiros"]} | Posesión {stats_local["posesion"]}% | Forma: {stats_local["forma"]}')
-            print(f'📊 {p["visitante"]} (Visitante): GF {stats_away["gf"]} | GC {stats_away["gc"]} | '
-                  f'Tiros {stats_away["tiros"]} | Posesión {stats_away["posesion"]}% | Forma: {stats_away["forma"]}')
-            print(f'🔮 Predicción marcador: {p["local"]} {goles_local} - {goles_away} {p["visitante"]}')
-            pick = elegir_pick(p, goles_local, goles_away, cuotas_ml, cuota_over, cuota_btts)
-            print(pick)
-            advertencia = evaluar_advertencia(pick, stats_local, stats_away)
-            if advertencia:
-                print(advertencia)
-            cuota_principal = pick.split("@")[-1].strip() if "@" in pick else "0"
-            score = calcular_score(stats_local, stats_away, goles_local, goles_away, cuota_principal)
-            print(interpretar_score(score))
+                hora_mex, hora_esp = convertir_horas(p["hora_utc"])
 
-            prob_local = calcular_probabilidades_btts_over(p["home_id"], "local")
-            prob_away = calcular_probabilidades_btts_over(p["away_id"], "visitante")
-            print(f'📊 Probabilidades (últimos 20 partidos):')
-            print(f'- {p["local"]}: BTTS {prob_local["btts"]}% | Over 2.5 {prob_local["over"]}%')
-            print(f'- {p["visitante"]}: BTTS {prob_away["btts"]}% | Over 2.5 {prob_away["over"]}%')
+                stats_local = obtener_estadisticas_equipo(p["home_id"], "local")
+                stats_away = obtener_estadisticas_equipo(p["away_id"], "visitante")
+                stats_local["nombre"] = p["local"]
+                stats_away["nombre"] = p["visitante"]
 
-            print("-" * 60)
+                goles_local, goles_away = predecir_marcador(stats_local, stats_away)
+                btts_pred = "Sí" if goles_local >= 1 and goles_away >= 1 else "No"
+
+                pick = elegir_pick(p, goles_local, goles_away, cuotas_ml, cuota_over, cuota_btts)
+                cuota_principal = pick.split("@")[-1].strip() if "@" in pick else "0"
+                score = calcular_score(stats_local, stats_away, goles_local, goles_away, cuota_principal)
+
+                if score < 4:
+                    logging.info(f"Partido descartado (score: {score})")
+                    continue
+
+                pick_display = f"{pick} ⭐" if score >= 4 and "❌" not in pick else pick
+
+                print(f'{p["liga"]}: {p["local"]} vs {p["visitante"]}')
+                print(f'🕐 Hora 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}')
+                print(f'Cuotas: 🏠 {cuotas_ml[0]["odd"] if cuotas_ml and len(cuotas_ml) > 0 else "❌"} | '
+                      f'🤝 {cuotas_ml[1]["odd"] if cuotas_ml and len(cuotas_ml) > 1 else "❌"} | '
+                      f'🛫 {cuotas_ml[2]["odd"] if cuotas_ml and len(cuotas_ml) > 2 else "❌"}')
+                print(f'Over 2.5: {cuota_over} | BTTS: {cuota_btts} | BTTS Predicho: {btts_pred}')
+                print(f'📊 {p["local"]} (Local): GF {stats_local["gf"]} | GC {stats_local["gc"]} | '
+                      f'Tiros {stats_local["tiros"]} | Posesión {stats_local["posesion"]}% | '
+                      f'Tarjetas Amarillas {stats_local["tarjetas_amarillas"]} | Corners {stats_local["corners"]} | '
+                      f'Forma: {stats_local["forma"]}')
+                print(f'📊 {p["visitante"]} (Visitante): GF {stats_away["gf"]} | GC {stats_away["gc"]} | '
+                      f'Tiros {stats_away["tiros"]} | Posesión {stats_away["posesion"]}% | '
+                      f'Tarjetas Amarillas {stats_away["tarjetas_amarillas"]} | Corners {stats_away["corners"]} | '
+                      f'Forma: {stats_away["forma"]}')
+                print(f'🔮 Predicción: {p["local"]} {goles_local} - {goles_away} {p["visitante"]}')
+                print(Fore.GREEN + pick_display + Style.RESET_ALL if score >= 4 and "❌" not in pick_display else pick_display)
+                advertencia = evaluar_advertencia(pick, stats_local, stats_away)
+                if advertencia:
+                    print(Fore.RED + advertencia + Style.RESET_ALL)
+                print(interpretar_score(score))
+
+                prob_local = calcular_probabilidades_btts_over(p["home_id"], "local")
+                prob_away = calcular_probabilidades_btts_over(p["away_id"], "visitante")
+                print(f'📊 Probabilidades:')
+                print(f'- {p["local"]}: BTTS {prob_local["btts"]}% | Over 2.5 {prob_local["over"]}%')
+                print(f'- {p["visitante"]}: BTTS {prob_away["btts"]}% | Over 2.5 {prob_away["over"]}%')
+                print("-" * 60)
+
+                writer.writerow([
+                    p["liga"],
+                    f"{p['local']} vs {p['visitante']}",
+                    hora_mex,
+                    hora_esp,
+                    f"🏠 {cuotas_ml[0]['odd'] if cuotas_ml and len(cuotas_ml) > 0 else '❌'} | 🤝 {cuotas_ml[1]['odd'] if cuotas_ml and len(cuotas_ml) > 1 else '❌'} | 🛫 {cuotas_ml[2]['odd'] if cuotas_ml and len(cuotas_ml) > 2 else '❌'}",
+                    cuota_over,
+                    cuota_btts,
+                    btts_pred,
+                    f"GF {stats_local['gf']} | GC {stats_local['gc']} | Tiros {stats_local['tiros']} | Posesión {stats_local['posesion']}% | Tarjetas Amarillas {stats_local['tarjetas_amarillas']} | Corners {stats_local['corners']} | Forma: {stats_local['forma']}",
+                    f"GF {stats_away['gf']} | GC {stats_away['gc']} | Tiros {stats_away['tiros']} | Posesión {stats_away['posesion']}% | Tarjetas Amarillas {stats_away['tarjetas_amarillas']} | Corners {stats_away['corners']} | Forma: {stats_away['forma']}",
+                    f"{p['local']} {goles_local} - {goles_away} {p['visitante']}",
+                    pick_display,
+                    advertencia,
+                    interpretar_score(score)
+                ])
+
+                picks_valiosos.append({
+                    "partido": f"{p['local']} vs {p['visitante']}",
+                    "liga": p["liga"],
+                    "pick": pick_display,
+                    "score": interpretar_score(score)
+                })
+                time.sleep(1)  # Pausa de 1 segundo entre partidos
+
+        if picks_valiosos:
+            logging.info("Resumen de Picks Valiosos (Score >= 4):")
+            print("\n📊 Resumen de Picks Valiosos (Score >= 4):")
+            for pick in picks_valiosos:
+                print(f"{pick['liga']}: {pick['partido']} - {pick['pick']} ({pick['score']})")
+        else:
+            logging.info("No se encontraron picks valiosos.")
+            print("⚠️ No se encontraron picks valiosos.")
+
+        logging.info("Script finalizado.")
+        print("✅ Script finalizado.")
+        sys.exit(0)
     except Exception as e:
-        logging.error(f"Unexpected error in main loop: {e}")
+        logging.error(f"Error inesperado: {e}")
+        print(Fore.RED + f"❌ Error inesperado: {e}" + Style.RESET_ALL)
+        sys.exit(1)
