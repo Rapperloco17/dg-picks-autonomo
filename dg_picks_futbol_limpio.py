@@ -1,6 +1,6 @@
 import requests
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 import statistics
 from dateutil import parser
@@ -27,8 +27,11 @@ if not API_KEY:
     print(Fore.RED + "❌ Error: API_FOOTBALL_KEY no está configurada." + Style.RESET_ALL)
     sys.exit(1)
 
-# Fecha de hoy (formato YYYY-MM-DD)
+# Rango de fechas (hoy y mañana)
 TODAY = datetime.now(pytz.timezone("America/Mexico_City")).strftime("%Y-%m-%d")
+TOMORROW = (datetime.now(pytz.timezone("America/Mexico_City")) + timedelta(days=1)).strftime("%Y-%m-%d")
+DATE_RANGE = [TODAY, TOMORROW]
+SEASON = "2025"
 
 BASE_URL = "https://v3.football.api-sports.io"
 HEADERS = {"x-apisports-key": API_KEY}
@@ -41,37 +44,41 @@ LIGAS_VALIDAS = [
     262, 263, 265, 268, 271, 281, 345, 357
 ]
 
-def obtener_partidos_hoy():
+def obtener_partidos_rango_fechas():
     partidos_validos = []
-    for league_id in LIGAS_VALIDAS:
-        url = f"{BASE_URL}/fixtures?league={league_id}&date={TODAY}"
-        try:
-            logging.info(f"Iniciando solicitud para obtener partidos de la liga {league_id} del {TODAY}")
-            response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
-            response.raise_for_status()
-            data = response.json()
-            logging.info(f"Respuesta recibida: {len(data.get('response', []))} partidos encontrados para liga {league_id}")
-            for fixture in data.get("response", []):
-                partidos_validos.append({
-                    "liga": fixture["league"]["name"],
-                    "local": fixture["teams"]["home"]["name"],
-                    "visitante": fixture["teams"]["away"]["name"],
-                    "hora_utc": fixture["fixture"]["date"],
-                    "id_fixture": fixture["fixture"]["id"],
-                    "home_id": fixture["teams"]["home"]["id"],
-                    "away_id": fixture["teams"]["away"]["id"],
-                    "goles_local": fixture["goals"]["home"] if fixture["goals"]["home"] is not None else None,
-                    "goles_visitante": fixture["goals"]["away"] if fixture["goals"]["away"] is not None else None
-                })
-        except requests.Timeout:
-            logging.error(f"Tiempo de espera agotado al obtener partidos para liga {league_id}.")
-            print(Fore.RED + f"❌ Error: Tiempo de espera agotado para liga {league_id}." + Style.RESET_ALL)
-            continue
-        except requests.RequestException as e:
-            logging.error(f"Error al obtener partidos para liga {league_id}: {e}")
-            print(Fore.RED + f"❌ Error al obtener partidos para liga {league_id}: {e}" + Style.RESET_ALL)
-            continue
-    logging.info(f"Se encontraron {len(partidos_validos)} partidos válidos para hoy.")
+    for date in DATE_RANGE:
+        for league_id in LIGAS_VALIDAS:
+            url = f"{BASE_URL}/fixtures?league={league_id}&date={date}&season={SEASON}"
+            try:
+                logging.info(f"Iniciando solicitud para obtener partidos de la liga {league_id} del {date}")
+                response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+                response.raise_for_status()
+                data = response.json()
+                partidos = data.get('response', [])
+                logging.info(f"Respuesta recibida: {len(partidos)} partidos encontrados para liga {league_id} el {date}")
+                if not partidos:
+                    logging.debug(f"Respuesta completa de la API para liga {league_id} el {date}: {data}")
+                for fixture in partidos:
+                    partidos_validos.append({
+                        "liga": fixture["league"]["name"],
+                        "local": fixture["teams"]["home"]["name"],
+                        "visitante": fixture["teams"]["away"]["name"],
+                        "hora_utc": fixture["fixture"]["date"],
+                        "id_fixture": fixture["fixture"]["id"],
+                        "home_id": fixture["teams"]["home"]["id"],
+                        "away_id": fixture["teams"]["away"]["id"],
+                        "goles_local": fixture["goals"]["home"] if fixture["goals"]["home"] is not None else None,
+                        "goles_visitante": fixture["goals"]["away"] if fixture["goals"]["away"] is not None else None
+                    })
+            except requests.Timeout:
+                logging.error(f"Tiempo de espera agotado al obtener partidos para liga {league_id} del {date}.")
+                print(Fore.RED + f"❌ Error: Tiempo de espera agotado para liga {league_id} del {date}." + Style.RESET_ALL)
+                continue
+            except requests.RequestException as e:
+                logging.error(f"Error al obtener partidos para liga {league_id} del {date}: {e}")
+                print(Fore.RED + f"❌ Error al obtener partidos para liga {league_id} del {date}: {e}" + Style.RESET_ALL)
+                continue
+    logging.info(f"Se encontraron {len(partidos_validos)} partidos válidos en el rango de fechas.")
     return partidos_validos
 
 def obtener_cuotas_por_mercado(fixture_id, bet_id):
@@ -105,7 +112,7 @@ def convertir_horas(hora_utc_str):
         return "N/A", "N/A"
 
 def obtener_estadisticas_equipo(equipo_id, condicion):
-    url = f"{BASE_URL}/fixtures?team={equipo_id}&last=20"
+    url = f"{BASE_URL}/fixtures?team={equipo_id}&last=20&season={SEASON}"
     try:
         logging.info(f"Iniciando solicitud de estadísticas para equipo {equipo_id}, condición {condicion}")
         response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
@@ -250,7 +257,7 @@ def interpretar_score(score):
 
 def calcular_probabilidades_btts_over(equipo_id, condicion):
     try:
-        url = f"{BASE_URL}/fixtures?team={equipo_id}&last=20"
+        url = f"{BASE_URL}/fixtures?team={equipo_id}&last=20&season={SEASON}"
         logging.info(f"Iniciando solicitud para calcular probabilidades BTTS/Over para equipo {equipo_id}")
         response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
@@ -304,10 +311,10 @@ if __name__ == "__main__":
             writer = csv.writer(f)
             writer.writerow(['Liga', 'Partido', 'Hora MX', 'Hora ES', 'Cuotas', 'Over 2.5', 'BTTS', 'BTTS Predicho', 'Stats Local', 'Stats Visitante', 'Predicción', 'Pick', 'Advertencia', 'Score'])
 
-            partidos = obtener_partidos_hoy()
+            partidos = obtener_partidos_rango_fechas()
             if not partidos:
-                logging.warning("No se encontraron partidos válidos para hoy.")
-                print("⚠️ No hay partidos válidos para hoy.")
+                logging.warning("No se encontraron partidos válidos en el rango de fechas.")
+                print("⚠️ No hay partidos válidos en el rango de fechas.")
                 sys.exit(0)
 
             for p in partidos:
@@ -334,7 +341,7 @@ if __name__ == "__main__":
                     cuota_principal = pick.split("@")[-1].strip() if "@" in pick else "0"
                     score = calcular_score(stats_local, stats_away, goles_local_pred, goles_away_pred, cuota_principal)
 
-                    # Imprimir solo los partidos de hoy
+                    # Imprimir solo los partidos en el rango de fechas
                     print(f'{p["liga"]}: {p["local"]} vs {p["visitante"]}')
                     print(f'🕐 Hora 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}')
                     print(f'Cuotas: 🏠 {cuotas_ml[0]["odd"] if cuotas_ml and len(cuotas_ml) > 0 else "❌"} | '
@@ -366,7 +373,6 @@ if __name__ == "__main__":
                     print(f'- {p["visitante"]}: BTTS {prob_away["btts"]}% | Over 2.5 {prob_away["over"]}%')
                     print("-" * 60)
 
-                    # Incluir solo los partidos de hoy en picks_valiosos y CSV
                     picks_valiosos.append({
                         "partido": f"{p['local']} vs {p['visitante']}",
                         "liga": p["liga"],
@@ -400,13 +406,13 @@ if __name__ == "__main__":
                     continue
 
         if picks_valiosos:
-            logging.info("Resumen de partidos de hoy:")
-            print("\n📊 Resumen de partidos de hoy:")
+            logging.info("Resumen de partidos en el rango de fechas:")
+            print("\n📊 Resumen de partidos en el rango de fechas:")
             for pick in picks_valiosos:
                 print(f"{pick['liga']}: {pick['partido']} - {pick['pick']} ({pick['score']})")
         else:
-            logging.info("No se encontraron partidos válidos para hoy.")
-            print("⚠️ No se encontraron partidos válidos para hoy.")
+            logging.info("No se encontraron partidos válidos en el rango de fechas.")
+            print("⚠️ No se encontraron partidos válidos en el rango de fechas.")
 
         logging.info("Script finalizado.")
         print("✅ Script finalizado.")
