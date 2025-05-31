@@ -49,8 +49,8 @@ def obtener_partidos_atp(timezone: str = "America/Mexico_City", max_partidos: in
         print(f"❌ Límite de {MAX_REQUESTS} solicitudes alcanzado.")
         return []
     
-    fecha = datetime.now(pytz.timezone(timezone)).strftime("%Y-%m-%d")
-    url = f"{BASE_URL}/schedules/{fecha}/schedule.json?api_key={SPORTRADAR_API_KEY}"
+    fecha_actual = datetime.now(pytz.timezone(timezone)).strftime("%Y-%m-%d")
+    url = f"{BASE_URL}/schedules/{fecha_actual}/schedule.json?api_key={SPORTRADAR_API_KEY}"
     
     try:
         response = requests.get(url, timeout=10)
@@ -60,12 +60,29 @@ def obtener_partidos_atp(timezone: str = "America/Mexico_City", max_partidos: in
         time.sleep(2)  # Pausa de 2 segundos
         partidos = get_nested(response.json(), "sport_events", default=[])
         
-        # Filtrar solo partidos de la ATP
-        partidos_atp = [
-            p for p in partidos 
-            if get_nested(p, "tournament", "name", default="").upper().find("ATP") != -1
-        ]
-        return partidos_atp[:max_partidos]  # Limita a 3 partidos ATP
+        # Filtrar solo partidos de la ATP, programados para hoy y en estados relevantes
+        partidos_filtrados = []
+        for p in partidos:
+            torneo = get_nested(p, "tournament", "name", default="").upper()
+            scheduled = get_nested(p, "scheduled", default="")
+            status = get_nested(p, "sport_event_status", "status", default="")
+
+            # Verificar que sea un torneo ATP
+            if torneo.find("ATP") == -1:
+                continue
+
+            # Verificar que el partido sea del día actual
+            if not scheduled.startswith(fecha_actual):
+                continue
+
+            # Verificar que el partido esté programado o en curso
+            if status not in ["not_started", "inprogress"]:
+                continue
+
+            partidos_filtrados.append(p)
+
+        print(f"🎾 Encontrados {len(partidos_filtrados)} partidos ATP válidos.")
+        return partidos_filtrados[:max_partidos]  # Limita a 3 partidos ATP
     except requests.exceptions.RequestException as e:
         print(f"❌ Error al obtener partidos ATP: {e}")
         return []
@@ -86,7 +103,10 @@ def obtener_estadisticas(match_id: str) -> Optional[Dict]:
             REQUEST_COUNT += 1
             print(f"📈 Solicitudes realizadas: {REQUEST_COUNT}/{MAX_REQUESTS}")
             time.sleep(2)  # Pausa de 2 segundos
-            return response.json()
+            data = response.json()
+            if not get_nested(data, "sport_event_status", "statistics"):
+                print(f"⚠️ No hay estadísticas disponibles para el partido {match_id}.")
+            return data
         except requests.exceptions.HTTPError as e:
             if response.status_code == 429:
                 wait_time = 2 ** attempt
@@ -216,7 +236,7 @@ if __name__ == "__main__":
         picks_no_rompe = []
 
         if not partidos:
-            print("⚠️ No se encontraron partidos ATP o hubo un error.")
+            print("⚠️ No se encontraron partidos ATP válidos para hoy o hubo un error.")
         else:
             for p in partidos:
                 pick1, pick2 = analizar_partido(p)
