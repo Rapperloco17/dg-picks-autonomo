@@ -535,21 +535,19 @@ if __name__ == "__main__":
                     prob_combinada = calcular_probabilidades_combinadas(prob_local, prob_away)
 
                     # Salida simplificada
-                    print(f'{p["liga"]}: {p["local"]} vs {p["visitante"]} - 🕐 Hora 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}')
-                    if h2h_stats["total_matches"] > 0:
-                        print(f'📊 H2H ({h2h_stats["total_matches"]} partidos): {h2h_stats["record"]} | '
-                              f'Goles Promedio: {p["local"]} {h2h_stats["home_avg_goals"]} - {h2h_stats["away_avg_goals"]} {p["visitante"]} | '
-                              f'Tarjetas Promedio: Total {h2h_stats["avg_total_cards"]}')
-                        if h2h_stats["intense_rivalry"]:
-                            print(Fore.RED + "🔥 Rivalidad intensa detectada: Alta probabilidad de tarjetas." + Style.RESET_ALL)
-                    else:
-                        print(f'📊 H2H: No hay datos disponibles')
-                    print(f'🔮 Predicción: {p["local"]} {goles_local_pred} - {goles_away_pred} {p["visitante"]}')
+                    
+                    print(f"🇦🇷 {p['liga']}: {p['local']} vs {p['visitante']}")
+                    print(f"🕐 Hora: 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}")
+                    print(f"📊 Promedios: {p['local']} {stats_local['gf']} GF / {stats_local['gc']} GC | {p['visitante']} {stats_away['gf']} GF / {stats_away['gc']} GC")
+                    print(f"🔮 Predicción: {p['local']} {goles_local_pred} - {goles_away_pred} {p['visitante']}")
                     pick_display = f"{pick} ⭐" if score >= 4 and "❌" not in pick else pick
-                    print(Fore.GREEN + pick_display + Style.RESET_ALL if score >= 4 and "❌" not in pick_display else pick_display)
+                    print(f"🎯 {pick_display}")
                     print(interpretar_score(score))
-                    print(f'📊 Prob Partido: BTTS {prob_combinada["btts"]}% | Over 1.5 {prob_combinada["over15"]}% | Over 2.5 {prob_combinada["over25"]}%')
-                    print("-" * 50)
+                    print(f"📈 Probabilidades: BTTS {prob_combinada['btts']}% | Over 1.5 {prob_combinada['over15']}% | Over 2.5 {prob_combinada['over25']}%")
+                    print(f"🧠 Forma: {stats_local['forma']} | {stats_away['forma']}")
+                    print(f"📎 Tarjetas: {stats_local['tarjetas_amarillas']} vs {stats_away['tarjetas_amarillas']} | Corners: {stats_local['corners']} vs {stats_away['corners']}")
+                    print("-" * 58)
+
 
                     picks_valiosos.append({
                         "partido": f"{p['local']} vs {p['visitante']}",
