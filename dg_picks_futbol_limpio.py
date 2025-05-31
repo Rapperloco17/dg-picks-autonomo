@@ -27,8 +27,8 @@ if not API_KEY:
     print(Fore.RED + "❌ Error: API_FOOTBALL_KEY no está configurada." + Style.RESET_ALL)
     sys.exit(1)
 
-# Temporada a analizar (configurable vía variable de entorno)
-SEASON = os.getenv("SEASON", "2024")  # Por defecto temporada 2024/2025
+# Fecha de hoy (formato YYYY-MM-DD)
+TODAY = datetime.now(pytz.timezone("America/Mexico_City")).strftime("%Y-%m-%d")
 
 BASE_URL = "https://v3.football.api-sports.io"
 HEADERS = {"x-apisports-key": API_KEY}
@@ -41,12 +41,12 @@ LIGAS_VALIDAS = [
     262, 263, 265, 268, 271, 281, 345, 357
 ]
 
-def obtener_partidos_ligas():
+def obtener_partidos_hoy():
     partidos_validos = []
     for league_id in LIGAS_VALIDAS:
-        url = f"{BASE_URL}/fixtures?league={league_id}&season={SEASON}"
+        url = f"{BASE_URL}/fixtures?league={league_id}&date={TODAY}"
         try:
-            logging.info(f"Iniciando solicitud para obtener partidos de la liga {league_id}, temporada {SEASON}")
+            logging.info(f"Iniciando solicitud para obtener partidos de la liga {league_id} del {TODAY}")
             response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
             response.raise_for_status()
             data = response.json()
@@ -60,8 +60,8 @@ def obtener_partidos_ligas():
                     "id_fixture": fixture["fixture"]["id"],
                     "home_id": fixture["teams"]["home"]["id"],
                     "away_id": fixture["teams"]["away"]["id"],
-                    "goles_local": fixture["goals"]["home"],
-                    "goles_visitante": fixture["goals"]["away"]
+                    "goles_local": fixture["goals"]["home"] if fixture["goals"]["home"] is not None else None,
+                    "goles_visitante": fixture["goals"]["away"] if fixture["goals"]["away"] is not None else None
                 })
         except requests.Timeout:
             logging.error(f"Tiempo de espera agotado al obtener partidos para liga {league_id}.")
@@ -71,7 +71,7 @@ def obtener_partidos_ligas():
             logging.error(f"Error al obtener partidos para liga {league_id}: {e}")
             print(Fore.RED + f"❌ Error al obtener partidos para liga {league_id}: {e}" + Style.RESET_ALL)
             continue
-    logging.info(f"Se encontraron {len(partidos_validos)} partidos válidos en total.")
+    logging.info(f"Se encontraron {len(partidos_validos)} partidos válidos para hoy.")
     return partidos_validos
 
 def obtener_cuotas_por_mercado(fixture_id, bet_id):
@@ -296,18 +296,18 @@ def calcular_probabilidades_btts_over(equipo_id, condicion):
 if __name__ == "__main__":
     try:
         logging.info("Iniciando script")
-        output_file = f"picks_{datetime.now().strftime('%Y%m%d')}.csv"
+        output_file = f"picks_{datetime.now(pytz.timezone('America/Mexico_City')).strftime('%Y%m%d')}.csv"
         logging.info(f"Creando archivo de salida: {output_file}")
         picks_valiosos = []
 
         with open(output_file, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
-            writer.writerow(['Liga', 'Partido', 'Hora MX', 'Hora ES', 'Cuotas', 'Over 2.5', 'BTTS', 'BTTS Predicho', 'Stats Local', 'Stats Visitante', 'Resultado Real', 'Predicción', 'Pick', 'Advertencia', 'Score'])
+            writer.writerow(['Liga', 'Partido', 'Hora MX', 'Hora ES', 'Cuotas', 'Over 2.5', 'BTTS', 'BTTS Predicho', 'Stats Local', 'Stats Visitante', 'Predicción', 'Pick', 'Advertencia', 'Score'])
 
-            partidos = obtener_partidos_ligas()
+            partidos = obtener_partidos_hoy()
             if not partidos:
-                logging.warning("No se encontraron partidos válidos.")
-                print("⚠️ No hay partidos válidos.")
+                logging.warning("No se encontraron partidos válidos para hoy.")
+                print("⚠️ No hay partidos válidos para hoy.")
                 sys.exit(0)
 
             for p in partidos:
@@ -334,7 +334,7 @@ if __name__ == "__main__":
                     cuota_principal = pick.split("@")[-1].strip() if "@" in pick else "0"
                     score = calcular_score(stats_local, stats_away, goles_local_pred, goles_away_pred, cuota_principal)
 
-                    # Imprimir todos los partidos
+                    # Imprimir solo los partidos de hoy
                     print(f'{p["liga"]}: {p["local"]} vs {p["visitante"]}')
                     print(f'🕐 Hora 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}')
                     print(f'Cuotas: 🏠 {cuotas_ml[0]["odd"] if cuotas_ml and len(cuotas_ml) > 0 else "❌"} | '
@@ -349,7 +349,6 @@ if __name__ == "__main__":
                           f'Tiros {stats_away["tiros"]} | Posesión {stats_away["posesion"]}% | '
                           f'Tarjetas Amarillas {stats_away["tarjetas_amarillas"]} | Corners {stats_away["corners"]} | '
                           f'Forma: {stats_away["forma"]}')
-                    print(f'🔮 Resultado Real: {p["goles_local"]} - {p["goles_visitante"]}')
                     print(f'🔮 Predicción: {p["local"]} {goles_local_pred} - {goles_away_pred} {p["visitante"]}')
                     
                     pick_display = f"{pick} ⭐" if score >= 4 and "❌" not in pick else pick
@@ -367,7 +366,7 @@ if __name__ == "__main__":
                     print(f'- {p["visitante"]}: BTTS {prob_away["btts"]}% | Over 2.5 {prob_away["over"]}%')
                     print("-" * 60)
 
-                    # Incluir todos los partidos en picks_valiosos y CSV
+                    # Incluir solo los partidos de hoy en picks_valiosos y CSV
                     picks_valiosos.append({
                         "partido": f"{p['local']} vs {p['visitante']}",
                         "liga": p["liga"],
@@ -386,7 +385,6 @@ if __name__ == "__main__":
                         btts_pred,
                         f"GF {stats_local['gf']} | GC {stats_local['gc']} | Tiros {stats_local['tiros']} | Posesión {stats_local['posesion']}% | Tarjetas Amarillas {stats_local['tarjetas_amarillas']} | Corners {stats_local['corners']} | Forma: {stats_local['forma']}",
                         f"GF {stats_away['gf']} | GC {stats_away['gc']} | Tiros {stats_away['tiros']} | Posesión {stats_away['posesion']}% | Tarjetas Amarillas {stats_away['tarjetas_amarillas']} | Corners {stats_away['corners']} | Forma: {stats_away['forma']}",
-                        f"{p['goles_local']} - {p['goles_visitante']}",
                         f"{p['local']} {goles_local_pred} - {goles_away_pred} {p['visitante']}",
                         pick_display,
                         advertencia,
@@ -402,13 +400,13 @@ if __name__ == "__main__":
                     continue
 
         if picks_valiosos:
-            logging.info("Resumen de todos los partidos procesados:")
-            print("\n📊 Resumen de todos los partidos procesados:")
+            logging.info("Resumen de partidos de hoy:")
+            print("\n📊 Resumen de partidos de hoy:")
             for pick in picks_valiosos:
                 print(f"{pick['liga']}: {pick['partido']} - {pick['pick']} ({pick['score']})")
         else:
-            logging.info("No se encontraron partidos válidos.")
-            print("⚠️ No se encontraron partidos válidos.")
+            logging.info("No se encontraron partidos válidos para hoy.")
+            print("⚠️ No se encontraron partidos válidos para hoy.")
 
         logging.info("Script finalizado.")
         print("✅ Script finalizado.")
