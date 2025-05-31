@@ -52,7 +52,7 @@ def obtener_partidos_hoy():
         data = response.json()
         logging.info(f"Respuesta recibida: {len(data.get('response', []))} partidos encontrados")
         partidos_validos = []
-        for fixture in data.get("response", [])[:MAX_PARTIDOS]:  # Usar el límite configurable
+        for fixture in data.get("response", [])[:MAX_PARTIDOS]:
             if fixture["league"]["id"] in LIGAS_VALIDAS:
                 if fixture["fixture"]["status"]["short"] != "NS":
                     continue
@@ -313,86 +313,114 @@ if __name__ == "__main__":
                 sys.exit(0)
 
             for p in partidos:
-                logging.info(f"Procesando partido: {p['local']} vs {p['visitante']}")
-                cuotas_ml = obtener_cuotas_por_mercado(p["id_fixture"], 1)
-                cuotas_ou = obtener_cuotas_por_mercado(p["id_fixture"], 5)
-                cuotas_btts = obtener_cuotas_por_mercado(p["id_fixture"], 10)
+                try:
+                    logging.info(f"Procesando partido: {p['local']} vs {p['visitante']}")
+                    cuotas_ml = obtener_cuotas_por_mercado(p["id_fixture"], 1)
+                    cuotas_ou = obtener_cuotas_por_mercado(p["id_fixture"], 5)
+                    cuotas_btts = obtener_cuotas_por_mercado(p["id_fixture"], 10)
 
-                cuota_over = next((x["odd"] for x in cuotas_ou if "Over 2.5" in x["value"]), "❌")
-                cuota_btts = next((x["odd"] for x in cuotas_btts if x["value"].lower() == "yes"), "❌")
+                    cuota_over = next((x["odd"] for x in cuotas_ou if "Over 2.5" in x["value"]), "❌")
+                    cuota_btts = next((x["odd"] for x in cuotas_btts if x["value"].lower() == "yes"), "❌")
 
-                hora_mex, hora_esp = convertir_horas(p["hora_utc"])
+                    hora_mex, hora_esp = convertir_horas(p["hora_utc"])
 
-                stats_local = obtener_estadisticas_equipo(p["home_id"], "local")
-                stats_away = obtener_estadisticas_equipo(p["away_id"], "visitante")
-                stats_local["nombre"] = p["local"]
-                stats_away["nombre"] = p["visitante"]
+                    stats_local = obtener_estadisticas_equipo(p["home_id"], "local")
+                    stats_away = obtener_estadisticas_equipo(p["away_id"], "visitante")
+                    stats_local["nombre"] = p["local"]
+                    stats_away["nombre"] = p["visitante"]
 
-                goles_local, goles_away = predecir_marcador(stats_local, stats_away)
-                btts_pred = "Sí" if goles_local >= 1 and goles_away >= 1 else "No"
+                    goles_local, goles_away = predecir_marcador(stats_local, stats_away)
+                    btts_pred = "Sí" if goles_local >= 1 and goles_away >= 1 else "No"
 
-                pick = elegir_pick(p, goles_local, goles_away, cuotas_ml, cuota_over, cuota_btts)
-                cuota_principal = pick.split("@")[-1].strip() if "@" in pick else "0"
-                score = calcular_score(stats_local, stats_away, goles_local, goles_away, cuota_principal)
+                    pick = elegir_pick(p, goles_local, goles_away, cuotas_ml, cuota_over, cuota_btts)
+                    cuota_principal = pick.split("@")[-1].strip() if "@" in pick else "0"
+                    score = calcular_score(stats_local, stats_away, goles_local, goles_away, cuota_principal)
 
-                if score < 4:
-                    logging.info(f"Partido descartado (score: {score})")
+                    # Imprimir todos los partidos, incluso los descartados
+                    print(f'{p["liga"]}: {p["local"]} vs {p["visitante"]}')
+                    print(f'🕐 Hora 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}')
+                    print(f'Cuotas: 🏠 {cuotas_ml[0]["odd"] if cuotas_ml and len(cuotas_ml) > 0 else "❌"} | '
+                          f'🤝 {cuotas_ml[1]["odd"] if cuotas_ml and len(cuotas_ml) > 1 else "❌"} | '
+                          f'🛫 {cuotas_ml[2]["odd"] if cuotas_ml and len(cuotas_ml) > 2 else "❌"}')
+                    print(f'Over 2.5: {cuota_over} | BTTS: {cuota_btts} | BTTS Predicho: {btts_pred}')
+                    print(f'📊 {p["local"]} (Local): GF {stats_local["gf"]} | GC {stats_local["gc"]} | '
+                          f'Tiros {stats_local["tiros"]} | Posesión {stats_local["posesion"]}% | '
+                          f'Tarjetas Amarillas {stats_local["tarjetas_amarillas"]} | Corners {stats_local["corners"]} | '
+                          f'Forma: {stats_local["forma"]}')
+                    print(f'📊 {p["visitante"]} (Visitante): GF {stats_away["gf"]} | GC {stats_away["gc"]} | '
+                          f'Tiros {stats_away["tiros"]} | Posesión {stats_away["posesion"]}% | '
+                          f'Tarjetas Amarillas {stats_away["tarjetas_amarillas"]} | Corners {stats_away["corners"]} | '
+                          f'Forma: {stats_away["forma"]}')
+                    print(f'🔮 Predicción: {p["local"]} {goles_local} - {goles_away} {p["visitante"]}')
+                    
+                    pick_display = f"{pick} ⭐" if score >= 4 and "❌" not in pick else pick
+                    print(Fore.GREEN + pick_display + Style.RESET_ALL if score >= 4 and "❌" not in pick_display else pick_display)
+                    
+                    advertencia = evaluar_advertencia(pick, stats_local, stats_away)
+                    if advertencia:
+                        print(Fore.RED + advertencia + Style.RESET_ALL)
+                    print(interpretar_score(score))
+
+                    prob_local = calcular_probabilidades_btts_over(p["home_id"], "local")
+                    prob_away = calcular_probabilidades_btts_over(p["away_id"], "visitante")
+                    print(f'📊 Probabilidades:')
+                    print(f'- {p["local"]}: BTTS {prob_local["btts"]}% | Over 2.5 {prob_local["over"]}%')
+                    print(f'- {p["visitante"]}: BTTS {prob_away["btts"]}% | Over 2.5 {prob_away["over"]}%')
+                    print("-" * 60)
+
+                    # Solo agregar a picks_valiosos y escribir en CSV si el score es >= 4
+                    if score < 4:
+                        logging.info(f"Partido descartado para picks valiosos (score: {score})")
+                        writer.writerow([
+                            p["liga"],
+                            f"{p['local']} vs {p['visitante']}",
+                            hora_mex,
+                            hora_esp,
+                            f"🏠 {cuotas_ml[0]['odd'] if cuotas_ml and len(cuotas_ml) > 0 else '❌'} | 🤝 {cuotas_ml[1]['odd'] if cuotas_ml and len(cuotas_ml) > 1 else '❌'} | 🛫 {cuotas_ml[2]['odd'] if cuotas_ml and len(cuotas_ml) > 2 else '❌'}",
+                            cuota_over,
+                            cuota_btts,
+                            btts_pred,
+                            f"GF {stats_local['gf']} | GC {stats_local['gc']} | Tiros {stats_local['tiros']} | Posesión {stats_local['posesion']}% | Tarjetas Amarillas {stats_local['tarjetas_amarillas']} | Corners {stats_local['corners']} | Forma: {stats_local['forma']}",
+                            f"GF {stats_away['gf']} | GC {stats_away['gc']} | Tiros {stats_away['tiros']} | Posesión {stats_away['posesion']}% | Tarjetas Amarillas {stats_away['tarjetas_amarillas']} | Corners {stats_away['corners']} | Forma: {stats_away['forma']}",
+                            f"{p['local']} {goles_local} - {goles_away} {p['visitante']}",
+                            pick_display,
+                            advertencia,
+                            interpretar_score(score)
+                        ])
+                        time.sleep(1)
+                        continue
+
+                    picks_valiosos.append({
+                        "partido": f"{p['local']} vs {p['visitante']}",
+                        "liga": p["liga"],
+                        "pick": pick_display,
+                        "score": interpretar_score(score)
+                    })
+
+                    writer.writerow([
+                        p["liga"],
+                        f"{p['local']} vs {p['visitante']}",
+                        hora_mex,
+                        hora_esp,
+                        f"🏠 {cuotas_ml[0]['odd'] if cuotas_ml and len(cuotas_ml) > 0 else '❌'} | 🤝 {cuotas_ml[1]['odd'] if cuotas_ml and len(cuotas_ml) > 1 else '❌'} | 🛫 {cuotas_ml[2]['odd'] if cuotas_ml and len(cuotas_ml) > 2 else '❌'}",
+                        cuota_over,
+                        cuota_btts,
+                        btts_pred,
+                        f"GF {stats_local['gf']} | GC {stats_local['gc']} | Tiros {stats_local['tiros']} | Posesión {stats_local['posesion']}% | Tarjetas Amarillas {stats_local['tarjetas_amarillas']} | Corners {stats_local['corners']} | Forma: {stats_local['forma']}",
+                        f"GF {stats_away['gf']} | GC {stats_away['gc']} | Tiros {stats_away['tiros']} | Posesión {stats_away['posesion']}% | Tarjetas Amarillas {stats_away['tarjetas_amarillas']} | Corners {stats_away['corners']} | Forma: {stats_away['forma']}",
+                        f"{p['local']} {goles_local} - {goles_away} {p['visitante']}",
+                        pick_display,
+                        advertencia,
+                        interpretar_score(score)
+                    ])
+
+                    time.sleep(1)
+                except Exception as e:
+                    logging.error(f"Error al procesar partido {p['local']} vs {p['visitante']}: {e}")
+                    print(Fore.RED + f"❌ Error al procesar {p['local']} vs {p['visitante']}: {e}" + Style.RESET_ALL)
+                    print("-" * 60)
+                    time.sleep(1)
                     continue
-
-                pick_display = f"{pick} ⭐" if score >= 4 and "❌" not in pick else pick
-
-                print(f'{p["liga"]}: {p["local"]} vs {p["visitante"]}')
-                print(f'🕐 Hora 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}')
-                print(f'Cuotas: 🏠 {cuotas_ml[0]["odd"] if cuotas_ml and len(cuotas_ml) > 0 else "❌"} | '
-                      f'🤝 {cuotas_ml[1]["odd"] if cuotas_ml and len(cuotas_ml) > 1 else "❌"} | '
-                      f'🛫 {cuotas_ml[2]["odd"] if cuotas_ml and len(cuotas_ml) > 2 else "❌"}')
-                print(f'Over 2.5: {cuota_over} | BTTS: {cuota_btts} | BTTS Predicho: {btts_pred}')
-                print(f'📊 {p["local"]} (Local): GF {stats_local["gf"]} | GC {stats_local["gc"]} | '
-                      f'Tiros {stats_local["tiros"]} | Posesión {stats_local["posesion"]}% | '
-                      f'Tarjetas Amarillas {stats_local["tarjetas_amarillas"]} | Corners {stats_local["corners"]} | '
-                      f'Forma: {stats_local["forma"]}')
-                print(f'📊 {p["visitante"]} (Visitante): GF {stats_away["gf"]} | GC {stats_away["gc"]} | '
-                      f'Tiros {stats_away["tiros"]} | Posesión {stats_away["posesion"]}% | '
-                      f'Tarjetas Amarillas {stats_away["tarjetas_amarillas"]} | Corners {stats_away["corners"]} | '
-                      f'Forma: {stats_away["forma"]}')
-                print(f'🔮 Predicción: {p["local"]} {goles_local} - {goles_away} {p["visitante"]}')
-                print(Fore.GREEN + pick_display + Style.RESET_ALL if score >= 4 and "❌" not in pick_display else pick_display)
-                advertencia = evaluar_advertencia(pick, stats_local, stats_away)
-                if advertencia:
-                    print(Fore.RED + advertencia + Style.RESET_ALL)
-                print(interpretar_score(score))
-
-                prob_local = calcular_probabilidades_btts_over(p["home_id"], "local")
-                prob_away = calcular_probabilidades_btts_over(p["away_id"], "visitante")
-                print(f'📊 Probabilidades:')
-                print(f'- {p["local"]}: BTTS {prob_local["btts"]}% | Over 2.5 {prob_local["over"]}%')
-                print(f'- {p["visitante"]}: BTTS {prob_away["btts"]}% | Over 2.5 {prob_away["over"]}%')
-                print("-" * 60)
-
-                writer.writerow([
-                    p["liga"],
-                    f"{p['local']} vs {p['visitante']}",
-                    hora_mex,
-                    hora_esp,
-                    f"🏠 {cuotas_ml[0]['odd'] if cuotas_ml and len(cuotas_ml) > 0 else '❌'} | 🤝 {cuotas_ml[1]['odd'] if cuotas_ml and len(cuotas_ml) > 1 else '❌'} | 🛫 {cuotas_ml[2]['odd'] if cuotas_ml and len(cuotas_ml) > 2 else '❌'}",
-                    cuota_over,
-                    cuota_btts,
-                    btts_pred,
-                    f"GF {stats_local['gf']} | GC {stats_local['gc']} | Tiros {stats_local['tiros']} | Posesión {stats_local['posesion']}% | Tarjetas Amarillas {stats_local['tarjetas_amarillas']} | Corners {stats_local['corners']} | Forma: {stats_local['forma']}",
-                    f"GF {stats_away['gf']} | GC {stats_away['gc']} | Tiros {stats_away['tiros']} | Posesión {stats_away['posesion']}% | Tarjetas Amarillas {stats_away['tarjetas_amarillas']} | Corners {stats_away['corners']} | Forma: {stats_away['forma']}",
-                    f"{p['local']} {goles_local} - {goles_away} {p['visitante']}",
-                    pick_display,
-                    advertencia,
-                    interpretar_score(score)
-                ])
-
-                picks_valiosos.append({
-                    "partido": f"{p['local']} vs {p['visitante']}",
-                    "liga": p["liga"],
-                    "pick": pick_display,
-                    "score": interpretar_score(score)
-                })
-                time.sleep(1)  # Pausa de 1 segundo entre partidos
 
         if picks_valiosos:
             logging.info("Resumen de Picks Valiosos (Score >= 4):")
