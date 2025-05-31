@@ -27,9 +27,8 @@ if not API_KEY:
     print(Fore.RED + "❌ Error: API_FOOTBALL_KEY no está configurada." + Style.RESET_ALL)
     sys.exit(1)
 
-# Configurar límite de partidos (configurable vía variable de entorno)
-MAX_PARTIDOS = int(os.getenv("MAX_PARTIDOS", 10))  # Por defecto 10 si no está configurada
-logging.info(f"Límite de partidos configurado: {MAX_PARTIDOS}")
+# Temporada a analizar (configurable vía variable de entorno)
+SEASON = os.getenv("SEASON", "2024")  # Por defecto temporada 2024/2025
 
 BASE_URL = "https://v3.football.api-sports.io"
 HEADERS = {"x-apisports-key": API_KEY}
@@ -42,42 +41,38 @@ LIGAS_VALIDAS = [
     262, 263, 265, 268, 271, 281, 345, 357
 ]
 
-def obtener_partidos_hoy():
-    hoy = datetime.now(pytz.utc).strftime("%Y-%m-%d")
-    url = f"{BASE_URL}/fixtures?date={hoy}"
-    try:
-        logging.info(f"Iniciando solicitud para obtener partidos de la fecha {hoy}")
-        response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
-        response.raise_for_status()
-        data = response.json()
-        logging.info(f"Respuesta recibida: {len(data.get('response', []))} partidos encontrados")
-        partidos_validos = []
-        for fixture in data.get("response", [])[:MAX_PARTIDOS]:
-            if fixture["league"]["id"] not in LIGAS_VALIDAS:
-                logging.info(f"Partido descartado por liga inválida: {fixture['league']['name']} (ID: {fixture['league']['id']})")
-                continue
-            if fixture["fixture"]["status"]["short"] != "NS":
-                logging.info(f"Partido descartado por estado: {fixture['teams']['home']['name']} vs {fixture['teams']['away']['name']} (Estado: {fixture['fixture']['status']['short']})")
-                continue
-            partidos_validos.append({
-                "liga": fixture["league"]["name"],
-                "local": fixture["teams"]["home"]["name"],
-                "visitante": fixture["teams"]["away"]["name"],
-                "hora_utc": fixture["fixture"]["date"],
-                "id_fixture": fixture["fixture"]["id"],
-                "home_id": fixture["teams"]["home"]["id"],
-                "away_id": fixture["teams"]["away"]["id"]
-            })
-        logging.info(f"Se encontraron {len(partidos_validos)} partidos válidos.")
-        return partidos_validos
-    except requests.Timeout:
-        logging.error("Tiempo de espera agotado al obtener partidos.")
-        print(Fore.RED + "❌ Error: Tiempo de espera agotado al obtener partidos." + Style.RESET_ALL)
-        return []
-    except requests.RequestException as e:
-        logging.error(f"Error al obtener partidos: {e}")
-        print(Fore.RED + f"❌ Error al obtener partidos: {e}" + Style.RESET_ALL)
-        return []
+def obtener_partidos_ligas():
+    partidos_validos = []
+    for league_id in LIGAS_VALIDAS:
+        url = f"{BASE_URL}/fixtures?league={league_id}&season={SEASON}"
+        try:
+            logging.info(f"Iniciando solicitud para obtener partidos de la liga {league_id}, temporada {SEASON}")
+            response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+            response.raise_for_status()
+            data = response.json()
+            logging.info(f"Respuesta recibida: {len(data.get('response', []))} partidos encontrados para liga {league_id}")
+            for fixture in data.get("response", []):
+                partidos_validos.append({
+                    "liga": fixture["league"]["name"],
+                    "local": fixture["teams"]["home"]["name"],
+                    "visitante": fixture["teams"]["away"]["name"],
+                    "hora_utc": fixture["fixture"]["date"],
+                    "id_fixture": fixture["fixture"]["id"],
+                    "home_id": fixture["teams"]["home"]["id"],
+                    "away_id": fixture["teams"]["away"]["id"],
+                    "goles_local": fixture["goals"]["home"],
+                    "goles_visitante": fixture["goals"]["away"]
+                })
+        except requests.Timeout:
+            logging.error(f"Tiempo de espera agotado al obtener partidos para liga {league_id}.")
+            print(Fore.RED + f"❌ Error: Tiempo de espera agotado para liga {league_id}." + Style.RESET_ALL)
+            continue
+        except requests.RequestException as e:
+            logging.error(f"Error al obtener partidos para liga {league_id}: {e}")
+            print(Fore.RED + f"❌ Error al obtener partidos para liga {league_id}: {e}" + Style.RESET_ALL)
+            continue
+    logging.info(f"Se encontraron {len(partidos_validos)} partidos válidos en total.")
+    return partidos_validos
 
 def obtener_cuotas_por_mercado(fixture_id, bet_id):
     try:
@@ -307,9 +302,9 @@ if __name__ == "__main__":
 
         with open(output_file, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
-            writer.writerow(['Liga', 'Partido', 'Hora MX', 'Hora ES', 'Cuotas', 'Over 2.5', 'BTTS', 'BTTS Predicho', 'Stats Local', 'Stats Visitante', 'Predicción', 'Pick', 'Advertencia', 'Score'])
+            writer.writerow(['Liga', 'Partido', 'Hora MX', 'Hora ES', 'Cuotas', 'Over 2.5', 'BTTS', 'BTTS Predicho', 'Stats Local', 'Stats Visitante', 'Resultado Real', 'Predicción', 'Pick', 'Advertencia', 'Score'])
 
-            partidos = obtener_partidos_hoy()
+            partidos = obtener_partidos_ligas()
             if not partidos:
                 logging.warning("No se encontraron partidos válidos.")
                 print("⚠️ No hay partidos válidos.")
@@ -332,12 +327,12 @@ if __name__ == "__main__":
                     stats_local["nombre"] = p["local"]
                     stats_away["nombre"] = p["visitante"]
 
-                    goles_local, goles_away = predecir_marcador(stats_local, stats_away)
-                    btts_pred = "Sí" if goles_local >= 1 and goles_away >= 1 else "No"
+                    goles_local_pred, goles_away_pred = predecir_marcador(stats_local, stats_away)
+                    btts_pred = "Sí" if goles_local_pred >= 1 and goles_away_pred >= 1 else "No"
 
-                    pick = elegir_pick(p, goles_local, goles_away, cuotas_ml, cuota_over, cuota_btts)
+                    pick = elegir_pick(p, goles_local_pred, goles_away_pred, cuotas_ml, cuota_over, cuota_btts)
                     cuota_principal = pick.split("@")[-1].strip() if "@" in pick else "0"
-                    score = calcular_score(stats_local, stats_away, goles_local, goles_away, cuota_principal)
+                    score = calcular_score(stats_local, stats_away, goles_local_pred, goles_away_pred, cuota_principal)
 
                     # Imprimir todos los partidos
                     print(f'{p["liga"]}: {p["local"]} vs {p["visitante"]}')
@@ -354,7 +349,8 @@ if __name__ == "__main__":
                           f'Tiros {stats_away["tiros"]} | Posesión {stats_away["posesion"]}% | '
                           f'Tarjetas Amarillas {stats_away["tarjetas_amarillas"]} | Corners {stats_away["corners"]} | '
                           f'Forma: {stats_away["forma"]}')
-                    print(f'🔮 Predicción: {p["local"]} {goles_local} - {goles_away} {p["visitante"]}')
+                    print(f'🔮 Resultado Real: {p["goles_local"]} - {p["goles_visitante"]}')
+                    print(f'🔮 Predicción: {p["local"]} {goles_local_pred} - {goles_away_pred} {p["visitante"]}')
                     
                     pick_display = f"{pick} ⭐" if score >= 4 and "❌" not in pick else pick
                     print(Fore.GREEN + pick_display + Style.RESET_ALL if score >= 4 and "❌" not in pick_display else pick_display)
@@ -390,7 +386,8 @@ if __name__ == "__main__":
                         btts_pred,
                         f"GF {stats_local['gf']} | GC {stats_local['gc']} | Tiros {stats_local['tiros']} | Posesión {stats_local['posesion']}% | Tarjetas Amarillas {stats_local['tarjetas_amarillas']} | Corners {stats_local['corners']} | Forma: {stats_local['forma']}",
                         f"GF {stats_away['gf']} | GC {stats_away['gc']} | Tiros {stats_away['tiros']} | Posesión {stats_away['posesion']}% | Tarjetas Amarillas {stats_away['tarjetas_amarillas']} | Corners {stats_away['corners']} | Forma: {stats_away['forma']}",
-                        f"{p['local']} {goles_local} - {goles_away} {p['visitante']}",
+                        f"{p['goles_local']} - {p['goles_visitante']}",
+                        f"{p['local']} {goles_local_pred} - {goles_away_pred} {p['visitante']}",
                         pick_display,
                         advertencia,
                         interpretar_score(score)
