@@ -39,8 +39,8 @@ def get_nested(data: Dict, *keys, default=None) -> any:
             return default
     return data
 
-def obtener_partidos_atp(timezone: str = "America/Mexico_City", max_partidos: int = 3) -> List[Dict]:
-    """Obtiene los partidos programados para hoy de la ATP desde la API de Sportradar."""
+def obtener_partidos_atp_challenger(timezone: str = "America/Mexico_City", max_partidos: int = 3) -> List[Dict]:
+    """Obtiene los partidos programados para hoy de la ATP y Challenger desde la API de Sportradar."""
     global REQUEST_COUNT
     if not SPORTRADAR_API_KEY:
         raise ValueError("❌ La clave API de Sportradar no está configurada.")
@@ -60,15 +60,15 @@ def obtener_partidos_atp(timezone: str = "America/Mexico_City", max_partidos: in
         time.sleep(2)  # Pausa de 2 segundos
         partidos = get_nested(response.json(), "sport_events", default=[])
         
-        # Filtrar solo partidos de la ATP, programados para hoy y en estados relevantes
+        # Filtrar partidos de ATP o Challenger, programados para hoy y en estados relevantes
         partidos_filtrados = []
         for p in partidos:
             torneo = get_nested(p, "tournament", "name", default="").upper()
             scheduled = get_nested(p, "scheduled", default="")
             status = get_nested(p, "sport_event_status", "status", default="")
 
-            # Verificar que sea un torneo ATP
-            if torneo.find("ATP") == -1:
+            # Verificar que sea un torneo ATP o Challenger
+            if torneo.find("ATP") == -1 and torneo.find("CHALLENGER") == -1:
                 continue
 
             # Verificar que el partido sea del día actual
@@ -81,10 +81,10 @@ def obtener_partidos_atp(timezone: str = "America/Mexico_City", max_partidos: in
 
             partidos_filtrados.append(p)
 
-        print(f"🎾 Encontrados {len(partidos_filtrados)} partidos ATP válidos.")
-        return partidos_filtrados[:max_partidos]  # Limita a 3 partidos ATP
+        print(f"🎾 Encontrados {len(partidos_filtrados)} partidos ATP/Challenger válidos.")
+        return partidos_filtrados[:max_partidos]  # Limita a 3 partidos
     except requests.exceptions.RequestException as e:
-        print(f"❌ Error al obtener partidos ATP: {e}")
+        print(f"❌ Error al obtener partidos ATP/Challenger: {e}")
         return []
 
 def obtener_estadisticas(match_id: str) -> Optional[Dict]:
@@ -119,7 +119,7 @@ def obtener_estadisticas(match_id: str) -> Optional[Dict]:
     return None
 
 def analizar_partido(partido: Dict) -> Tuple[Optional[Dict], Optional[Dict]]:
-    """Analiza un partido ATP y genera picks de 'rompe' y 'no rompe'."""
+    """Analiza un partido ATP/Challenger y genera picks de 'rompe' y 'no rompe'."""
     match_id = get_nested(partido, "id", default="")
     torneo = get_nested(partido, "tournament", "name", default="Torneo desconocido")
     hora_utc = get_nested(partido, "scheduled", default="")[:16].replace("T", " ")
@@ -206,9 +206,9 @@ def imprimir_picks_estilo_dg(picks: List[Dict], tipo: str) -> str:
         ])
     return "\n".join(output)
 
-def guardar_picks_markdown(picks_rompe: List[Dict], picks_no_rompe: List[Dict], filename: str = "picks_tenis_atp.md"):
+def guardar_picks_markdown(picks_rompe: List[Dict], picks_no_rompe: List[Dict], filename: str = "picks_tenis_atp_challenger.md"):
     """Guarda los picks en un archivo Markdown."""
-    content = ["# Picks de Tenis ATP - " + datetime.now().strftime("%Y-%m-%d")]
+    content = ["# Picks de Tenis ATP/Challenger - " + datetime.now().strftime("%Y-%m-%d")]
     
     if picks_rompe:
         content.append(imprimir_picks_estilo_dg(picks_rompe, "rompe"))
@@ -228,15 +228,15 @@ def guardar_picks_markdown(picks_rompe: List[Dict], picks_no_rompe: List[Dict], 
 
 # ===================== EJECUCIÓN =====================
 if __name__ == "__main__":
-    print("🔍 Buscando partidos ATP y estadísticas reales...")
+    print("🔍 Buscando partidos ATP/Challenger y estadísticas reales...")
     
     try:
-        partidos = obtener_partidos_atp(timezone="America/Mexico_City")
+        partidos = obtener_partidos_atp_challenger(timezone="America/Mexico_City")
         picks_rompe = []
         picks_no_rompe = []
 
         if not partidos:
-            print("⚠️ No se encontraron partidos ATP válidos para hoy o hubo un error.")
+            print("⚠️ No se encontraron partidos ATP/Challenger válidos para hoy o hubo un error.")
         else:
             for p in partidos:
                 pick1, pick2 = analizar_partido(p)
