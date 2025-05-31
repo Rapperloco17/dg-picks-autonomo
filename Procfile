@@ -1,1 +1,1 @@
-worker: python main.py
+python dg_picks_futbol_limpio (1).py
