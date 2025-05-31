@@ -13,10 +13,13 @@ from colorama import init, Fore, Style
 # Inicializar colorama
 init()
 
-# Configurar logging
+# Configurar logging - Eliminamos el timestamp del formato para evitar cualquier confusión
+# Nota: Si aparece una línea como "Today's date and time is...", no es generada por este script.
+# Probablemente sea añadida por el entorno de ejecución (por ejemplo, Railway).
+# Revisa la configuración de logging de Railway o del entorno para desactivarla.
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    format='%(levelname)s - %(message)s',  # Simplificado: sin timestamp
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 
