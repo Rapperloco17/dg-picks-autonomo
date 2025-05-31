@@ -70,7 +70,7 @@ def get_team_stats(team_id):
 
 def get_team_form(team_id):
     end_date = datetime.now().strftime("%Y-%m-%d")
-    start_date = (datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d")
+    start_date = (datetime.now() - timedelta(days=20)).strftime("%Y-%m-%d")  # Para cubrir 10 juegos
     url = MLB_RESULTS_URL.format(team_id, start_date, end_date)
     response = requests.get(url, headers=HEADERS)
     games = response.json().get("dates", [])
@@ -90,7 +90,7 @@ def get_team_form(team_id):
                 recibidas = home["score"]
                 victoria = anotadas > recibidas
             resultados.append((anotadas, recibidas, victoria))
-    ultimos = resultados[-5:]
+    ultimos = resultados[-10:]  # Últimos 10 juegos
     if not ultimos:
         return {}
     promedio_anotadas = round(sum(x[0] for x in ultimos) / len(ultimos), 2)
@@ -99,7 +99,7 @@ def get_team_form(team_id):
     form = {
         "anotadas": promedio_anotadas,
         "recibidas": promedio_recibidas,
-        "record": f"{victorias}G-{5 - victorias}P"
+        "record": f"{victorias}G-{10 - victorias}P"
     }
     return form
 
@@ -109,7 +109,6 @@ def sugerir_pick(equipo, form_eq, pitcher_eq, cuota_ml=None, cuota_spread=None):
         anotadas = form_eq.get("anotadas", 0)
         record = form_eq.get("record", "-")
 
-        # Si no hay cuotas, usamos solo ERA y forma reciente
         if cuota_ml is None and cuota_spread is None:
             if anotadas >= 4.0 and era < 4.0:
                 return f"✅ {equipo} ML (sin cuota) | Motivo: buena ofensiva ({anotadas}/juego) y pitcher sólido (ERA {era})"
@@ -120,7 +119,6 @@ def sugerir_pick(equipo, form_eq, pitcher_eq, cuota_ml=None, cuota_spread=None):
             else:
                 return "⚠️ Partido parejo o sin valor claro"
 
-        # Lógica con cuotas
         if cuota_ml and cuota_ml < 1.70 and anotadas >= 3.5 and era < 4.0:
             return f"✅ {equipo} ML @ {cuota_ml} | Motivo: cuota baja ideal para parlay, ERA {era}, anotadas {anotadas}/juego"
         elif cuota_ml and 1.70 <= cuota_ml <= 2.50 and anotadas >= 3.5 and era < 4.5:
@@ -184,7 +182,7 @@ def main():
                         print(f"   Run Line: {away} {spreads.get(away, ('N/A', 'N/A'))[0]} @ {spreads.get(away, ('N/A', 'N/A'))[1]} | {home} {spreads.get(home, ('N/A', 'N/A'))[0]} @ {spreads.get(home, ('N/A', 'N/A'))[1]}")
                         print(f"   Over/Under: O{over_line} @ {over_price} | U{over_line} @ {under_price}")
                         print(f"   ERA Pitchers: {pitcher_away.get('era', '❌')} vs {pitcher_home.get('era', '❌')}")
-                        print(f"   Forma (últ 5): {form_away.get('record', '❌')} vs {form_home.get('record', '❌')}")
+                        print(f"   Forma (últ 10): {form_away.get('record', '❌')} vs {form_home.get('record', '❌')}")
                         print(f"   Anotadas/Recibidas: {form_away.get('anotadas', '-')}/{form_away.get('recibidas', '-')} vs {form_home.get('anotadas', '-')}/{form_home.get('recibidas', '-')}")
                         total_combinado = (
                             form_home.get("anotadas", 0) + form_home.get("recibidas", 0) +
@@ -211,14 +209,18 @@ def main():
 
         if not matched:  # Sin cuotas, generamos picks basados solo en estadísticas
             print(f"\n🧾 {away} vs {home} (sin cuotas)")
+            print(f"   ML: N/A | N/A")
+            print(f"   Run Line: N/A | N/A")
+            print(f"   Over/Under: N/A | N/A")
             print(f"   ERA Pitchers: {pitcher_away.get('era', '❌')} vs {pitcher_home.get('era', '❌')}")
-            print(f"   Forma (últ 5): {form_away.get('record', '❌')} vs {form_home.get('record', '❌')}")
+            print(f"   Forma (últ 10): {form_away.get('record', '❌')} vs {form_home.get('record', '❌')}")
             print(f"   Anotadas/Recibidas: {form_away.get('anotadas', '-')}/{form_away.get('recibidas', '-')} vs {form_home.get('anotadas', '-')}/{form_home.get('recibidas', '-')}")
             total_combinado = (
                 form_home.get("anotadas", 0) + form_home.get("recibidas", 0) +
                 form_away.get("anotadas", 0) + form_away.get("recibidas", 0)
             ) / 2
             print(f"   Total estimado: {round(total_combinado, 2)} carreras")
+            print("   Nota: Verifica la ODDS_API_KEY si esperas cuotas.")
 
             anotadas_home = form_home.get("anotadas", 0)
             anotadas_away = form_away.get("anotadas", 0)
