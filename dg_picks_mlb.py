@@ -114,28 +114,28 @@ def sugerir_pick(equipo, form_eq, pitcher_eq, cuota_ml=None, cuota_spread=None):
 
         if cuota_ml is None and cuota_spread is None:
             if anotadas >= 4.0 and era < 4.0:
-                return f"✅ {equipo} ML (sin cuota) | Motivo: buena ofensiva ({anotadas}/juego) y pitcher sólido (ERA {era})"
+                return f"🎯 ¡A por {equipo} ML! | Potente ofensiva ({anotadas}/juego) y pitcher en forma (ERA {era})"
             elif anotadas >= 4.5 and era < 3.7:
-                return f"✅ {equipo} -1.5 (sin cuota) | Motivo: ofensiva encendida y ERA dominante"
+                return f"🔥 {equipo} -1.5, ¡a ganar por más! | Ofensiva explosiva y ERA top (ERA {era})"
             elif anotadas >= 4.5:
-                return f"⚠️ {equipo} anota mucho ({anotadas}/juego), considerar Over"
+                return f"⚡ {equipo} anota a lo grande ({anotadas}/juego), ¡considera Over!"
             else:
-                return "⚠️ Partido parejo o sin valor claro"
+                return f"👍 {equipo} ML, ¡apuesta segura! | Forma sólida ({record}) y ofensiva decente ({anotadas}/juego)"
 
         if cuota_ml and cuota_ml < 1.70 and anotadas >= 3.5 and era < 4.0:
-            return f"✅ {equipo} ML @ {cuota_ml} | Motivo: cuota baja ideal para parlay, ERA {era}, anotadas {anotadas}/juego"
+            return f"🎯 ¡A por {equipo} ML @ {cuota_ml}! | Cuota ideal para parlay, ERA {era}, y {anotadas}/juego"
         elif cuota_ml and 1.70 <= cuota_ml <= 2.50 and anotadas >= 3.5 and era < 4.5:
-            return f"✅ {equipo} ML @ {cuota_ml} | Motivo: pitcher aceptable y ofensiva activa ({anotadas}/juego)"
+            return f"🔥 {equipo} ML @ {cuota_ml}, ¡a darlo todo! | Pitcher estable y ofensiva activa ({anotadas}/juego)"
         elif cuota_ml and cuota_ml > 2.50 and anotadas >= 4.5 and era < 4.2:
-            return f"🔥 Underdog con valor: {equipo} ML @ {cuota_ml} – Anota {anotadas}/juego, ERA decente"
+            return f"💥 ¡Sorpresa con {equipo} ML @ {cuota_ml}! | Underdog con valor, anota {anotadas}/juego"
         elif cuota_spread and cuota_ml < 1.70 and anotadas >= 4.5 and era < 3.7:
-            return f"✅ {equipo} -1.5 @ {cuota_spread} | Motivo: ofensiva encendida + ERA dominante"
+            return f"🔥 {equipo} -1.5 @ {cuota_spread}, ¡dominación asegurada! | Ofensiva y ERA top"
         elif anotadas >= 4.5:
-            return f"⚠️ {equipo} anota mucho ({anotadas}/juego), considerar Over"
+            return f"⚡ {equipo} anota a lo grande ({anotadas}/juego), ¡ve por el Over!"
         else:
-            return "⚠️ Partido parejo o sin valor claro"
+            return "⚠️ Partido reñido, ¡evalúa con cuidado!"
     except:
-        return "❌ Sin datos para sugerir pick"
+        return "❌ Sin datos, ¡revisa los números!"
 
 def main():
     print("🔍 Analizando partidos de MLB...")
@@ -208,7 +208,9 @@ def main():
                     pick_away = sugerir_pick(away, form_away, pitcher_away, cuotas.get(away), spreads.get(away, (None, None))[1])
                     print("   🧠", pick_away)
                 else:
-                    print("   ⚠️ Partido parejo o sin ventaja clara")
+                    pick_home = sugerir_pick(home, form_home, pitcher_home)
+                    pick_away = sugerir_pick(away, form_away, pitcher_away)
+                    print("   🧠", pick_home if form_home.get("anotadas", 0) >= form_away.get("anotadas", 0) else pick_away)
                 break  # Ya emparejado, salir del bucle de odds
 
         if not matched:
@@ -222,6 +224,11 @@ def main():
                 form_away.get("anotadas", 0) + form_away.get("recibidas", 0)
             ) / 2
             print(f"   Total estimado: {round(total_combinado, 2)} carreras")
+
+            # Sugerencia sin cuotas
+            pick_home = sugerir_pick(home, form_home, pitcher_home)
+            pick_away = sugerir_pick(away, form_away, pitcher_away)
+            print("   🧠", pick_home if form_home.get("anotadas", 0) >= form_away.get("anotadas", 0) else pick_away)
 
     print("\n✅ Análisis completo")
 
