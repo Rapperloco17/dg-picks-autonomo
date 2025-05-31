@@ -56,7 +56,7 @@ def get_team_era(team_id, start_date=None, end_date=None):
                      if game["teams"]["home"]["team"]["id"] == team_id or game["teams"]["away"]["team"]["id"] == team_id]
             if not games: return 4.5
             total_era, count = 0, 0
-            for game in games[:5]:  # Últimos 5 juegos
+            for game in games[:5]:
                 pitcher_id = game["teams"]["home"].get("probablePitcher", {}).get("id") if game["teams"]["home"]["team"]["id"] == team_id else game["teams"]["away"].get("probablePitcher", {}).get("id")
                 if pitcher_id:
                     stats = get_pitcher_stats(pitcher_id, team_id)
@@ -213,7 +213,9 @@ def get_odds(date=HOY):
         }
         response = requests.get(ODDS_API_URL, headers=HEADERS, params=params)
         response.raise_for_status()
-        return response.json()
+        odds_data = response.json()
+        logging.info(f"Cuotas obtenidas: {len(odds_data)} eventos")
+        return odds_data
     except requests.RequestException as e:
         logging.error(f"Error al obtener cuotas: {e}")
         return []
@@ -235,8 +237,8 @@ No menciones IA ni OpenAI. Termina con '✅ Valor detectado en la cuota'."""
         logging.error(f"Error al generar mensaje con OpenAI: {e}")
         return f"Partido: {partido}\nMercado: {mercado}\nPick: {pick} @ {cuota} | Línea: {linea} | Estimado: {estimado}\n✅ Valor detectado en la cuota"
 
-def enviar_a_telegram(mensaje, tipo):
-    destino = chat_id_vip if tipo == "candado" else chat_id_free
+def enviar_a_telegram(mensaje, tipo, is_notification=False):
+    destino = chat_id_free if is_notification else (chat_id_vip if tipo == "candado" else chat_id_free)
     url = f"https://api.telegram.org/bot{token_telegram}/sendMessage"
     try:
         response = requests.post(url, data={"chat_id": destino, "text": mensaje, "parse_mode": "HTML"})
@@ -322,18 +324,16 @@ def validate_historical_picks():
 
         ajustado_home = ajustar_por_avg(ajustar_por_era(form_home["anotadas"], era_away), avg_home)
         ajustado_away = ajustar_por_avg(ajustar_por_era(form_away["anotadas"], era_home), avg_away)
-        # Ajustes adicionales
-        ajustado_home += (bullpen_era_away - bullpen_era_home) * 0.1  # Impacto del bullpen
+        ajustado_home += (bullpen_era_away - bullpen_era_home) * 0.1
         ajustado_away += (bullpen_era_home - bullpen_era_away) * 0.1
         diferencia_carreras = ajustado_home - ajustado_away
-        # Ajuste por rendimiento en casa/visitante y enfrentamientos previos
         diferencia_carreras += (form_home["home_win_rate"] - form_away["away_win_rate"]) * 0.5
         diferencia_carreras += (head_to_head - 0.5) * 0.3
         probabilidad = max(10, min(90, 50 + (diferencia_carreras * 10)))
 
         pick = None
         tipo = None
-        cuota = 1.8  # Cuota promedio estimada si no hay datos históricos
+        cuota = 1.8
         odds = get_odds(date)
         for odd in odds:
             if (game["home_team_id"] == odd.get("home_team_id", 0) or 
@@ -388,18 +388,24 @@ def validate_historical_picks():
     return 1.7, 2.7, 0, 0
 
 def main():
-    logging.info("🔍 Ejecutando DG Picks MLB completo")
-    
-    # Validar modelo con datos históricos
-    best_threshold, best_candado, tasa_aciertos, roi = validate_historical_picks()
-    logging.info(f"Validación histórica completada. Tasa de aciertos: {tasa_aciertos:.1f}% | ROI: {roi:.1f}%")
-    
-    # Obtener juegos de hoy
     try:
+        logging.info("🔍 Ejecutando DG Picks MLB completo")
+
+        # Prueba de conexión a Telegram
+        mensaje_prueba = f"🔔 Prueba de conexión a Telegram a las {datetime.now(MX_TZ).strftime('%H:%M %d/%m/%Y')}"
+        enviar_a_telegram(mensaje_prueba, "prueba", is_notification=True)
+
+        # Validar modelo con datos históricos
+        best_threshold, best_candado, tasa_aciertos, roi = validate_historical_picks()
+        logging.info(f"Validación histórica completada. Tasa de aciertos: {tasa_aciertos:.1f}% | ROI: {roi:.1f}%")
+        logging.info(f"Umbrales ajustados: normal={best_threshold:.1f}, candado={best_candado:.1f}")
+
+        # Obtener juegos de hoy
         params = {"sportId": 1, "date": HOY, "hydrate": "team,linescore,probablePitcher"}
         response = requests.get(MLB_STATS_BASE_URL, headers=HEADERS, params=params)
         response.raise_for_status()
         data = response.json()
+        logging.info(f"Datos de MLB API: {data}")
         juegos = []
         for date_info in data.get("dates", []):
             for game in date_info.get("games", []):
@@ -413,98 +419,112 @@ def main():
                     "home_team_id": game["teams"]["home"]["team"]["id"],
                     "away_team_id": game["teams"]["away"]["team"]["id"]
                 })
-    except requests.RequestException as e:
-        logging.error(f"Error al obtener juegos de MLB: {e}")
-        return
+        logging.info(f"Juegos detectados para hoy: {len(juegos)}")
+        for juego in juegos:
+            logging.info(f"Juego: {juego['away_team']} vs {juego['home_team']}")
 
-    odds = get_odds()
-    picks_enviados = {"h2h": 0, "spreads": 0, "totals": 0}
-    picks = {"h2h": [], "spreads": [], "totals": []}
+        odds = get_odds()
+        picks_enviados = {"h2h": 0, "spreads": 0, "totals": 0}
+        picks = {"h2h": [], "spreads": [], "totals": []}
 
-    season = datetime.now(MX_TZ).strftime("%Y")
-    for juego in juegos:
-        home = juego["home_team"]
-        away = juego["away_team"]
-        partido = f"{away} vs {home}"
-        form_home = get_team_form(juego["home_team_id"], (datetime.now(MX_TZ) - timedelta(days=10)).strftime("%Y-%m-%d"), HOY)
-        form_away = get_team_form(juego["away_team_id"], (datetime.now(MX_TZ) - timedelta(days=10)).strftime("%Y-%m-%d"), HOY)
-        avg_home = get_team_avg(juego["home_team_id"])
-        avg_away = get_team_avg(juego["away_team_id"])
-        era_home = float(get_pitcher_stats(juego["home_pitcher_id"], juego["home_team_id"]).get("era", 4.5))
-        era_away = float(get_pitcher_stats(juego["away_pitcher_id"], juego["away_team_id"]).get("era", 4.5))
-        bullpen_era_home = get_bullpen_era(juego["home_team_id"])
-        bullpen_era_away = get_bullpen_era(juego["away_team_id"])
-        head_to_head = get_head_to_head(juego["home_team_id"], juego["away_team_id"], season)
+        season = datetime.now(MX_TZ).strftime("%Y")
+        for juego in juegos:
+            home = juego["home_team"]
+            away = juego["away_team"]
+            partido = f"{away} vs {home}"
+            form_home = get_team_form(juego["home_team_id"], (datetime.now(MX_TZ) - timedelta(days=10)).strftime("%Y-%m-%d"), HOY)
+            form_away = get_team_form(juego["away_team_id"], (datetime.now(MX_TZ) - timedelta(days=10)).strftime("%Y-%m-%d"), HOY)
+            avg_home = get_team_avg(juego["home_team_id"])
+            avg_away = get_team_avg(juego["away_team_id"])
+            era_home = float(get_pitcher_stats(juego["home_pitcher_id"], juego["home_team_id"]).get("era", 4.5))
+            era_away = float(get_pitcher_stats(juego["away_pitcher_id"], juego["away_team_id"]).get("era", 4.5))
+            bullpen_era_home = get_bullpen_era(juego["home_team_id"])
+            bullpen_era_away = get_bullpen_era(juego["away_team_id"])
+            head_to_head = get_head_to_head(juego["home_team_id"], juego["away_team_id"], season)
 
-        ajustado_home = ajustar_por_avg(ajustar_por_era(form_home["anotadas"], era_away), avg_home)
-        ajustado_away = ajustar_por_avg(ajustar_por_era(form_away["anotadas"], era_home), avg_away)
-        ajustado_home += (bullpen_era_away - bullpen_era_home) * 0.1
-        ajustado_away += (bullpen_era_home - bullpen_era_away) * 0.1
-        estimado_total = round((ajustado_home + ajustado_away + form_home["recibidas"] + form_away["recibidas"]) / 2, 2)
-        diferencia_carreras = ajustado_home - ajustado_away
-        diferencia_carreras += (form_home["home_win_rate"] - form_away["away_win_rate"]) * 0.5
-        diferencia_carreras += (head_to_head - 0.5) * 0.3
-        probabilidad = max(10, min(90, 50 + (diferencia_carreras * 10)))
+            ajustado_home = ajustar_por_avg(ajustar_por_era(form_home["anotadas"], era_away), avg_home)
+            ajustado_away = ajustar_por_avg(ajustar_por_era(form_away["anotadas"], era_home), avg_away)
+            ajustado_home += (bullpen_era_away - bullpen_era_home) * 0.1
+            ajustado_away += (bullpen_era_home - bullpen_era_away) * 0.1
+            estimado_total = round((ajustado_home + ajustado_away + form_home["recibidas"] + form_away["recibidas"]) / 2, 2)
+            diferencia_carreras = ajustado_home - ajustado_away
+            diferencia_carreras += (form_home["home_win_rate"] - form_away["away_win_rate"]) * 0.5
+            diferencia_carreras += (head_to_head - 0.5) * 0.3
+            probabilidad = max(10, min(90, 50 + (diferencia_carreras * 10)))
 
-        logging.info(f"Juego: {partido}, Ajustado Home: {ajustado_home}, Ajustado Away: {ajustado_away}, Estimado Total: {estimado_total}, Dif Carreras: {diferencia_carreras}, Prob: {probabilidad:.1f}%")
+            logging.info(f"Juego: {partido}, Ajustado Home: {ajustado_home}, Ajustado Away: {ajustado_away}, Estimado Total: {estimado_total}, Dif Carreras: {diferencia_carreras}, Prob: {probabilidad:.1f}%")
 
-        for odd in odds:
-            if (juego["home_team_id"] == odd.get("home_team_id", 0) or 
-                juego["away_team_id"] == odd.get("away_team_id", 0) or
-                (home.lower() == odd.get("home_team", "").lower() and 
-                 away.lower() == odd.get("away_team", "").lower())):
-                
-                for market in odd.get("bookmakers", [{}])[0].get("markets", []):
-                    if market["key"] == "totals" and picks_enviados["totals"] < 3:
-                        best_odds = max(
-                            (outcome for bookmaker in odd["bookmakers"] for outcome in bookmaker["markets"][0]["outcomes"]),
-                            key=lambda x: x["price"] if x["name"].lower() == "over" else -x["price"]
-                        )
-                        linea = best_odds["point"]
-                        cuota = best_odds["price"]
-                        diferencia = estimado_total - linea
-                        if abs(diferencia) >= 2:
-                            tipo = "candado" if abs(diferencia) >= 3 else "normal"
-                            pick = "Over" if diferencia > 0 else "Under"
-                            picks["totals"].append((partido, f"{pick} {linea}", cuota, linea, f"{estimado_total} carreras", "Totals", tipo, probabilidad))
+            for odd in odds:
+                if (juego["home_team_id"] == odd.get("home_team_id", 0) or 
+                    juego["away_team_id"] == odd.get("away_team_id", 0) or
+                    (home.lower() == odd.get("home_team", "").lower() and 
+                     away.lower() == odd.get("away_team", "").lower())):
+                    
+                    for market in odd.get("bookmakers", [{}])[0].get("markets", []):
+                        if market["key"] == "totals" and picks_enviados["totals"] < 3:
+                            best_odds = max(
+                                (outcome for bookmaker in odd["bookmakers"] for outcome in bookmaker["markets"][0]["outcomes"]),
+                                key=lambda x: x["price"] if x["name"].lower() == "over" else -x["price"]
+                            )
+                            linea = best_odds["point"]
+                            cuota = best_odds["price"]
+                            diferencia = estimado_total - linea
+                            if abs(diferencia) >= 2:
+                                tipo = "candado" if abs(diferencia) >= 3 else "normal"
+                                pick = "Over" if diferencia > 0 else "Under"
+                                picks["totals"].append((partido, f"{pick} {linea}", cuota, linea, f"{estimado_total} carreras", "Totals", tipo, probabilidad))
+                                logging.info(f"Pick Totals generado: {pick} {linea} @ {cuota} | {partido}")
 
-                    if market["key"] == "h2h" and picks_enviados["h2h"] < 2:
-                        best_odds = max(
-                            (outcome for bookmaker in odd["bookmakers"] for outcome in bookmaker.get("markets", []) 
-                             if bookmaker["markets"][0]["key"] == "h2h" for outcome in bookmaker["markets"][0]["outcomes"]),
-                            key=lambda x: x["price"]
-                        )
-                        if abs(diferencia_carreras) >= best_threshold:
-                            pick = home if diferencia_carreras > 0 else away
-                            cuota = next((o["price"] for o in market["outcomes"] if o["name"] == pick), 1.0)
-                            tipo = "candado" if abs(diferencia_carreras) >= best_candado else "normal"
-                            picks["h2h"].append((partido, f"{pick}", cuota, "N/A", f"{diferencia_carreras:+.2f} carreras ventaja | Prob: {probabilidad:.1f}%", "Moneyline", tipo, probabilidad))
+                        if market["key"] == "h2h" and picks_enviados["h2h"] < 2:
+                            best_odds = max(
+                                (outcome for bookmaker in odd["bookmakers"] for outcome in bookmaker.get("markets", []) 
+                                 if bookmaker["markets"][0]["key"] == "h2h" for outcome in bookmaker["markets"][0]["outcomes"]),
+                                key=lambda x: x["price"]
+                            )
+                            if abs(diferencia_carreras) >= best_threshold:
+                                pick = home if diferencia_carreras > 0 else away
+                                cuota = next((o["price"] for o in market["outcomes"] if o["name"] == pick), 1.0)
+                                tipo = "candado" if abs(diferencia_carreras) >= best_candado else "normal"
+                                picks["h2h"].append((partido, f"{pick}", cuota, "N/A", f"{diferencia_carreras:+.2f} carreras ventaja | Prob: {probabilidad:.1f}%", "Moneyline", tipo, probabilidad))
+                                logging.info(f"Pick Moneyline generado: {pick} @ {cuota} | {partido}")
 
-                    if market["key"] == "spreads" and picks_enviados["spreads"] < 2:
-                        best_odds = max(
-                            (outcome for bookmaker in odd["bookmakers"] for outcome in bookmaker.get("markets", []) 
-                             if bookmaker["markets"][0]["key"] == "spreads" for outcome in bookmaker["markets"][0]["outcomes"]),
-                            key=lambda x: x["price"]
-                        )
-                        linea = best_odds["point"]
-                        cuota = best_odds["price"]
-                        pick_team = home if diferencia_carreras > 0 else away
-                        if abs(diferencia_carreras) >= 2:
-                            tipo = "candado" if abs(diferencia_carreras) >= 3 else "normal"
-                            pick = f"{pick_team} {linea:+.1f}"
-                            picks["spreads"].append((partido, pick, cuota, linea, f"{diferencia_carreras:+.2f} carreras ventaja | Prob: {probabilidad:.1f}%", "Run Line", tipo, probabilidad))
+                        if market["key"] == "spreads" and picks_enviados["spreads"] < 2:
+                            best_odds = max(
+                                (outcome for bookmaker in odd["bookmakers"] for outcome in bookmaker.get("markets", []) 
+                                 if bookmaker["markets"][0]["key"] == "spreads" for outcome in bookmaker["markets"][0]["outcomes"]),
+                                key=lambda x: x["price"]
+                            )
+                            linea = best_odds["point"]
+                            cuota = best_odds["price"]
+                            pick_team = home if diferencia_carreras > 0 else away
+                            if abs(diferencia_carreras) >= 2:
+                                tipo = "candado" if abs(diferencia_carreras) >= 3 else "normal"
+                                pick = f"{pick_team} {linea:+.1f}"
+                                picks["spreads"].append((partido, pick, cuota, linea, f"{diferencia_carreras:+.2f} carreras ventaja | Prob: {probabilidad:.1f}%", "Run Line", tipo, probabilidad))
+                                logging.info(f"Pick Run Line generado: {pick} @ {cuota} | {partido}")
 
-    # Enviar los picks con mayor probabilidad
-    for market in picks:
-        picks[market].sort(key=lambda x: x[7], reverse=True)  # Ordenar por probabilidad
-        for pick in picks[market][:2]:  # Máximo 2 picks por mercado
-            partido, pick_text, cuota, linea, estimado, mercado, tipo, prob = pick
-            mensaje = generar_mensaje_ia(partido, pick_text, cuota, linea, estimado, mercado)
-            enviar_a_telegram(mensaje, tipo)
-            logging.info(f"Pick {mercado}: {pick_text} @ {cuota} ({tipo}) | {partido} | Prob: {prob:.1f}%")
-            picks_enviados[market] += 1
+        # Enviar los picks con mayor probabilidad
+        for market in picks:
+            picks[market].sort(key=lambda x: x[7], reverse=True)
+            for pick in picks[market][:2]:
+                partido, pick_text, cuota, linea, estimado, mercado, tipo, prob = pick
+                mensaje = generar_mensaje_ia(partido, pick_text, cuota, linea, estimado, mercado)
+                enviar_a_telegram(mensaje, tipo)
+                logging.info(f"Pick {mercado}: {pick_text} @ {cuota} ({tipo}) | {partido} | Prob: {prob:.1f}%")
+                picks_enviados[market] += 1
 
-    conn.close()
+        # Notificación de éxito
+        total_picks = sum(picks_enviados.values())
+        mensaje_exito = f"✅ Script ejecutado con éxito a las {datetime.now(MX_TZ).strftime('%H:%M %d/%m/%Y')}\nPicks enviados: {total_picks} (Moneyline: {picks_enviados['h2h']}, Run Line: {picks_enviados['spreads']}, Totals: {picks_enviados['totals']})"
+        enviar_a_telegram(mensaje_exito, "notificación", is_notification=True)
+
+    except Exception as e:
+        mensaje_error = f"❌ Error en el script a las {datetime.now(MX_TZ).strftime('%H:%M %d/%m/%Y')}\nError: {str(e)}"
+        enviar_a_telegram(mensaje_error, "notificación", is_notification=True)
+        logging.error(f"Error en main: {str(e)}")
+        raise
+    finally:
+        conn.close()
 
 if __name__ == "__main__":
     main()
