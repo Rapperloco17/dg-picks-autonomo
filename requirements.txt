@@ -9,3 +9,6 @@ joblib
 python-dateutil
 colorama
 pytz
+openai>=1.0.0
+requests
+pytz
