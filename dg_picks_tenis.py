@@ -4,7 +4,7 @@ import pytz
 import os
 
 # Configuración
-RAPIDAPI_KEY = os.getenv("matchstat api key")  # Usamos el nombre exacto que tienes en Railway
+RAPIDAPI_KEY = os.getenv("matchstat api key").strip()  # Elimina espacios o saltos de línea
 API_HOST = "tennis-api-atp-wta-itf.p.rapidapi.com"
 BASE_URL = f"https://{API_HOST}/tennis/v2"
 
@@ -30,8 +30,8 @@ def preparar_picks_de_rompimiento(partidos):
     picks = []
 
     for partido in partidos:
-        jugador1 = partido["player1"]
-        jugador2 = partido["player2"]
+        jugador1 = partido.get("player1", "Jugador 1")
+        jugador2 = partido.get("player2", "Jugador 2")
         torneo = partido.get("tournament", {}).get("name", "Torneo desconocido")
         hora = partido.get("time", "Sin hora")
         ronda = partido.get("round", "Ronda N/D")
