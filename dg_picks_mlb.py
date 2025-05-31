@@ -41,15 +41,19 @@ def get_odds_for_mlb():
         "markets": "h2h,spreads",
         "oddsFormat": "decimal"
     }
-    response = requests.get(ODDS_API_URL, headers=HEADERS, params=params)
-    odds_data = response.json()
-    print(f"Respuesta cruda de Odds API: {odds_data}")  # Depuración
-    if isinstance(odds_data, list):
-        print(f"Cuotas obtenidas: {len(odds_data)} eventos")
-        return odds_data
-    else:
-        print(f"Error en Odds API: {odds_data}")
-        return []  # Retorna lista vacía si hay error
+    try:
+        response = requests.get(ODDS_API_URL, headers=HEADERS, params=params, timeout=10)
+        odds_data = response.json()
+        print(f"Respuesta cruda de Odds API: {odds_data}")
+        if isinstance(odds_data, list):
+            print(f"Cuotas obtenidas: {len(odds_data)} eventos")
+            return odds_data
+        else:
+            print(f"Error en Odds API: {odds_data}")
+            return []
+    except Exception as e:
+        print(f"Error al conectar con Odds API: {e}")
+        return []
 
 def get_pitcher_stats(pitcher_id):
     if not pitcher_id:
@@ -147,7 +151,7 @@ def main():
         for odd in odds:
             if matched:
                 break
-            if isinstance(odd, dict):  # Verificar que odd es un diccionario
+            if isinstance(odd, dict):
                 print(f"Intentando emparejar: {away} vs {home} con {odd.get('away_team')} vs {odd.get('home_team')}")
                 home_match = home.lower().replace(" ", "") in odd["home_team"].lower().replace(" ", "")
                 away_match = away.lower().replace(" ", "") in odd["away_team"].lower().replace(" ", "")
