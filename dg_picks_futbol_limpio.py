@@ -14,25 +14,11 @@ from colorama import init, Fore, Style
 init()
 
 # Configurar logging - Eliminamos el timestamp del formato para evitar cualquier confusión
-# Nota: Si aparece una línea como "Today's date and time is...", no es generada por este script.
-# Probablemente sea añadida por el entorno de ejecución (por ejemplo, Railway).
-# Revisa la configuración de logging de Railway o del entorno para desactivarla.
 logging.basicConfig(
     level=logging.INFO,
     format='%(levelname)s - %(message)s',  # Simplificado: sin timestamp
     handlers=[logging.StreamHandler(sys.stdout)]
 )
-
-# Función para filtrar la línea no deseada
-def filter_output(line):
-    if "Today's date and time is" in line:
-        return None
-    return line
-
-# Redirigir stdout para filtrar la salida inicial
-import io
-original_stdout = sys.stdout
-sys.stdout = io.StringIO()
 
 # Validar API key
 API_KEY = os.getenv("API_FOOTBALL_KEY")
@@ -501,10 +487,14 @@ def calcular_probabilidades_combinadas(prob_local, prob_away):
 
 if __name__ == "__main__":
     try:
-        logging.info("Iniciando script")
+        picks_valiosos = []
         output_file = f"picks_{datetime.now(pytz.timezone('America/Mexico_City')).strftime('%Y%m%d')}.csv"
         logging.info(f"Creando archivo de salida: {output_file}")
-        picks_valiosos = []
+
+        # Filtrar salida inicial (como "Today's date and time is...")
+        import io
+        original_stdout = sys.stdout
+        sys.stdout = io.StringIO()
 
         with open(output_file, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
@@ -512,13 +502,11 @@ if __name__ == "__main__":
 
             partidos = obtener_partidos_rango_fechas()
             if not partidos:
-                logging.warning("No se encontraron partidos válidos en el rango de fechas.")
-                print("⚠️ No hay partidos válidos en el rango de fechas.")
+                print("⚠️ No se encontraron partidos válidos en el rango de fechas.")
                 sys.exit(0)
 
             for p in partidos:
                 try:
-                    logging.info(f"Procesando partido: {p['local']} vs {p['visitante']}")
                     cuotas_ml = obtener_cuotas_por_mercado(p["id_fixture"], 1)
                     cuotas_ou = obtener_cuotas_por_mercado(p["id_fixture"], 5)
                     cuotas_btts = obtener_cuotas_por_mercado(p["id_fixture"], 10)
@@ -540,39 +528,38 @@ if __name__ == "__main__":
                     cuota_principal = pick.split("@")[-1].strip() if "@" in pick else "0"
                     score = calcular_score(stats_local, stats_away, goles_local_pred, goles_away_pred, cuota_principal, h2h_stats, pick)
 
-                    # Calcular pick_display antes de usarlo
-                    pick_display = f"{pick} ⭐" if score >= 4 and "❌" not in pick else pick
-
-                    # Calcular probabilidades combinadas
                     prob_local = calcular_probabilidades_btts_over(p["home_id"])
                     prob_away = calcular_probabilidades_btts_over(p["away_id"])
                     prob_combinada = calcular_probabilidades_combinadas(prob_local, prob_away)
 
-                    # Salida simplificada con filtrado
-                    lines = [
-                        f"🇦🇷 {p['liga']}: {p['local']} vs {p['visitante']}",
-                        f"🕐 Hora: 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}",
-                        f"📊 Promedios: {p['local']} {stats_local['gf']} GF / {stats_local['gc']} GC | {p['visitante']} {stats_away['gf']} GF / {stats_away['gc']} GC",
-                        f"🔮 Predicción: {p['local']} {goles_local_pred} - {goles_away_pred} {p['visitante']}",
-                        f"🎯 {pick_display}",
-                        interpretar_score(score),
-                        f"📈 Probabilidades: BTTS {prob_combinada['btts']}% | Over 1.5 {prob_combinada['over15']}% | Over 2.5 {prob_combinada['over25']}%",
-                        f"🧠 Forma: {stats_local['forma']} | {stats_away['forma']}",
-                        f"📎 Tarjetas: {stats_local['tarjetas_amarillas']} vs {stats_away['tarjetas_amarillas']} | Corners: {stats_local['corners']} vs {stats_away['corners']}",
-                        "-" * 58
-                    ]
-                    for line in lines:
-                        filtered_line = filter_output(line)
-                        if filtered_line:
-                            print(filtered_line)
+                    advertencia = evaluar_advertencia(pick, stats_local, stats_away, h2h_stats)
+                    score_text = interpretar_score(score)
+                    pick_display = f"{pick} ⭐" if score >= 4 and "❌" not in pick else pick
 
-                    picks_valiosos.append({
-                        "partido": f"{p['local']} vs {p['visitante']}",
-                        "liga": p["liga"],
-                        "pick": pick_display,
-                        "score": interpretar_score(score)
-                    })
+                    # LOG LIMPIO EN BLOQUE
+                    print()
+                    print(f"⚽️ {p['liga']} | {p['local']} vs {p['visitante']}")
+                    print(f"🕐 Hora: 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}")
+                    print(f"🔮 Predicción: {p['local']} {goles_local_pred} - {goles_away_pred} {p['visitante']}")
+                    print(f"📊 Stats: {p['local']} {stats_local['gf']} GF / {stats_local['gc']} GC | {p['visitante']} {stats_away['gf']} GF / {stats_away['gc']} GC")
+                    print(f"📈 Probabilidades: BTTS {prob_combinada['btts']}% | Over 1.5 {prob_combinada['over15']}% | Over 2.5 {prob_combinada['over25']}%")
+                    print(f"🎯 Pick: {pick_display}")
+                    print(f"📎 Tarjetas: {stats_local['tarjetas_amarillas']} vs {stats_away['tarjetas_amarillas']} | Corners: {stats_local['corners']} vs {stats_away['corners']}")
+                    print(f"💡 {score_text}")
+                    if advertencia:
+                        print(f"{advertencia}")
+                    print("-" * 58)
 
+                    # Guardar picks valiosos
+                    if score >= 4 and "❌" not in pick:
+                        picks_valiosos.append({
+                            "liga": p["liga"],
+                            "partido": f"{p['local']} vs {p['visitante']}",
+                            "pick": pick_display,
+                            "score": score_text
+                        })
+
+                    # Escribir en CSV
                     writer.writerow([
                         p["liga"],
                         f"{p['local']} vs {p['visitante']}",
@@ -584,40 +571,33 @@ if __name__ == "__main__":
                         f"{h2h_stats['record']} | Goles Promedio: {p['local']} {h2h_stats['home_avg_goals']} - {h2h_stats['away_avg_goals']} {p['visitante']} | Tarjetas Promedio: {h2h_stats['avg_total_cards']}" if h2h_stats["total_matches"] > 0 else "No hay datos H2H",
                         f"{p['local']} {goles_local_pred} - {goles_away_pred} {p['visitante']}",
                         pick_display,
-                        evaluar_advertencia(pick, stats_local, stats_away, h2h_stats),
-                        interpretar_score(score),
+                        advertencia,
+                        score_text,
                         f"BTTS {prob_combinada['btts']}% | Over 1.5 {prob_combinada['over15']}% | Over 2.5 {prob_combinada['over25']}%"
                     ])
 
                     time.sleep(1)
                 except Exception as e:
-                    logging.error(f"Error al procesar partido {p['local']} vs {p['visitante']}: {e}")
-                    print(Fore.RED + f"❌ Error al procesar {p['local']} vs {p['visitante']}: {e}" + Style.RESET_ALL)
-                    print("-" * 50)
-                    time.sleep(1)
+                    print(Fore.RED + f"❌ Error en el análisis de {p['local']} vs {p['visitante']}: {e}" + Style.RESET_ALL)
+                    print("-" * 58)
                     continue
 
-        if picks_valiosos:
-            logging.info("Resumen de partidos en el rango de fechas:")
-            print("\n📊 Resumen de partidos ordenados por horario:")
-            for pick in picks_valiosos:
-                print(f"{pick['liga']}: {pick['partido']} - {pick['pick']} ({pick['score']})")
-        else:
-            logging.info("No se encontraron partidos válidos en el rango de fechas.")
-            print("⚠️ No se encontraron partidos válidos en el rango de fechas.")
-
-        # Restaurar stdout y filtrar la salida inicial
+        # Restaurar stdout y filtrar salida inicial
         sys.stdout = original_stdout
         initial_output = sys.stdout.getvalue()
         for line in initial_output.split('\n'):
-            filtered_line = filter_output(line)
-            if filtered_line:
-                print(filtered_line)
+            if "Today's date and time is" not in line:
+                print(line)
 
-        logging.info("Script finalizado.")
-        print("✅ Script finalizado.")
+        # Resumen de picks valiosos
+        if picks_valiosos:
+            print("\n📊 Resumen de Picks Valiosos:")
+            for pick in picks_valiosos:
+                print(f"{pick['liga']}: {pick['partido']} - {pick['pick']} ({pick['score']})")
+
+        print("✅ Análisis completado.")
         sys.exit(0)
+
     except Exception as e:
-        logging.error(f"Error inesperado: {e}")
         print(Fore.RED + f"❌ Error inesperado: {e}" + Style.RESET_ALL)
         sys.exit(1)
