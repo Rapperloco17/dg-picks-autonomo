@@ -45,6 +45,7 @@ def get_pitcher_name(pitcher_id):
     return data["people"][0]["fullName"]
 
 def normalize_team(name):
+    # Normalizar el nombre del equipo para comparación
     return name.lower().replace(" ", "").replace("-", "").replace(".", "")
 
 def get_odds_for_mlb():
@@ -55,12 +56,10 @@ def get_odds_for_mlb():
         "oddsFormat": "decimal"
     }
     try:
-        # Debug: Verificar clave y conectividad
         print(f"🔧 Clave leída: {os.getenv('ODDS_API_KEY')}")
         url_for_debug = f"{ODDS_API_URL}?regions=us&markets=h2h,spreads,totals&oddsFormat=decimal"
         print(f"🔧 Probando API - URL: {url_for_debug}")
         
-        # Prueba de conectividad a una URL pública
         print("🔧 Probando conectividad a una URL pública...")
         test_response = requests.get("https://www.google.com", timeout=5)
         print(f"🔧 Conectividad a Google: Código HTTP {test_response.status_code}")
@@ -140,12 +139,10 @@ def get_team_form(team_id):
     return form
 
 def sugerir_pick(equipo, form_eq, pitcher_eq, cuota_ml=None, cuota_spread=None):
-    # Manejo seguro de datos para evitar excepciones
     era = float(pitcher_eq.get("era", "99") if pitcher_eq.get("era") else 99)
     anotadas = form_eq.get("anotadas", 0)
     record = form_eq.get("record", "-")
 
-    # Debug para identificar dónde se corta
     print(f"🔍 Evaluando pick para {equipo}: ERA={era}, Anotadas={anotadas}, Record={record}, Cuota ML={cuota_ml}, Cuota Spread={cuota_spread}")
 
     if cuota_ml is None and cuota_spread is None:
@@ -199,11 +196,18 @@ def main():
         pitcher_away_name = get_pitcher_name(pitcher_away_id)
 
         matched = False
-        for odd in odds:
-            print(f"⚠️ Revisando: {odd.get('home_team')} vs {odd.get('away_team')}")
+        home_normalized = normalize_team(home)
+        away_normalized = normalize_team(away)
+        print(f"🔍 Equipos normalizados (MLB Stats): {home_normalized} vs {away_normalized}")
 
-            if normalize_team(home) in normalize_team(odd.get("home_team", "")) and \
-               normalize_team(away) in normalize_team(odd.get("away_team", "")):
+        for odd in odds:
+            odd_home = normalize_team(odd.get("home_team", ""))
+            odd_away = normalize_team(odd.get("away_team", ""))
+            print(f"⚠️ Revisando (Odds API): {odd_home} vs {odd_away}")
+
+            # Comparar exactamente los nombres normalizados
+            if (home_normalized == odd_home and away_normalized == odd_away) or \
+               (home_normalized == odd_away and away_normalized == odd_home):
 
                 matched = True
                 cuotas = {}
