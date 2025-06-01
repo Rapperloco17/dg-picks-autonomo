@@ -23,6 +23,17 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 
+# Función para filtrar la línea no deseada
+def filter_output(line):
+    if "Today's date and time is" in line:
+        return None
+    return line
+
+# Redirigir stdout para filtrar la salida inicial
+import io
+original_stdout = sys.stdout
+sys.stdout = io.StringIO()
+
 # Validar API key
 API_KEY = os.getenv("API_FOOTBALL_KEY")
 if not API_KEY:
@@ -488,12 +499,6 @@ def calcular_probabilidades_combinadas(prob_local, prob_away):
     }
     return combined
 
-def filter_output(line):
-    # Filtrar la línea no deseada que contiene "Today's date and time is"
-    if "Today's date and time is" in line:
-        return None
-    return line
-
 if __name__ == "__main__":
     try:
         logging.info("Iniciando script")
@@ -534,6 +539,9 @@ if __name__ == "__main__":
                     pick = elegir_pick(p, goles_local_pred, goles_away_pred, cuotas_ml, cuota_over, cuota_btts, h2h_stats, stats_local, stats_away)
                     cuota_principal = pick.split("@")[-1].strip() if "@" in pick else "0"
                     score = calcular_score(stats_local, stats_away, goles_local_pred, goles_away_pred, cuota_principal, h2h_stats, pick)
+
+                    # Calcular pick_display antes de usarlo
+                    pick_display = f"{pick} ⭐" if score >= 4 and "❌" not in pick else pick
 
                     # Calcular probabilidades combinadas
                     prob_local = calcular_probabilidades_btts_over(p["home_id"])
@@ -597,6 +605,14 @@ if __name__ == "__main__":
         else:
             logging.info("No se encontraron partidos válidos en el rango de fechas.")
             print("⚠️ No se encontraron partidos válidos en el rango de fechas.")
+
+        # Restaurar stdout y filtrar la salida inicial
+        sys.stdout = original_stdout
+        initial_output = sys.stdout.getvalue()
+        for line in initial_output.split('\n'):
+            filtered_line = filter_output(line)
+            if filtered_line:
+                print(filtered_line)
 
         logging.info("Script finalizado.")
         print("✅ Script finalizado.")
