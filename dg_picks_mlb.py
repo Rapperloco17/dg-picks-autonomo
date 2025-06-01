@@ -55,11 +55,24 @@ def get_odds_for_mlb():
         "oddsFormat": "decimal"
     }
     try:
+        url_for_debug = f"{ODDS_API_URL}?regions=us&markets=h2h,spreads,totals&oddsFormat=decimal"
+        print(f"🔧 Probando API - URL: {url_for_debug}")
+        
         response = requests.get(ODDS_API_URL, headers=HEADERS, params=params, timeout=10)
-        print(f"Respuesta cruda: {response.text}")  # Debug
+        print(f"🔧 Código de estado HTTP: {response.status_code}")
+        print(f"🔧 Respuesta cruda: {response.text}")
+        
+        if response.status_code != 200:
+            print("❌ La API no respondió correctamente. Revisa el código de estado y la respuesta.")
+            return []
+        
         odds_data = response.json()
+        if not isinstance(odds_data, list):
+            print("❌ Formato de datos inesperado. Se esperaba una lista.")
+            return []
+        
         print(f"📊 Número de partidos con cuotas: {len(odds_data)}")
-        return odds_data if isinstance(odds_data, list) else []
+        return odds_data
     except Exception as e:
         print("❌ Error al obtener cuotas:", e)
         return []
@@ -154,6 +167,10 @@ def main():
     print("🔍 Analizando partidos de MLB...")
     games = get_today_mlb_games()
     odds = get_odds_for_mlb()
+
+    if not games:
+        print("⚠️ No hay juegos programados para hoy.")
+        return
 
     for game in games:
         home = game['home_team']
