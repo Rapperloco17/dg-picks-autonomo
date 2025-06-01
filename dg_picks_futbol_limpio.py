@@ -55,6 +55,17 @@ SIMULATED_FIXTURES = [
         "away_id": 1002,
         "goles_local": None,
         "goles_visitante": None
+    },
+    {
+        "liga": "Argentina Liga Profesional",
+        "local": "River Plate",
+        "visitante": "Boca Juniors",
+        "hora_utc": "2025-06-01T01:00:00+00:00",
+        "id_fixture": 9998,
+        "home_id": 1003,
+        "away_id": 1004,
+        "goles_local": None,
+        "goles_visitante": None
     }
 ]
 
@@ -507,12 +518,6 @@ def calcular_probabilidades_combinadas(prob_local, prob_away):
 
 if __name__ == "__main__":
     try:
-        output_lines = []
-        def custom_print(*args, **kwargs):
-            line = " ".join(str(arg) for arg in args)
-            output_lines.append(line)
-
-        picks_valiosos = []
         output_file = f"picks_{datetime.now(pytz.timezone('America/Mexico_City')).strftime('%Y%m%d')}.csv"
         logging.debug(f"Iniciando script. Archivo de salida: {output_file}")
 
@@ -523,13 +528,11 @@ if __name__ == "__main__":
             # Intentar obtener partidos reales, si falla usar simulados
             partidos = obtener_partidos_rango_fechas()
             if not partidos:
-                custom_print("⚠️ No se encontraron partidos válidos en el rango de fechas. Usando datos simulados.")
+                print("⚠️ No se encontraron partidos válidos en el rango de fechas. Usando datos simulados.")
                 partidos = obtener_partidos_rango_fechas(use_simulated=True)
 
             if not partidos:
-                custom_print("❌ Error: No se pudieron obtener partidos ni simulados.")
-                for line in output_lines:
-                    print(line)
+                print("❌ Error: No se pudieron obtener partidos ni simulados.")
                 sys.exit(1)
 
             for p in partidos:
@@ -565,28 +568,22 @@ if __name__ == "__main__":
                 score_text = interpretar_score(score)
                 pick_display = f"{pick} ⭐" if score >= 4 and "❌" not in pick else pick
 
-                custom_print(f"⚽️ {p['liga']}: {p['local']} vs {p['visitante']}")
-                custom_print(f"🕐 Hora: 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}")
-                custom_print(f"📊 Promedios: {p['local']} {stats_local['gf']} GF / {stats_local['gc']} GC | {p['visitante']} {stats_away['gf']} GF / {stats_away['gc']} GC")
-                custom_print(f"🔮 Predicción: {p['local']} {goles_local_pred} - {goles_away_pred} {p['visitante']}")
-                custom_print(f"🎯 {pick_display}")
-                custom_print(score_text)
-                custom_print(f"📈 Probabilidades: BTTS {prob_combinada['btts']}% | Over 1.5 {prob_combinada['over15']}% | Over 2.5 {prob_combinada['over25']}%")
-                custom_print(f"🧠 Forma: {stats_local['forma']} | {stats_away['forma']}")
-                custom_print(f"📊 H2H: {h2h_stats['record']} | Goles Promedio: {p['local']} {h2h_stats['home_avg_goals']} - {h2h_stats['away_avg_goals']} {p['visitante']} | Tarjetas Promedio: {h2h_stats['avg_total_cards']}" if h2h_stats["total_matches"] > 0 else f"📊 H2H: No hay datos disponibles")
-                custom_print(f"📎 Tarjetas: {stats_local['tarjetas_amarillas']} vs {stats_away['tarjetas_amarillas']} | Corners: {stats_local['corners']} vs {stats_away['corners']}")
+                # Imprimir salida inmediatamente para cada partido
+                print(f"⚽️ {p['liga']}: {p['local']} vs {p['visitante']}")
+                print(f"🕐 Hora: 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}")
+                print(f"📊 Promedios: {p['local']} {stats_local['gf']} GF / {stats_local['gc']} GC | {p['visitante']} {stats_away['gf']} GF / {stats_away['gc']} GC")
+                print(f"🔮 Predicción: {p['local']} {goles_local_pred} - {goles_away_pred} {p['visitante']}")
+                print(f"🎯 {pick_display}")
+                print(score_text)
+                print(f"📈 Probabilidades: BTTS {prob_combinada['btts']}% | Over 1.5 {prob_combinada['over15']}% | Over 2.5 {prob_combinada['over25']}%")
+                print(f"🧠 Forma: {stats_local['forma']} | {stats_away['forma']}")
+                print(f"📊 H2H: {h2h_stats['record']} | Goles Promedio: {p['local']} {h2h_stats['home_avg_goals']} - {h2h_stats['away_avg_goals']} {p['visitante']} | Tarjetas Promedio: {h2h_stats['avg_total_cards']}" if h2h_stats["total_matches"] > 0 else f"📊 H2H: No hay datos disponibles")
+                print(f"📎 Tarjetas: {stats_local['tarjetas_amarillas']} vs {stats_away['tarjetas_amarillas']} | Corners: {stats_local['corners']} vs {stats_away['corners']}")
                 if advertencia:
-                    custom_print(advertencia)
-                custom_print("-" * 58)
+                    print(advertencia)
+                print("=" * 60)  # Línea de separación más visible
 
-                if score >= 4 and "❌" not in pick:
-                    picks_valiosos.append({
-                        "liga": p["liga"],
-                        "partido": f"{p['local']} vs {p['visitante']}",
-                        "pick": pick_display,
-                        "score": score_text
-                    })
-
+                # Escribir en CSV
                 writer.writerow([
                     p["liga"],
                     f"{p['local']} vs {p['visitante']}",
@@ -603,21 +600,23 @@ if __name__ == "__main__":
                     f"BTTS {prob_combinada['btts']}% | Over 1.5 {prob_combinada['over15']}% | Over 2.5 {prob_combinada['over25']}%"
                 ])
 
-                time.sleep(1)
+                time.sleep(1)  # Pequeña pausa para mayor claridad en los logs
 
-            for line in output_lines:
-                print(line)
-
-            if picks_valiosos:
+            if partidos:
                 print("\n📊 Resumen de partidos ordenados por horario:")
-                for pick in picks_valiosos:
-                    print(f"{pick['liga']}: {pick['partido']} - {pick['pick']} ({pick['score']})")
+                for p in partidos:
+                    use_simulated = p["id_fixture"] == 9999
+                    stats_local = obtener_estadisticas_equipo(p["home_id"], use_simulated)
+                    stats_away = obtener_estadisticas_equipo(p["away_id"], use_simulated)
+                    h2h_stats = obtener_h2h(p["home_id"], p["away_id"], use_simulated)
+                    pick = elegir_pick(p, 1, 1, obtener_cuotas_por_mercado(p["id_fixture"], 1, use_simulated), "1.90", "1.75", h2h_stats, stats_local, stats_away, use_simulated)
+                    score = calcular_score(stats_local, stats_away, 1, 1, "2.10", h2h_stats, pick)
+                    score_text = interpretar_score(score)
+                    print(f"{p['liga']}: {p['local']} vs {p['visitante']} - {pick} ({score_text})")
 
             print("✅ Script finalizado.")
             sys.exit(0)
 
     except Exception as e:
-        for line in output_lines:
-            print(line)
         print(Fore.RED + f"❌ Error inesperado: {e}" + Style.RESET_ALL)
         sys.exit(1)
