@@ -13,9 +13,9 @@ from colorama import init, Fore, Style
 # Inicializar colorama
 init()
 
-# Configurar logging para suprimir salida en consola y redirigirla a un archivo (si es necesario)
+# Configurar logging para depuración (guardar en archivo, no en consola)
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(levelname)s - %(message)s',
     handlers=[logging.FileHandler("debug.log")]
 )
@@ -34,7 +34,7 @@ SEASON = "2025"
 
 BASE_URL = "https://v3.football.api-sports.io"
 HEADERS = {"x-apisports-key": API_KEY}
-REQUEST_TIMEOUT = 10  # Timeout de 10 segundos para todas las solicitudes
+REQUEST_TIMEOUT = 10
 
 LIGAS_VALIDAS = [
     1, 2, 3, 4, 9, 11, 13, 16, 39, 40, 61, 62, 71, 72, 73, 45, 78, 79, 88, 94,
@@ -43,18 +43,37 @@ LIGAS_VALIDAS = [
     262, 263, 265, 268, 271, 281, 345, 357
 ]
 
-def obtener_partidos_rango_fechas():
+# Datos simulados para pruebas
+SIMULATED_FIXTURES = [
+    {
+        "liga": "Chile Primera Division",
+        "local": "Universidad de Chile",
+        "visitante": "O'Higgins",
+        "hora_utc": "2025-05-31T23:00:00+00:00",
+        "id_fixture": 9999,
+        "home_id": 1001,
+        "away_id": 1002,
+        "goles_local": None,
+        "goles_visitante": None
+    }
+]
+
+def obtener_partidos_rango_fechas(use_simulated=False):
+    if use_simulated:
+        logging.debug("Usando datos simulados para partidos.")
+        return SIMULATED_FIXTURES
+
     partidos_validos = []
     for date in DATE_RANGE:
         for league_id in LIGAS_VALIDAS:
             url = f"{BASE_URL}/fixtures?league={league_id}&date={date}&season={SEASON}"
             try:
+                logging.debug(f"Solicitando partidos para liga {league_id} en {date}")
                 response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
                 response.raise_for_status()
                 data = response.json()
                 partidos = data.get('response', [])
-                if not partidos:
-                    continue
+                logging.debug(f"Encontrados {len(partidos)} partidos para liga {league_id} en {date}")
                 for fixture in partidos:
                     partidos_validos.append({
                         "liga": fixture["league"]["name"],
@@ -68,14 +87,28 @@ def obtener_partidos_rango_fechas():
                         "goles_visitante": fixture["goals"]["away"] if fixture["goals"]["away"] is not None else None
                     })
             except requests.Timeout:
+                logging.warning(f"Tiempo de espera agotado para liga {league_id} en {date}")
                 continue
-            except requests.RequestException:
+            except requests.RequestException as e:
+                logging.error(f"Error al obtener partidos para liga {league_id} en {date}: {e}")
                 continue
     
     partidos_validos.sort(key=lambda x: parser.isoparse(x["hora_utc"]))
+    logging.debug(f"Total partidos válidos: {len(partidos_validos)}")
     return partidos_validos
 
-def obtener_cuotas_por_mercado(fixture_id, bet_id):
+def obtener_cuotas_por_mercado(fixture_id, bet_id, use_simulated=False):
+    if use_simulated:
+        if bet_id == 1:  # Moneyline
+            return [{"value": "Home", "odd": "2.10"}, {"value": "Draw", "odd": "3.20"}, {"value": "Away", "odd": "3.50"}]
+        elif bet_id == 5:  # Over/Under 2.5
+            return [{"value": "Over 2.5", "odd": "1.90"}, {"value": "Under 2.5", "odd": "1.80"}]
+        elif bet_id == 10:  # BTTS
+            return [{"value": "Yes", "odd": "1.75"}, {"value": "No", "odd": "2.00"}]
+        elif bet_id == 23:  # Tarjetas
+            return [{"value": "Over 4.5", "odd": "2.20"}]
+        return []
+
     try:
         url = f"{BASE_URL}/odds?fixture={fixture_id}&bet={bet_id}"
         response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
@@ -99,7 +132,22 @@ def convertir_horas(hora_utc_str):
     except ValueError:
         return "N/A", "N/A"
 
-def obtener_h2h(home_id, away_id):
+def obtener_h2h(home_id, away_id, use_simulated=False):
+    if use_simulated:
+        return {
+            "record": "2G (local) - 1E - 2G (visitante)",
+            "home_avg_goals": 1.2,
+            "away_avg_goals": 1.0,
+            "btts_percentage": 60,
+            "total_matches": 5,
+            "home_dominance": False,
+            "away_dominance": False,
+            "avg_yellow_cards": 2.5,
+            "avg_red_cards": 1.0,
+            "avg_total_cards": 3.5,
+            "intense_rivalry": False
+        }
+
     url = f"{BASE_URL}/fixtures/head2head?team1={home_id}&team2={away_id}&last=5"
     try:
         response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
@@ -210,7 +258,19 @@ def obtener_h2h(home_id, away_id):
             "avg_yellow_cards": 0, "avg_red_cards": 0, "avg_total_cards": 0, "intense_rivalry": False
         }
 
-def obtener_estadisticas_equipo(equipo_id):
+def obtener_estadisticas_equipo(equipo_id, use_simulated=False):
+    if use_simulated:
+        return {
+            "gf": 1.50 if equipo_id == 1001 else 1.10,
+            "gc": 1.20 if equipo_id == 1001 else 1.40,
+            "tiros": 4.0,
+            "posesion": 50.0,
+            "tarjetas_amarillas": 2.0 if equipo_id == 1001 else 2.2,
+            "corners": 4.0 if equipo_id == 1001 else 3.8,
+            "forma": "7G - 6E - 7P" if equipo_id == 1001 else "5G - 8E - 7P",
+            "partidos_usados": 20
+        }
+
     url = f"{BASE_URL}/fixtures?team={equipo_id}&last=50&season={SEASON}"
     try:
         response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
@@ -289,8 +349,8 @@ def predecir_marcador(local, visitante, h2h_stats):
     g_visit = round(((visitante["gf"] + local["gc"]) / 2 * 0.7 + h2h_stats["away_avg_goals"] * 0.3) * 0.9)
     return g_local, g_visit
 
-def elegir_pick(p, goles_local, goles_away, cuotas_ml, cuota_over, cuota_btts, h2h_stats, stats_local, stats_away):
-    cuotas_cards = obtener_cuotas_por_mercado(p["id_fixture"], 23)
+def elegir_pick(p, goles_local, goles_away, cuotas_ml, cuota_over, cuota_btts, h2h_stats, stats_local, stats_away, use_simulated=False):
+    cuotas_cards = obtener_cuotas_por_mercado(p["id_fixture"], 23, use_simulated)
     cuota_over_cards = next((x["odd"] for x in cuotas_cards if "Over 4.5" in x["value"]), "❌")
 
     intense_rivalry = h2h_stats["intense_rivalry"]
@@ -379,7 +439,16 @@ def interpretar_score(score):
         return f"⚠️ PICK DUDOSO (Score: {score}/8)"
     return f"Score: {score}/8"
 
-def calcular_probabilidades_btts_over(equipo_id):
+def calcular_probabilidades_btts_over(equipo_id, use_simulated=False):
+    if use_simulated:
+        return {
+            "btts": 60 if equipo_id == 1001 else 60,
+            "over15": 80 if equipo_id == 1001 else 80,
+            "under15": 20,
+            "over25": 40 if equipo_id == 1001 else 40,
+            "under25": 60
+        }
+
     try:
         url = f"{BASE_URL}/fixtures?team={equipo_id}&last=50&season={SEASON}"
         response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
@@ -445,42 +514,51 @@ if __name__ == "__main__":
 
         picks_valiosos = []
         output_file = f"picks_{datetime.now(pytz.timezone('America/Mexico_City')).strftime('%Y%m%d')}.csv"
+        logging.debug(f"Iniciando script. Archivo de salida: {output_file}")
 
         with open(output_file, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow(['Liga', 'Partido', 'Hora MX', 'Hora ES', 'Cuotas', 'Over 2.5', 'BTTS', 'H2H', 'Predicción', 'Pick', 'Advertencia', 'Score', 'Probabilidades Partido'])
 
+            # Intentar obtener partidos reales, si falla usar simulados
             partidos = obtener_partidos_rango_fechas()
             if not partidos:
-                custom_print("⚠️ No se encontraron partidos válidos en el rango de fechas.")
+                custom_print("⚠️ No se encontraron partidos válidos en el rango de fechas. Usando datos simulados.")
+                partidos = obtener_partidos_rango_fechas(use_simulated=True)
+
+            if not partidos:
+                custom_print("❌ Error: No se pudieron obtener partidos ni simulados.")
                 for line in output_lines:
                     print(line)
-                sys.exit(0)
+                sys.exit(1)
 
             for p in partidos:
-                cuotas_ml = obtener_cuotas_por_mercado(p["id_fixture"], 1)
-                cuotas_ou = obtener_cuotas_por_mercado(p["id_fixture"], 5)
-                cuotas_btts = obtener_cuotas_por_mercado(p["id_fixture"], 10)
+                use_simulated = p["id_fixture"] == 9999  # Usar datos simulados si el fixture es simulado
+                logging.debug(f"Procesando partido: {p['local']} vs {p['visitante']} (Simulado: {use_simulated})")
+
+                cuotas_ml = obtener_cuotas_por_mercado(p["id_fixture"], 1, use_simulated)
+                cuotas_ou = obtener_cuotas_por_mercado(p["id_fixture"], 5, use_simulated)
+                cuotas_btts = obtener_cuotas_por_mercado(p["id_fixture"], 10, use_simulated)
 
                 cuota_over = next((x["odd"] for x in cuotas_ou if "Over 2.5" in x["value"]), "❌")
                 cuota_btts = next((x["odd"] for x in cuotas_btts if x["value"].lower() == "yes"), "❌")
 
                 hora_mex, hora_esp = convertir_horas(p["hora_utc"])
 
-                stats_local = obtener_estadisticas_equipo(p["home_id"])
-                stats_away = obtener_estadisticas_equipo(p["away_id"])
-                h2h_stats = obtener_h2h(p["home_id"], p["away_id"])
+                stats_local = obtener_estadisticas_equipo(p["home_id"], use_simulated)
+                stats_away = obtener_estadisticas_equipo(p["away_id"], use_simulated)
+                h2h_stats = obtener_h2h(p["home_id"], p["away_id"], use_simulated)
                 stats_local["nombre"] = p["local"]
                 stats_away["nombre"] = p["visitante"]
 
                 goles_local_pred, goles_away_pred = predecir_marcador(stats_local, stats_away, h2h_stats)
 
-                pick = elegir_pick(p, goles_local_pred, goles_away_pred, cuotas_ml, cuota_over, cuota_btts, h2h_stats, stats_local, stats_away)
+                pick = elegir_pick(p, goles_local_pred, goles_away_pred, cuotas_ml, cuota_over, cuota_btts, h2h_stats, stats_local, stats_away, use_simulated)
                 cuota_principal = pick.split("@")[-1].strip() if "@" in pick else "0"
                 score = calcular_score(stats_local, stats_away, goles_local_pred, goles_away_pred, cuota_principal, h2h_stats, pick)
 
-                prob_local = calcular_probabilidades_btts_over(p["home_id"])
-                prob_away = calcular_probabilidades_btts_over(p["away_id"])
+                prob_local = calcular_probabilidades_btts_over(p["home_id"], use_simulated)
+                prob_away = calcular_probabilidades_btts_over(p["away_id"], use_simulated)
                 prob_combinada = calcular_probabilidades_combinadas(prob_local, prob_away)
 
                 advertencia = evaluar_advertencia(pick, stats_local, stats_away, h2h_stats)
