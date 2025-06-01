@@ -55,9 +55,15 @@ def get_odds_for_mlb():
         "oddsFormat": "decimal"
     }
     try:
-        print(f"🔧 Clave leída: {os.getenv('ODDS_API_KEY')}")  # Debug para verificar la clave
+        # Debug: Verificar clave y conectividad
+        print(f"🔧 Clave leída: {os.getenv('ODDS_API_KEY')}")
         url_for_debug = f"{ODDS_API_URL}?regions=us&markets=h2h,spreads,totals&oddsFormat=decimal"
         print(f"🔧 Probando API - URL: {url_for_debug}")
+        
+        # Prueba de conectividad a una URL pública
+        print("🔧 Probando conectividad a una URL pública...")
+        test_response = requests.get("https://www.google.com", timeout=5)
+        print(f"🔧 Conectividad a Google: Código HTTP {test_response.status_code}")
         
         response = requests.get(ODDS_API_URL, headers=HEADERS, params=params, timeout=10)
         print(f"🔧 Código de estado HTTP: {response.status_code}")
@@ -75,7 +81,7 @@ def get_odds_for_mlb():
         print(f"📊 Número de partidos con cuotas: {len(odds_data)}")
         return odds_data
     except Exception as e:
-        print("❌ Error al obtener cuotas:", e)
+        print("❌ Error al obtener cuotas:", str(e))
         return []
 
 def get_pitcher_stats(pitcher_id):
@@ -134,35 +140,36 @@ def get_team_form(team_id):
     return form
 
 def sugerir_pick(equipo, form_eq, pitcher_eq, cuota_ml=None, cuota_spread=None):
-    try:
-        era = float(pitcher_eq.get("era", 99))
-        anotadas = form_eq.get("anotadas", 0)
-        record = form_eq.get("record", "-")
+    # Manejo seguro de datos para evitar excepciones
+    era = float(pitcher_eq.get("era", "99") if pitcher_eq.get("era") else 99)
+    anotadas = form_eq.get("anotadas", 0)
+    record = form_eq.get("record", "-")
 
-        if cuota_ml is None and cuota_spread is None:
-            if anotadas >= 4.0 and era < 4.0:
-                return f"🎯 ¡A por {equipo} ML! | Potente ofensiva ({anotadas}/juego) y pitcher en forma (ERA {era})"
-            elif anotadas >= 4.5 and era < 3.7:
-                return f"🔥 {equipo} -1.5, ¡a ganar por más! | Ofensiva explosiva y ERA top (ERA {era})"
-            elif anotadas >= 4.5:
-                return f"⚡ {equipo} anota a lo grande ({anotadas}/juego), ¡considera Over!"
-            else:
-                return f"👍 {equipo} ML, ¡apuesta segura! | Forma sólida ({record}) y ofensiva decente ({anotadas}/juego)"
+    # Debug para identificar dónde se corta
+    print(f"🔍 Evaluando pick para {equipo}: ERA={era}, Anotadas={anotadas}, Record={record}, Cuota ML={cuota_ml}, Cuota Spread={cuota_spread}")
 
-        if cuota_ml and cuota_ml < 1.70 and anotadas >= 3.5 and era < 4.0:
-            return f"🎯 ¡A por {equipo} ML @ {cuota_ml}! | Cuota ideal para parlay, ERA {era}, y {anotadas}/juego"
-        elif cuota_ml and 1.70 <= cuota_ml <= 2.50 and anotadas >= 3.5 and era < 4.5:
-            return f"🔥 {equipo} ML @ {cuota_ml}, ¡a darlo todo! | Pitcher estable y ofensiva activa ({anotadas}/juego)"
-        elif cuota_ml and cuota_ml > 2.50 and anotadas >= 4.5 and era < 4.2:
-            return f"💥 ¡Sorpresa con {equipo} ML @ {cuota_ml}! | Underdog con valor, anota {anotadas}/juego"
-        elif cuota_spread and cuota_ml < 1.70 and anotadas >= 4.5 and era < 3.7:
-            return f"🔥 {equipo} -1.5 @ {cuota_spread}, ¡dominación asegurada! | Ofensiva y ERA top"
+    if cuota_ml is None and cuota_spread is None:
+        if anotadas >= 4.0 and era < 4.0:
+            return f"🎯 ¡A por {equipo} ML! | Potente ofensiva ({anotadas}/juego) y pitcher en forma (ERA {era})"
+        elif anotadas >= 4.5 and era < 3.7:
+            return f"🔥 {equipo} -1.5, ¡a ganar por más! | Ofensiva explosiva y ERA top (ERA {era})"
         elif anotadas >= 4.5:
-            return f"⚡ {equipo} anota a lo grande ({anotadas}/juego), ¡ve por el Over!"
+            return f"⚡ {equipo} anota a lo grande ({anotadas}/juego), ¡considera Over!"
         else:
-            return "⚠️ Partido reñido, ¡evalúa con cuidado!"
-    except:
-        return "❌ Sin datos, ¡revisa los números!"
+            return f"👍 {equipo} ML, ¡apuesta segura! | Forma sólida ({record}) y ofensiva decente ({anotadas}/juego)"
+
+    if cuota_ml and cuota_ml < 1.70 and anotadas >= 3.5 and era < 4.0:
+        return f"🎯 ¡A por {equipo} ML @ {cuota_ml}! | Cuota ideal para parlay, ERA {era}, y {anotadas}/juego"
+    elif cuota_ml and 1.70 <= cuota_ml <= 2.50 and anotadas >= 3.5 and era < 4.5:
+        return f"🔥 {equipo} ML @ {cuota_ml}, ¡a darlo todo! | Pitcher estable y ofensiva activa ({anotadas}/juego)"
+    elif cuota_ml and cuota_ml > 2.50 and anotadas >= 4.5 and era < 4.2:
+        return f"💥 ¡Sorpresa con {equipo} ML @ {cuota_ml}! | Underdog con valor, anota {anotadas}/juego"
+    elif cuota_spread and cuota_ml < 1.70 and anotadas >= 4.5 and era < 3.7:
+        return f"🔥 {equipo} -1.5 @ {cuota_spread}, ¡dominación asegurada! | Ofensiva y ERA top"
+    elif anotadas >= 4.5:
+        return f"⚡ {equipo} anota a lo grande ({anotadas}/juego), ¡ve por el Over!"
+    else:
+        return "⚠️ Partido reñido, ¡evalúa con cuidado!"
 
 def main():
     print("🔍 Analizando partidos de MLB...")
@@ -173,7 +180,9 @@ def main():
         print("⚠️ No hay juegos programados para hoy.")
         return
 
-    for game in games:
+    print(f"🔍 Total de juegos encontrados: {len(games)}")
+    for idx, game in enumerate(games):
+        print(f"🔍 Procesando juego {idx + 1}/{len(games)}...")
         home = game['home_team']
         away = game['away_team']
         pitcher_home_id = game['home_pitcher_id']
