@@ -60,7 +60,7 @@ def obtener_partidos_atp_challenger(timezone: str = "America/Mexico_City", max_p
         time.sleep(2)  # Pausa de 2 segundos
         partidos = get_nested(response.json(), "sport_events", default=[])
         
-        # Filtrar partidos de ATP o Challenger, programados para hoy y en estados relevantes
+        # Filtrar partidos de ATP o Challenger del día actual
         partidos_filtrados = []
         for p in partidos:
             torneo = get_nested(p, "tournament", "name", default="").upper()
@@ -75,13 +75,13 @@ def obtener_partidos_atp_challenger(timezone: str = "America/Mexico_City", max_p
             if not scheduled.startswith(fecha_actual):
                 continue
 
-            # Verificar que el partido esté programado o en curso
-            if status not in ["not_started", "inprogress"]:
+            # Incluir todos los estados relevantes
+            if status not in ["not_started", "inprogress", "closed"]:
                 continue
 
             partidos_filtrados.append(p)
 
-        print(f"🎾 Encontrados {len(partidos_filtrados)} partidos ATP/Challenger válidos.")
+        print(f"🎾 Encontrados {len(partidos_filtrados)} partidos ATP/Challenger válidos (incluye terminados).")
         return partidos_filtrados[:max_partidos]  # Limita a 5 partidos
     except requests.exceptions.RequestException as e:
         print(f"❌ Error al obtener partidos ATP/Challenger: {e}")
@@ -104,11 +104,7 @@ def obtener_estadisticas(match_id: str) -> Optional[Dict]:
             print(f"📈 Solicitudes realizadas: {REQUEST_COUNT}/{MAX_REQUESTS}")
             time.sleep(2)  # Pausa de 2 segundos
             data = response.json()
-            # Verificar que el partido tenga estadísticas y que el estado sea relevante
-            status = get_nested(data, "sport_event_status", "status", default="")
-            if status not in ["inprogress"]:
-                print(f"⚠️ Partido {match_id} no está en curso (estado: {status}).")
-                return None
+            # Verificar que el partido tenga estadísticas
             if not get_nested(data, "sport_event_status", "statistics"):
                 print(f"⚠️ No hay estadísticas disponibles para el partido {match_id}.")
                 return None
