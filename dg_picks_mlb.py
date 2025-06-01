@@ -144,7 +144,6 @@ def sugerir_pick(equipo, form_eq, pitcher_eq, cuota_ml=None, cuota_spread=None):
 
     print(f"🔍 Evaluando pick para {equipo}: ERA={era}, Anotadas={anotadas}, Record={record}, Cuota ML={cuota_ml}, Cuota Spread={cuota_spread}")
 
-    # Evitar picks si no hay datos confiables
     if era >= 99 or anotadas == 0:
         return f"⚠️ Datos insuficientes para {equipo} (ERA o anotadas no disponibles)"
 
@@ -222,17 +221,30 @@ def main():
                     for market in bookmaker.get("markets", []):
                         if market["key"] == "h2h":
                             for o in market["outcomes"]:
-                                cuotas[o["name"]] = o["price"]
+                                team = o["name"]
+                                price = o["price"]
+                                if team not in cuotas or price > cuotas[team]:
+                                    cuotas[team] = price
+
                         elif market["key"] == "spreads":
                             for o in market["outcomes"]:
-                                spreads[o["name"]] = (o["point"], o["price"])
+                                team = o["name"]
+                                point = o.get("point")
+                                price = o.get("price")
+                                if team not in spreads or price > spreads[team][1]:
+                                    spreads[team] = (point, price)
+
                         elif market["key"] == "totals":
                             for o in market["outcomes"]:
-                                if o["name"].lower() == "over":
-                                    over_line = o["point"]
-                                    over_price = o["price"]
-                                elif o["name"].lower() == "under":
-                                    under_price = o["price"]
+                                name = o["name"].lower()
+                                point = o.get("point")
+                                price = o.get("price")
+
+                                if name == "over" and (over_price is None or price > over_price):
+                                    over_line = point
+                                    over_price = price
+                                elif name == "under" and (under_price is None or price > under_price):
+                                    under_price = price
 
                 print(f"🧾 {away} vs {home} | Horario: {game_time} ⏰")
                 print(f"   ⚾ Pitchers: {pitcher_away_name} ({away}) vs {pitcher_home_name} ({home})")
