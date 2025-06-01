@@ -31,6 +31,7 @@ REQUEST_COUNT = 0
 MAX_REQUESTS = 1000  # Límite de la API de prueba
 
 def get_nested(data: Dict, *keys, default=None) -> any:
+    """Accede a claves anidadas de un diccionario de forma segura."""
     for key in keys:
         try:
             data = data[key]
@@ -38,53 +39,61 @@ def get_nested(data: Dict, *keys, default=None) -> any:
             return default
     return data
 
-def obtener_partidos_atp_challenger(timezone: str = "America/Mexico_City", max_partidos: int = 20) -> List[Dict]:
+def obtener_partidos_atp_challenger(timezone: str = "America/Mexico_City", max_partidos: int = 5) -> List[Dict]:
+    """Obtiene los partidos programados para hoy de la ATP y Challenger desde la API de Sportradar."""
     global REQUEST_COUNT
     if not SPORTRADAR_API_KEY:
         raise ValueError("❌ La clave API de Sportradar no está configurada.")
-
+    
     if REQUEST_COUNT >= MAX_REQUESTS:
         print(f"❌ Límite de {MAX_REQUESTS} solicitudes alcanzado.")
         return []
-
+    
     fecha_actual = datetime.now(pytz.timezone(timezone)).strftime("%Y-%m-%d")
     url = f"{BASE_URL}/schedules/{fecha_actual}/schedule.json?api_key={SPORTRADAR_API_KEY}"
-
+    
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
         REQUEST_COUNT += 1
         print(f"📈 Solicitudes realizadas: {REQUEST_COUNT}/{MAX_REQUESTS}")
-        time.sleep(2)
+        time.sleep(2)  # Pausa de 2 segundos
         partidos = get_nested(response.json(), "sport_events", default=[])
-
+        
+        # Filtrar partidos de ATP o Challenger, programados para hoy y en estados relevantes
         partidos_filtrados = []
         for p in partidos:
             torneo = get_nested(p, "tournament", "name", default="").upper()
             scheduled = get_nested(p, "scheduled", default="")
             status = get_nested(p, "sport_event_status", "status", default="")
 
+            # Verificar que sea un torneo ATP o Challenger
             if torneo.find("ATP") == -1 and torneo.find("CHALLENGER") == -1:
                 continue
+
+            # Verificar que el partido sea del día actual
             if not scheduled.startswith(fecha_actual):
                 continue
+
+            # Verificar que el partido esté programado o en curso
             if status not in ["not_started", "inprogress"]:
                 continue
 
             partidos_filtrados.append(p)
 
         print(f"🎾 Encontrados {len(partidos_filtrados)} partidos ATP/Challenger válidos.")
-        return partidos_filtrados[:max_partidos]
+        return partidos_filtrados[:max_partidos]  # Limita a 5 partidos
     except requests.exceptions.RequestException as e:
         print(f"❌ Error al obtener partidos ATP/Challenger: {e}")
         return []
 
 def obtener_estadisticas(match_id: str) -> Optional[Dict]:
+    """Obtiene las estadísticas de un partido específico desde la API con reintentos."""
     global REQUEST_COUNT
     if REQUEST_COUNT >= MAX_REQUESTS:
         print(f"❌ Límite de {MAX_REQUESTS} solicitudes alcanzado.")
         return None
-
+    
     url = f"{BASE_URL}/matches/{match_id}/summary.json?api_key={SPORTRADAR_API_KEY}"
     max_retries = 3
     for attempt in range(max_retries):
@@ -93,8 +102,16 @@ def obtener_estadisticas(match_id: str) -> Optional[Dict]:
             response.raise_for_status()
             REQUEST_COUNT += 1
             print(f"📈 Solicitudes realizadas: {REQUEST_COUNT}/{MAX_REQUESTS}")
-            time.sleep(2)
+            time.sleep(2)  # Pausa de 2 segundos
             data = response.json()
+            # Verificar que el partido tenga estadísticas y que el estado sea relevante
+            status = get_nested(data, "sport_event_status", "status", default="")
+            if status not in ["inprogress"]:
+                print(f"⚠️ Partido {match_id} no está en curso (estado: {status}).")
+                return None
+            if not get_nested(data, "sport_event_status", "statistics"):
+                print(f"⚠️ No hay estadísticas disponibles para el partido {match_id}.")
+                return None
             return data
         except requests.exceptions.HTTPError as e:
             if response.status_code == 429:
@@ -108,6 +125,7 @@ def obtener_estadisticas(match_id: str) -> Optional[Dict]:
     return None
 
 def analizar_partido(partido: Dict) -> Tuple[Optional[Dict], Optional[Dict]]:
+    """Analiza un partido ATP/Challenger y genera picks de 'rompe' y 'no rompe'."""
     match_id = get_nested(partido, "id", default="")
     torneo = get_nested(partido, "tournament", "name", default="Torneo desconocido")
     hora_utc = get_nested(partido, "scheduled", default="")[:16].replace("T", " ")
@@ -144,6 +162,9 @@ def analizar_partido(partido: Dict) -> Tuple[Optional[Dict], Optional[Dict]]:
         p1_1st_serve = get_nested(stats1, "first_serve_pct", default=100)
         p1_breaks_faced = get_nested(stats1, "break_points_faced", default=0)
 
+        print(f"📊 {jugador1} (return {p1_return}%, breaks {p1_breaks}) vs {jugador2} (1st serve {p2_1st_serve}%)")
+        print(f"📊 {jugador2} (return {p2_return}%, breaks {p2_breaks}) vs {jugador1} (1st serve {p1_1st_serve}%)")
+
         pick_rompe = None
         pick_no_rompe = None
 
@@ -179,6 +200,7 @@ def analizar_partido(partido: Dict) -> Tuple[Optional[Dict], Optional[Dict]]:
         return None, None
 
 def imprimir_picks_estilo_dg(picks: List[Dict], tipo: str) -> str:
+    """Genera una representación en Markdown de los picks."""
     output = [f"\n📌 PICKS: {tipo.upper()} 🔽"]
     for p in picks:
         output.extend([
@@ -191,27 +213,29 @@ def imprimir_picks_estilo_dg(picks: List[Dict], tipo: str) -> str:
     return "\n".join(output)
 
 def guardar_picks_markdown(picks_rompe: List[Dict], picks_no_rompe: List[Dict], filename: str = "picks_tenis_atp_challenger.md"):
+    """Guarda los picks en un archivo Markdown."""
     content = ["# Picks de Tenis ATP/Challenger - " + datetime.now().strftime("%Y-%m-%d")]
-
+    
     if picks_rompe:
         content.append(imprimir_picks_estilo_dg(picks_rompe, "rompe"))
     else:
         content.append("\n❌ No se detectaron jugadores que probablemente rompan el servicio.")
-
+    
     if picks_no_rompe:
         content.append(imprimir_picks_estilo_dg(picks_no_rompe, "NO rompe"))
     else:
         content.append("\n❌ No se detectaron jugadores que probablemente NO rompan el servicio.")
-
+    
     try:
         Path(filename).write_text("\n".join(content), encoding="utf-8")
         print(f"✅ Picks guardados en {filename}")
     except Exception as e:
         print(f"❌ Error al guardar picks: {e}")
 
+# ===================== EJECUCIÓN =====================
 if __name__ == "__main__":
     print("🔍 Buscando partidos ATP/Challenger y estadísticas reales...")
-
+    
     try:
         partidos = obtener_partidos_atp_challenger(timezone="America/Mexico_City")
         picks_rompe = []
@@ -231,14 +255,13 @@ if __name__ == "__main__":
                 print(imprimir_picks_estilo_dg(picks_rompe, "rompe"))
             else:
                 print("\n❌ No se detectaron jugadores que probablemente rompan el servicio.")
-
+            
             if picks_no_rompe:
                 print(imprimir_picks_estilo_dg(picks_no_rompe, "NO rompe"))
             else:
                 print("\n❌ No se detectaron jugadores que probablemente NO rompan el servicio.")
-
+            
             guardar_picks_markdown(picks_rompe, picks_no_rompe)
-
+    
     except Exception as e:
         print(f"❌ Error en la ejecución principal: {e}")
-
