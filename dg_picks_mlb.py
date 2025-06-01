@@ -1,8 +1,8 @@
 import requests
 from datetime import datetime, timedelta
 import pytz
+import os
 
-ODDS_API_KEY = "137992569bc2352366c01e6928577b2d"
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/baseball_mlb/odds"
 MLB_STATS_BASE_URL = "https://statsapi.mlb.com/api/v1/schedule"
 MLB_PLAYER_STATS_URL = "https://statsapi.mlb.com/api/v1/people/{}?hydrate=stats(group=[pitching],type=[season])"
@@ -11,7 +11,7 @@ MLB_RESULTS_URL = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&teamId={}&
 HEADERS = {"User-Agent": "DG Picks"}
 
 MX_TZ = pytz.timezone("America/Mexico_City")
-HOY = datetime.now(MX_TZ).strftime("%Y-%m-%d")  # Fecha dinámica
+HOY = datetime.now(MX_TZ).strftime("%Y-%m-%d")
 
 def get_today_mlb_games():
     params = {"sportId": 1, "date": HOY, "hydrate": "team,linescore,probablePitcher"}
@@ -49,13 +49,14 @@ def normalize_team(name):
 
 def get_odds_for_mlb():
     params = {
-        "apiKey": ODDS_API_KEY,
+        "apiKey": os.getenv("ODDS_API_KEY"),
         "regions": "us",
         "markets": "h2h,spreads,totals",
         "oddsFormat": "decimal"
     }
     try:
         response = requests.get(ODDS_API_URL, headers=HEADERS, params=params, timeout=10)
+        print(f"Respuesta cruda: {response.text}")  # Debug
         odds_data = response.json()
         print(f"📊 Número de partidos con cuotas: {len(odds_data)}")
         return odds_data if isinstance(odds_data, list) else []
