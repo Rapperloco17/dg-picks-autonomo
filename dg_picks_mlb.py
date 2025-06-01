@@ -17,12 +17,12 @@ HOY = datetime.now(MX_TZ).strftime("%Y-%m-%d")
 
 # Estadio impact factors
 STADIUM_FACTORS = {
-    "Busch Stadium": {"hr_factor": 0.9, "offense_boost": 0.95},
-    "Globe Life Field": {"hr_factor": 1.1, "offense_boost": 1.05},
-    "Fenway Park": {"hr_factor": 1.0, "offense_boost": 1.0},
-    "Truist Park": {"hr_factor": 1.0, "offense_boost": 1.0},
-    "Guaranteed Rate Field": {"hr_factor": 0.95, "offense_boost": 0.9},
-    "Oriole Park": {"hr_factor": 1.05, "offense_boost": 1.0}
+    "Busch Stadium": {"offense_boost": 0.95},
+    "Globe Life Field": {"offense_boost": 1.05},
+    "Fenway Park": {"offense_boost": 1.0},
+    "Truist Park": {"offense_boost": 1.0},
+    "Guaranteed Rate Field": {"offense_boost": 0.9},
+    "Oriole Park": {"offense_boost": 1.0}
 }
 
 # Función para obtener juegos de MLB
@@ -126,21 +126,20 @@ def get_top_hitter_stats(team_id):
         response.raise_for_status()
         stats = response.json()
         if not stats.get("stats") or not stats["stats"][0].get("splits"):
-            return {"name": "N/A", "hr": 10, "avg": 0.280}  # Valores por defecto realistas
+            return {"name": "N/A", "avg": 0.280}  # Solo avg como valor por defecto
         team_stats = stats["stats"][0]["splits"][0].get("team", {})
         players = team_stats.get("players", [])
         if not players:
-            return {"name": "N/A", "hr": 10, "avg": 0.280}
+            return {"name": "N/A", "avg": 0.280}
         top_hitter = max(players, key=lambda p: p["stats"][0]["stat"].get("homeRuns", 0) if p.get("stats") else 0)
         hitter_stats = top_hitter["stats"][0]["stat"]
         return {
             "name": top_hitter["person"]["fullName"],
-            "hr": hitter_stats.get("homeRuns", 10),
             "avg": hitter_stats.get("avg", 0.280)
         }
     except Exception as e:
         print(f"❌ Error al obtener stats del bateador de equipo {team_id}: {e}")
-        return {"name": "N/A", "hr": 10, "avg": 0.280}  # Valores por defecto realistas
+        return {"name": "N/A", "avg": 0.280}
 
 # Función para obtener forma del equipo
 def get_team_form(team_id):
@@ -182,97 +181,41 @@ def get_team_form(team_id):
         print(f"❌ Error al obtener forma del equipo {team_id}: {e}")
         return {}
 
-# Función para calcular probabilidad de "No HR"
-def calculate_no_hr_prob(pitcher_stats, hitter_stats, venue):
-    home_runs = int(pitcher_stats.get("homeRuns", 0))
-    hr_hitter = int(hitter_stats.get("hr", 10))  # Valor por defecto ya establecido
-    hr_factor = STADIUM_FACTORS.get(venue, {"hr_factor": 1.0})["hr_factor"]
-    strikeouts = int(pitcher_stats.get("strikeOuts", 50))  # Valor por defecto
-
-    # Ajustar la fórmula para evitar 100% y reflejar mejor el riesgo
-    base_prob = (min(home_runs, 50) / 50) * (min(hr_hitter, 20) / 20) * hr_factor
-    strikeout_factor = (strikeouts / 100)  # Más strikeouts reducen el riesgo de HR
-    no_hr_prob = (1 - base_prob * (1 - strikeout_factor)) * 100
-    return max(0, min(100, no_hr_prob))  # Asegurar entre 0 y 100
-
 # Función para sugerir pick
 def sugerir_pick(equipo, form_eq, pitcher_eq, hitter_eq, venue, cuota_ml=None, cuota_spread=None):
     try:
         era = float(pitcher_eq.get("era", 99))
         anotadas = form_eq.get("anotadas", 0) * STADIUM_FACTORS.get(venue, {"offense_boost": 1.0})["offense_boost"]
-        home_runs = int(pitcher_eq.get("homeRuns", 0))
         strikeouts = int(pitcher_eq.get("strikeOuts", 0))
-        hr_hitter = hitter_eq["hr"]
         avg_hitter = hitter_eq["avg"]
-
-        no_hr_prob = calculate_no_hr_prob(pitcher_eq, hitter_eq, venue)
-
-        if home_runs > 10:
-            return f"🚫 {equipo} descartado | Pitcher ha permitido {home_runs} HR, demasiado riesgo | Prob No HR: {no_hr_prob:.1f}%"
 
         if cuota_ml is None and cuota_spread is None:
             if anotadas >= 4.0 and era < 4.0 and avg_hitter > 0.300:
-                return f"🎯 ¡A por {equipo} ML! | {hitter_eq['name']} encendido ({avg_hitter} AVG, {hr_hitter} HR) y pitcher sólido (ERA {era}, {strikeouts} K) | Prob No HR: {no_hr_prob:.1f}%"
+                return f"🎯 ¡A por {equipo} ML! | {hitter_eq['name']} encendido ({avg_hitter} AVG) y pitcher sólido (ERA {era}, {strikeouts} K)"
             elif anotadas >= 4.5 and era < 3.7:
-                return f"🔥 {equipo} -1.5, ¡a ganar por más! | Ofensiva fuerte y ERA top (ERA {era}) en {venue} | Prob No HR: {no_hr_prob:.1f}%"
+                return f"🔥 {equipo} -1.5, ¡a ganar por más! | Ofensiva fuerte y ERA top (ERA {era}) en {venue}"
             elif anotadas >= 4.5:
-                return f"⚡ {equipo} anota a lo grande ({anotadas}/juego), ¡considera Over! | Prob No HR: {no_hr_prob:.1f}%"
+                return f"⚡ {equipo} anota a lo grande ({anotadas}/juego), ¡considera Over!"
             else:
-                return f"👍 {equipo} ML, ¡apuesta segura! | {hitter_eq['name']} con {hr_hitter} HR y forma decente | Prob No HR: {no_hr_prob:.1f}%"
+                return f"👍 {equipo} ML, ¡apuesta segura! | {hitter_eq['name']} con {avg_hitter} AVG y forma decente"
 
         if cuota_ml and cuota_ml < 1.70 and anotadas >= 3.5 and era < 4.0:
-            return f"🎯 ¡A por {equipo} ML @ {cuota_ml}! | {hitter_eq['name']} ({avg_hitter} AVG) y pitcher en forma | Prob No HR: {no_hr_prob:.1f}%"
+            return f"🎯 ¡A por {equipo} ML @ {cuota_ml}! | {hitter_eq['name']} ({avg_hitter} AVG) y pitcher en forma"
         elif cuota_ml and 1.70 <= cuota_ml <= 2.50 and anotadas >= 3.5 and era < 4.5:
-            return f"🔥 {equipo} ML @ {cuota_ml}, ¡a darlo todo! | Ofensiva activa y pitcher estable | Prob No HR: {no_hr_prob:.1f}%"
+            return f"🔥 {equipo} ML @ {cuota_ml}, ¡a darlo todo! | Ofensiva activa y pitcher estable"
         elif cuota_ml and cuota_ml > 2.50 and anotadas >= 4.5 and era < 4.2:
-            return f"💥 ¡Sorpresa con {equipo} ML @ {cuota_ml}! | Underdog con valor | Prob No HR: {no_hr_prob:.1f}%"
+            return f"💥 ¡Sorpresa con {equipo} ML @ {cuota_ml}! | Underdog con valor"
         elif cuota_spread and cuota_ml < 1.70 and anotadas >= 4.5 and era < 3.7:
-            return f"🔥 {equipo} -1.5 @ {cuota_spread}, ¡dominación! | Ofensiva y pitcher top | Prob No HR: {no_hr_prob:.1f}%"
+            return f"🔥 {equipo} -1.5 @ {cuota_spread}, ¡dominación! | Ofensiva y pitcher top"
         elif anotadas >= 4.5:
-            return f"⚡ {equipo} anota a lo grande ({anotadas}/juego), ¡ve por el Over! | Prob No HR: {no_hr_prob:.1f}%"
+            return f"⚡ {equipo} anota a lo grande ({anotadas}/juego), ¡ve por el Over!"
         else:
-            return f"⚠️ Partido reñido, ¡evalúa con cuidado! | Prob No HR: {no_hr_prob:.1f}%"
+            return f"⚠️ Partido reñido, ¡evalúa con cuidado!"
     except Exception as e:
         print(f"❌ Error al sugerir pick para {equipo}: {e}")
         return "❌ Sin datos, ¡revisa los números!"
 
 # Función principal
-
-def get_team_total_home_runs(team_id):
-    """
-    Devuelve la cantidad total de home runs conectados por un equipo en la temporada actual (2024).
-    """
-    from datetime import datetime
-    import time
-
-    season_start = "2024-03-28"
-    today = datetime.now().strftime("%Y-%m-%d")
-    url = f"https://statsapi.mlb.com/api/v1/schedule?sportId=1&teamId={team_id}&startDate={season_start}&endDate={today}"
-    response = requests.get(url, headers=HEADERS)
-    dates = response.json().get("dates", [])
-    game_ids = []
-    for date in dates:
-        for game in date.get("games", []):
-            if game.get("status", {}).get("detailedState") == "Final":
-                game_ids.append(game["gamePk"])
-
-    total_hr = 0
-    for game_id in game_ids:
-        url_boxscore = f"https://statsapi.mlb.com/api/v1/game/{game_id}/boxscore"
-        try:
-            res = requests.get(url_boxscore, headers=HEADERS)
-            box = res.json()
-            team_data = box["teams"]["home"] if box["teams"]["home"]["team"]["id"] == team_id else box["teams"]["away"]
-            batters = team_data.get("players", {})
-            for p in batters.values():
-                if "stats" in p and "batting" in p["stats"]:
-                    total_hr += p["stats"]["batting"].get("homeRuns", 0)
-            time.sleep(0.25)
-        except:
-            continue
-    return total_hr
-
-
 def main():
     print("🔍 Analizando partidos de MLB...")
     games = get_today_mlb_games()
@@ -315,8 +258,8 @@ def main():
 
                 print(f"\n=== {away} vs {home} ===")
                 print(f"Horario: {game_time} | Estadio: {venue}")
-                print(f"Pitchers: {pitcher_away_name} ({away}, ERA {pitcher_away.get('era', '❌')}, {pitcher_away.get('homeRuns', '❌')} HR, {pitcher_away.get('strikeOuts', '❌')} K) vs {pitcher_home_name} ({home}, ERA {pitcher_home.get('era', '❌')}, {pitcher_home.get('homeRuns', '❌')} HR, {pitcher_home.get('strikeOuts', '❌')} K)")
-                print(f"Bateadores: {hitter_away['name']} ({away}, {hitter_away['avg']} AVG, {hitter_away['hr']} HR) vs {hitter_home['name']} ({home}, {hitter_home['avg']} AVG, {hitter_home['hr']} HR)")
+                print(f"Pitchers: {pitcher_away_name} ({away}, ERA {pitcher_away.get('era', '❌')}, {pitcher_away.get('strikeOuts', '❌')} K) vs {pitcher_home_name} ({home}, ERA {pitcher_home.get('era', '❌')}, {pitcher_home.get('strikeOuts', '❌')} K)")
+                print(f"Bateadores: {hitter_away['name']} ({away}, {hitter_away['avg']} AVG) vs {hitter_home['name']} ({home}, {hitter_home['avg']} AVG)")
                 print(f"ML: {away} @ {cuotas.get(away, 'N/A')} | {home} @ {cuotas.get(home, 'N/A')}")
                 print(f"Run Line: {away} {spreads.get(away, ('N/A', 'N/A'))[0]} @ {spreads.get(away, ('N/A', 'N/A'))[1]} | {home} {spreads.get(home, ('N/A', 'N/A'))[0]} @ {spreads.get(home, ('N/A', 'N/A'))[1]}")
                 print(f"Over/Under: O{over_line} @ {over_price} | U{over_line} @ {under_price}")
@@ -342,8 +285,8 @@ def main():
         if not matched:
             print(f"\n=== {away} vs {home} ===")
             print(f"Horario: {game_time} | Estadio: {venue}")
-            print(f"Pitchers: {pitcher_away_name} ({away}, ERA {pitcher_away.get('era', '❌')}, {pitcher_away.get('homeRuns', '❌')} HR, {pitcher_away.get('strikeOuts', '❌')} K) vs {pitcher_home_name} ({home}, ERA {pitcher_home.get('era', '❌')}, {pitcher_home.get('homeRuns', '❌')} HR, {pitcher_home.get('strikeOuts', '❌')} K)")
-            print(f"Bateadores: {hitter_away['name']} ({away}, {hitter_away['avg']} AVG, {hitter_away['hr']} HR) vs {hitter_home['name']} ({home}, {hitter_home['avg']} AVG, {hitter_home['hr']} HR)")
+            print(f"Pitchers: {pitcher_away_name} ({away}, ERA {pitcher_away.get('era', '❌')}, {pitcher_away.get('strikeOuts', '❌')} K) vs {pitcher_home_name} ({home}, ERA {pitcher_home.get('era', '❌')}, {pitcher_home.get('strikeOuts', '❌')} K)")
+            print(f"Bateadores: {hitter_away['name']} ({away}, {hitter_away['avg']} AVG) vs {hitter_home['name']} ({home}, {hitter_home['avg']} AVG)")
             print(f"⚠️ No se encontraron cuotas para este partido")
             print(f"Forma (últ 10): {form_away.get('record', '❌')} vs {form_home.get('record', '❌')}")
             print(f"Anotadas/Recibidas: {form_away.get('anotadas', '-')}/{form_away.get('recibidas', '-')} vs {form_home.get('anotadas', '-')}/{form_home.get('recibidas', '-')}")
@@ -353,6 +296,9 @@ def main():
             print("🧠", pick_home if form_home.get("anotadas", 0) >= form_away.get("anotadas", 0) else pick_away)
 
     print("\n✅ Análisis completo")
+
+if __name__ == "__main__":
+    main()
 
 if __name__ == "__main__":
     main()
