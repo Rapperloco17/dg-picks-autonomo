@@ -45,7 +45,6 @@ def get_pitcher_name(pitcher_id):
     return data["people"][0]["fullName"]
 
 def normalize_team(name):
-    # Normalizar el nombre del equipo para comparación
     return name.lower().replace(" ", "").replace("-", "").replace(".", "")
 
 def get_odds_for_mlb():
@@ -145,6 +144,10 @@ def sugerir_pick(equipo, form_eq, pitcher_eq, cuota_ml=None, cuota_spread=None):
 
     print(f"🔍 Evaluando pick para {equipo}: ERA={era}, Anotadas={anotadas}, Record={record}, Cuota ML={cuota_ml}, Cuota Spread={cuota_spread}")
 
+    # Evitar picks si no hay datos confiables
+    if era >= 99 or anotadas == 0:
+        return f"⚠️ Datos insuficientes para {equipo} (ERA o anotadas no disponibles)"
+
     if cuota_ml is None and cuota_spread is None:
         if anotadas >= 4.0 and era < 4.0:
             return f"🎯 ¡A por {equipo} ML! | Potente ofensiva ({anotadas}/juego) y pitcher en forma (ERA {era})"
@@ -179,7 +182,7 @@ def main():
 
     print(f"🔍 Total de juegos encontrados: {len(games)}")
     for idx, game in enumerate(games):
-        print(f"🔍 Procesando juego {idx + 1}/{len(games)}...")
+        print(f"\n🎮 Juego {idx + 1}/{len(games)} 🎮")
         home = game['home_team']
         away = game['away_team']
         pitcher_home_id = game['home_pitcher_id']
@@ -205,7 +208,6 @@ def main():
             odd_away = normalize_team(odd.get("away_team", ""))
             print(f"⚠️ Revisando (Odds API): {odd_home} vs {odd_away}")
 
-            # Comparar exactamente los nombres normalizados
             if (home_normalized == odd_home and away_normalized == odd_away) or \
                (home_normalized == odd_away and away_normalized == odd_home):
 
@@ -232,19 +234,19 @@ def main():
                                 elif o["name"].lower() == "under":
                                     under_price = o["price"]
 
-                print(f"\n🧾 {away} vs {home} | Horario: {game_time}")
-                print(f"   Pitchers: {pitcher_away_name} ({away}) vs {pitcher_home_name} ({home})")
-                print(f"   ML: {away} @ {cuotas.get(away, 'N/A')} | {home} @ {cuotas.get(home, 'N/A')}")
-                print(f"   Run Line: {away} {spreads.get(away, ('N/A', 'N/A'))[0]} @ {spreads.get(away, ('N/A', 'N/A'))[1]} | {home} {spreads.get(home, ('N/A', 'N/A'))[0]} @ {spreads.get(home, ('N/A', 'N/A'))[1]}")
-                print(f"   Over/Under: O{over_line} @ {over_price} | U{over_line} @ {under_price}")
-                print(f"   ERA Pitchers: {pitcher_away.get('era', '❌')} vs {pitcher_home.get('era', '❌')}")
-                print(f"   Forma (últ 10): {form_away.get('record', '❌')} vs {form_home.get('record', '❌')}")
-                print(f"   Anotadas/Recibidas: {form_away.get('anotadas', '-')}/{form_away.get('recibidas', '-')} vs {form_home.get('anotadas', '-')}/{form_home.get('recibidas', '-')}")
+                print(f"🧾 {away} vs {home} | Horario: {game_time} ⏰")
+                print(f"   ⚾ Pitchers: {pitcher_away_name} ({away}) vs {pitcher_home_name} ({home})")
+                print(f"   💰 ML: {away} @ {cuotas.get(away, 'N/A')} | {home} @ {cuotas.get(home, 'N/A')}")
+                print(f"   📏 Run Line: {away} {spreads.get(away, ('N/A', 'N/A'))[0]} @ {spreads.get(away, ('N/A', 'N/A'))[1]} | {home} {spreads.get(home, ('N/A', 'N/A'))[0]} @ {spreads.get(home, ('N/A', 'N/A'))[1]}")
+                print(f"   🔢 Over/Under: O{over_line} @ {over_price} | U{over_line} @ {under_price}")
+                print(f"   📊 ERA Pitchers: {pitcher_away.get('era', '❌')} vs {pitcher_home.get('era', '❌')}")
+                print(f"   📅 Forma (últ 10): {form_away.get('record', '❌')} vs {form_home.get('record', '❌')}")
+                print(f"   📈 Anotadas/Recibidas: {form_away.get('anotadas', '-')}/{form_away.get('recibidas', '-')} vs {form_home.get('anotadas', '-')}/{form_home.get('recibidas', '-')}")
                 total_combinado = (
                     form_home.get("anotadas", 0) + form_home.get("recibidas", 0) +
                     form_away.get("anotadas", 0) + form_away.get("recibidas", 0)
                 ) / 2
-                print(f"   Total estimado: {round(total_combinado, 2)} carreras")
+                print(f"   🎯 Total estimado: {round(total_combinado, 2)} carreras")
 
                 ventaja_home = form_home.get("anotadas", 0) > form_away.get("anotadas", 0) and \
                                float(pitcher_home.get("era", 99)) < float(pitcher_away.get("era", 99))
@@ -264,17 +266,17 @@ def main():
                 break
 
         if not matched:
-            print(f"\n🧾 {away} vs {home} (sin cuotas) | Horario: {game_time}")
-            print(f"   Pitchers: {pitcher_away_name} ({away}) vs {pitcher_home_name} ({home})")
+            print(f"🧾 {away} vs {home} (sin cuotas) | Horario: {game_time} ⏰")
+            print(f"   ⚾ Pitchers: {pitcher_away_name} ({away}) vs {pitcher_home_name} ({home})")
             print(f"   ⚠️ No se encontraron cuotas para este partido")
-            print(f"   ERA Pitchers: {pitcher_away.get('era', '❌')} vs {pitcher_home.get('era', '❌')}")
-            print(f"   Forma (últ 10): {form_away.get('record', '❌')} vs {form_home.get('record', '❌')}")
-            print(f"   Anotadas/Recibidas: {form_away.get('anotadas', '-')}/{form_away.get('recibidas', '-')} vs {form_home.get('anotadas', '-')}/{form_home.get('recibidas', '-')}")
+            print(f"   📊 ERA Pitchers: {pitcher_away.get('era', '❌')} vs {pitcher_home.get('era', '❌')}")
+            print(f"   📅 Forma (últ 10): {form_away.get('record', '❌')} vs {form_home.get('record', '❌')}")
+            print(f"   📈 Anotadas/Recibidas: {form_away.get('anotadas', '-')}/{form_away.get('recibidas', '-')} vs {form_home.get('anotadas', '-')}/{form_home.get('recibidas', '-')}")
             total_combinado = (
                 form_home.get("anotadas", 0) + form_home.get("recibidas", 0) +
                 form_away.get("anotadas", 0) + form_away.get("recibidas", 0)
             ) / 2
-            print(f"   Total estimado: {round(total_combinado, 2)} carreras")
+            print(f"   🎯 Total estimado: {round(total_combinado, 2)} carreras")
 
             pick_home = sugerir_pick(home, form_home, pitcher_home)
             pick_away = sugerir_pick(away, form_away, pitcher_away)
