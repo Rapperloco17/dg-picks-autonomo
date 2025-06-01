@@ -237,6 +237,42 @@ def sugerir_pick(equipo, form_eq, pitcher_eq, hitter_eq, venue, cuota_ml=None, c
         return "❌ Sin datos, ¡revisa los números!"
 
 # Función principal
+
+def get_team_total_home_runs(team_id):
+    """
+    Devuelve la cantidad total de home runs conectados por un equipo en la temporada actual (2024).
+    """
+    from datetime import datetime
+    import time
+
+    season_start = "2024-03-28"
+    today = datetime.now().strftime("%Y-%m-%d")
+    url = f"https://statsapi.mlb.com/api/v1/schedule?sportId=1&teamId={team_id}&startDate={season_start}&endDate={today}"
+    response = requests.get(url, headers=HEADERS)
+    dates = response.json().get("dates", [])
+    game_ids = []
+    for date in dates:
+        for game in date.get("games", []):
+            if game.get("status", {}).get("detailedState") == "Final":
+                game_ids.append(game["gamePk"])
+
+    total_hr = 0
+    for game_id in game_ids:
+        url_boxscore = f"https://statsapi.mlb.com/api/v1/game/{game_id}/boxscore"
+        try:
+            res = requests.get(url_boxscore, headers=HEADERS)
+            box = res.json()
+            team_data = box["teams"]["home"] if box["teams"]["home"]["team"]["id"] == team_id else box["teams"]["away"]
+            batters = team_data.get("players", {})
+            for p in batters.values():
+                if "stats" in p and "batting" in p["stats"]:
+                    total_hr += p["stats"]["batting"].get("homeRuns", 0)
+            time.sleep(0.25)
+        except:
+            continue
+    return total_hr
+
+
 def main():
     print("🔍 Analizando partidos de MLB...")
     games = get_today_mlb_games()
