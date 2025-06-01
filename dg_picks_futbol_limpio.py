@@ -487,14 +487,15 @@ def calcular_probabilidades_combinadas(prob_local, prob_away):
 
 if __name__ == "__main__":
     try:
+        # Capturar toda la salida en una lista para filtrarla al final
+        output_lines = []
+        def custom_print(*args, **kwargs):
+            line = " ".join(str(arg) for arg in args)
+            output_lines.append(line)
+
         picks_valiosos = []
         output_file = f"picks_{datetime.now(pytz.timezone('America/Mexico_City')).strftime('%Y%m%d')}.csv"
         logging.info(f"Creando archivo de salida: {output_file}")
-
-        # Filtrar salida inicial (como "Today's date and time is...")
-        import io
-        original_stdout = sys.stdout
-        sys.stdout = io.StringIO()
 
         with open(output_file, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
@@ -502,7 +503,11 @@ if __name__ == "__main__":
 
             partidos = obtener_partidos_rango_fechas()
             if not partidos:
-                print("⚠️ No se encontraron partidos válidos en el rango de fechas.")
+                custom_print("⚠️ No se encontraron partidos válidos en el rango de fechas.")
+                # Imprimir salida filtrada
+                for line in output_lines:
+                    if "Today's date and time is" not in line:
+                        print(line)
                 sys.exit(0)
 
             for p in partidos:
@@ -536,19 +541,20 @@ if __name__ == "__main__":
                     score_text = interpretar_score(score)
                     pick_display = f"{pick} ⭐" if score >= 4 and "❌" not in pick else pick
 
-                    # LOG LIMPIO EN BLOQUE
-                    print()
-                    print(f"⚽️ {p['liga']} | {p['local']} vs {p['visitante']}")
-                    print(f"🕐 Hora: 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}")
-                    print(f"🔮 Predicción: {p['local']} {goles_local_pred} - {goles_away_pred} {p['visitante']}")
-                    print(f"📊 Stats: {p['local']} {stats_local['gf']} GF / {stats_local['gc']} GC | {p['visitante']} {stats_away['gf']} GF / {stats_away['gc']} GC")
-                    print(f"📈 Probabilidades: BTTS {prob_combinada['btts']}% | Over 1.5 {prob_combinada['over15']}% | Over 2.5 {prob_combinada['over25']}%")
-                    print(f"🎯 Pick: {pick_display}")
-                    print(f"📎 Tarjetas: {stats_local['tarjetas_amarillas']} vs {stats_away['tarjetas_amarillas']} | Corners: {stats_local['corners']} vs {stats_away['corners']}")
-                    print(f"💡 {score_text}")
+                    # LOG LIMPIO EN BLOQUE - Incluyendo H2H
+                    custom_print(f"⚽️ {p['liga']}: {p['local']} vs {p['visitante']}")
+                    custom_print(f"🕐 Hora: 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}")
+                    custom_print(f"📊 Promedios: {p['local']} {stats_local['gf']} GF / {stats_local['gc']} GC | {p['visitante']} {stats_away['gf']} GF / {stats_away['gc']} GC")
+                    custom_print(f"🔮 Predicción: {p['local']} {goles_local_pred} - {goles_away_pred} {p['visitante']}")
+                    custom_print(f"🎯 {pick_display}")
+                    custom_print(score_text)
+                    custom_print(f"📈 Probabilidades: BTTS {prob_combinada['btts']}% | Over 1.5 {prob_combinada['over15']}% | Over 2.5 {prob_combinada['over25']}%")
+                    custom_print(f"🧠 Forma: {stats_local['forma']} | {stats_away['forma']}")
+                    custom_print(f"📊 H2H: {h2h_stats['record']} | Goles Promedio: {p['local']} {h2h_stats['home_avg_goals']} - {h2h_stats['away_avg_goals']} {p['visitante']} | Tarjetas Promedio: {h2h_stats['avg_total_cards']}" if h2h_stats["total_matches"] > 0 else f"📊 H2H: No hay datos disponibles")
+                    custom_print(f"📎 Tarjetas: {stats_local['tarjetas_amarillas']} vs {stats_away['tarjetas_amarillas']} | Corners: {stats_local['corners']} vs {stats_away['corners']}")
                     if advertencia:
-                        print(f"{advertencia}")
-                    print("-" * 58)
+                        custom_print(advertencia)
+                    custom_print("-" * 58)
 
                     # Guardar picks valiosos
                     if score >= 4 and "❌" not in pick:
@@ -578,26 +584,28 @@ if __name__ == "__main__":
 
                     time.sleep(1)
                 except Exception as e:
-                    print(Fore.RED + f"❌ Error en el análisis de {p['local']} vs {p['visitante']}: {e}" + Style.RESET_ALL)
-                    print("-" * 58)
+                    custom_print(Fore.RED + f"❌ Error al procesar {p['local']} vs {p['visitante']}: {e}" + Style.RESET_ALL)
+                    custom_print("-" * 58)
                     continue
 
-        # Restaurar stdout y filtrar salida inicial
-        sys.stdout = original_stdout
-        initial_output = sys.stdout.getvalue()
-        for line in initial_output.split('\n'):
-            if "Today's date and time is" not in line:
-                print(line)
+            # Imprimir salida filtrada
+            for line in output_lines:
+                if "Today's date and time is" not in line:
+                    print(line)
 
-        # Resumen de picks valiosos
-        if picks_valiosos:
-            print("\n📊 Resumen de Picks Valiosos:")
-            for pick in picks_valiosos:
-                print(f"{pick['liga']}: {pick['partido']} - {pick['pick']} ({pick['score']})")
+            # Resumen de picks valiosos
+            if picks_valiosos:
+                print("\n📊 Resumen de partidos ordenados por horario:")
+                for pick in picks_valiosos:
+                    print(f"{pick['liga']}: {pick['partido']} - {pick['pick']} ({pick['score']})")
 
-        print("✅ Análisis completado.")
-        sys.exit(0)
+            print("✅ Script finalizado.")
+            sys.exit(0)
 
     except Exception as e:
+        # Imprimir salida filtrada incluso en caso de error
+        for line in output_lines:
+            if "Today's date and time is" not in line:
+                print(line)
         print(Fore.RED + f"❌ Error inesperado: {e}" + Style.RESET_ALL)
         sys.exit(1)
