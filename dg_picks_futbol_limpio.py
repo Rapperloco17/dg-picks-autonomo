@@ -488,6 +488,12 @@ def calcular_probabilidades_combinadas(prob_local, prob_away):
     }
     return combined
 
+def filter_output(line):
+    # Filtrar la línea no deseada que contiene "Today's date and time is"
+    if "Today's date and time is" in line:
+        return None
+    return line
+
 if __name__ == "__main__":
     try:
         logging.info("Iniciando script")
@@ -534,20 +540,23 @@ if __name__ == "__main__":
                     prob_away = calcular_probabilidades_btts_over(p["away_id"])
                     prob_combinada = calcular_probabilidades_combinadas(prob_local, prob_away)
 
-                    # Salida simplificada
-                    
-                    print(f"🇦🇷 {p['liga']}: {p['local']} vs {p['visitante']}")
-                    print(f"🕐 Hora: 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}")
-                    print(f"📊 Promedios: {p['local']} {stats_local['gf']} GF / {stats_local['gc']} GC | {p['visitante']} {stats_away['gf']} GF / {stats_away['gc']} GC")
-                    print(f"🔮 Predicción: {p['local']} {goles_local_pred} - {goles_away_pred} {p['visitante']}")
-                    pick_display = f"{pick} ⭐" if score >= 4 and "❌" not in pick else pick
-                    print(f"🎯 {pick_display}")
-                    print(interpretar_score(score))
-                    print(f"📈 Probabilidades: BTTS {prob_combinada['btts']}% | Over 1.5 {prob_combinada['over15']}% | Over 2.5 {prob_combinada['over25']}%")
-                    print(f"🧠 Forma: {stats_local['forma']} | {stats_away['forma']}")
-                    print(f"📎 Tarjetas: {stats_local['tarjetas_amarillas']} vs {stats_away['tarjetas_amarillas']} | Corners: {stats_local['corners']} vs {stats_away['corners']}")
-                    print("-" * 58)
-
+                    # Salida simplificada con filtrado
+                    lines = [
+                        f"🇦🇷 {p['liga']}: {p['local']} vs {p['visitante']}",
+                        f"🕐 Hora: 🇲🇽 {hora_mex} | 🇪🇸 {hora_esp}",
+                        f"📊 Promedios: {p['local']} {stats_local['gf']} GF / {stats_local['gc']} GC | {p['visitante']} {stats_away['gf']} GF / {stats_away['gc']} GC",
+                        f"🔮 Predicción: {p['local']} {goles_local_pred} - {goles_away_pred} {p['visitante']}",
+                        f"🎯 {pick_display}",
+                        interpretar_score(score),
+                        f"📈 Probabilidades: BTTS {prob_combinada['btts']}% | Over 1.5 {prob_combinada['over15']}% | Over 2.5 {prob_combinada['over25']}%",
+                        f"🧠 Forma: {stats_local['forma']} | {stats_away['forma']}",
+                        f"📎 Tarjetas: {stats_local['tarjetas_amarillas']} vs {stats_away['tarjetas_amarillas']} | Corners: {stats_local['corners']} vs {stats_away['corners']}",
+                        "-" * 58
+                    ]
+                    for line in lines:
+                        filtered_line = filter_output(line)
+                        if filtered_line:
+                            print(filtered_line)
 
                     picks_valiosos.append({
                         "partido": f"{p['local']} vs {p['visitante']}",
