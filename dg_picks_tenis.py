@@ -7,7 +7,8 @@ import json
 # Configuración inicial
 API_KEY = "189a631b589d485730ac08dda125528a"
 BASE_URL = "http://www.goalserve.com/getfeed"
-ODDS_URL = f"{BASE_URL}/getodds?cat=tennis_10&json=1"
+FIXTURES_URL = f"{BASE_URL}/home?key={API_KEY}"
+ODDS_URL = f"{BASE_URL}/getodds?cat=tennis_10&json=1&key={API_KEY}"
 HEADERS = {"User-Agent": "DG Picks Tenis"}
 
 # Configurar logging
@@ -20,7 +21,7 @@ def formatear_nombre(nombre):
 # Obtener partidos del día
 def obtener_partidos():
     try:
-        response = requests.get(f"{BASE_URL}/home?key={API_KEY}", headers=HEADERS)
+        response = requests.get(FIXTURES_URL, headers=HEADERS, timeout=10)
         response.raise_for_status()
         root = ET.fromstring(response.content)
         partidos = []
@@ -41,21 +42,25 @@ def obtener_partidos():
         logging.info(f"Obtenidos {len(partidos)} partidos.")
         return partidos
     except ET.ParseError as e:
-        logging.error(f"Error al parsear XML de partidos: {e}")
+        logging.error(f"Error al parsear XML de partidos: {e} - Contenido: {response.text[:200]}")
         return []
-    except Exception as e:
+    except requests.RequestException as e:
         logging.error(f"Error al obtener partidos: {e}")
         return []
 
 # Obtener cuotas ML
 def obtener_cuotas_ml():
     try:
-        response = requests.get(ODDS_URL, headers=HEADERS, params={"key": API_KEY})
+        response = requests.get(ODDS_URL, headers=HEADERS, timeout=10)
         response.raise_for_status()
         data = response.json()
         cuotas = {}
 
-        for item in data.get("odds", []):
+        if not isinstance(data, dict) and not isinstance(data, list):
+            logging.error(f"Respuesta no es JSON válido: {data[:200]}")
+            return {}
+
+        for item in data if isinstance(data, list) else data.get("odds", []):
             if item.get("sport") != "Tennis":
                 continue
             teams = item.get("teams", [])
@@ -70,7 +75,7 @@ def obtener_cuotas_ml():
                 if mercado.get("label") == "Match Winner" and len(mercado.get("odds", [])) >= 2:
                     ml1 = float(mercado["odds"][0].get("value", 0))
                     ml2 = float(mercado["odds"][1].get("value", 0))
-                    if ml1 > 1.0 and ml2 > 1.0:  # Validar cuotas positivas
+                    if 1.0 < ml1 <= 10.0 and 1.0 < ml2 <= 10.0:  # Validar cuotas
                         cuotas[f"{team1} vs {team2}"] = {
                             team1: ml1,
                             team2: ml2
@@ -78,9 +83,9 @@ def obtener_cuotas_ml():
         logging.info(f"Obtenidas {len(cuotas)} cuotas ML.")
         return cuotas
     except json.JSONDecodeError as e:
-        logging.error(f"Error al parsear JSON de cuotas: {e}")
+        logging.error(f"Error al parsear JSON de cuotas: {e} - Contenido: {response.text[:200]}")
         return {}
-    except Exception as e:
+    except requests.RequestException as e:
         logging.error(f"Error al obtener cuotas ML: {e}")
         return {}
 
