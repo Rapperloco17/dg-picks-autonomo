@@ -2,13 +2,14 @@ import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime
 import logging
+import json
 
 # Configuración inicial
 API_KEY = "189a631b589d485730ac08dda125528a"
 BASE_URL = f"http://www.goalserve.com/getfeed/{API_KEY}/tennis_scores"
 HEADERS = {"User-Agent": "DG Picks Tenis"}
 
-# Usar JSON para facilitar parseo (aunque la estructura original es XML)
+# Usar JSON para facilitar parseo (aunque la estructura original puede ser XML)
 JSON_SUFFIX = "?json=1"
 
 # Endpoints
@@ -22,20 +23,44 @@ ODDS_URL = f"http://www.goalserve.com/getfeed/{API_KEY}/getodds/soccer?cat=tenni
 def formatear_nombre(nombre):
     return nombre.strip().replace("\n", " ").title()
 
-# Obtener partidos del día
+# Obtener partidos del día (detecta JSON o XML)
 
 def obtener_partidos():
     try:
         response = requests.get(FIXTURES_URL, headers=HEADERS)
-        data = response.json()
+        content_type = response.headers.get("Content-Type", "")
+        data = None
 
-        # Validar que data sea un dict y contenga 'scores'
+        if "application/json" in content_type:
+            data = response.json()
+        else:
+            try:
+                data = json.loads(response.text)
+            except json.JSONDecodeError:
+                logging.warning("Respuesta no es JSON. Probando como XML...")
+                root = ET.fromstring(response.content)
+                partidos = []
+                for category in root.findall("category"):
+                    torneo = category.get("name")
+                    for match in category.findall("match"):
+                        if match.get("status") == "Not Started":
+                            players = match.findall("player")
+                            if len(players) == 2:
+                                partidos.append({
+                                    "match_id": match.get("id"),
+                                    "fecha": match.get("date"),
+                                    "hora": match.get("time"),
+                                    "torneo": torneo,
+                                    "jugador1": {"name": players[0].get("name")},
+                                    "jugador2": {"name": players[1].get("name")}
+                                })
+                return partidos
+
         if not isinstance(data, dict):
-            logging.error("Respuesta no es un JSON válido")
+            logging.error("La respuesta no es un JSON válido (dict)")
             return []
 
         partidos = []
-
         for torneo in data.get("scores", []):
             for match in torneo.get("match", []):
                 if match["status"] == "Not Started":
