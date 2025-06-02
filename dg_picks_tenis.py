@@ -28,6 +28,12 @@ def obtener_partidos():
     try:
         response = requests.get(FIXTURES_URL, headers=HEADERS)
         data = response.json()
+
+        # Validar que data sea un dict y contenga 'scores'
+        if not isinstance(data, dict):
+            logging.error("Respuesta no es un JSON válido")
+            return []
+
         partidos = []
 
         for torneo in data.get("scores", []):
