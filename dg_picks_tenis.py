@@ -11,7 +11,7 @@ HEADERS = {"User-Agent": "DG Picks Tenis"}
 
 # Endpoints
 FIXTURES_URL = f"{BASE_URL}/home"
-STATS_URL = f"{BASE_URL}/home_gamestats"
+P2P_URL = f"{BASE_URL}/home_p2p"
 
 # Utilidad para formatear nombre de jugador
 
@@ -44,51 +44,43 @@ def obtener_partidos():
         logging.error(f"Error al obtener partidos: {e}")
         return []
 
-# Obtener estadísticas de rompimiento por match_id
+# Obtener historial punto a punto
 
-def obtener_estadisticas_rompimiento():
+def obtener_ultimos_rompimientos():
     try:
-        response = requests.get(STATS_URL, headers=HEADERS)
+        response = requests.get(P2P_URL, headers=HEADERS)
         root = ET.fromstring(response.content)
-        estadisticas = {}
+        historial = {}
 
-        for category in root.findall("category"):
-            for match in category.findall("match"):
-                match_id = match.get("id")
-                jugadores = match.findall("player")
-                stats = {}
+        for match in root.findall("match"):
+            match_id = match.get("id")
+            sets = match.findall("set")
+            if not sets:
+                continue
+            primer_set = sets[0]
+            juegos = primer_set.findall("game")
+            resumen = {"jugador1": 0, "jugador2": 0}
 
-                for player in jugadores:
-                    player_id = player.get("id")
-                    stat_block = {}
-                    for stat in player:
-                        stat_block[stat.tag.lower()] = stat.text
-                    stats[player_id] = stat_block
+            for game in juegos:
+                if game.get("server") == "player1" and game.get("winner") == "player2":
+                    resumen["jugador2"] += 1
+                elif game.get("server") == "player2" and game.get("winner") == "player1":
+                    resumen["jugador1"] += 1
 
-                estadisticas[match_id] = stats
-        return estadisticas
+            historial[match_id] = resumen
+
+        return historial
     except Exception as e:
-        logging.error(f"Error al obtener estadísticas: {e}")
+        logging.error(f"Error al obtener p2p: {e}")
         return {}
 
-# Evaluar probabilidad de rompimiento con stats reales
-
-def evaluar_rompimiento_con_stats(jugador, stats):
-    try:
-        break_points = float(stats.get("breakpointsconverted", "0").replace("%", "").strip())
-        return_points = float(stats.get("returnpointswon", "0").replace("%", "").strip())
-        prob = (break_points + return_points) / 2
-        return round(prob, 2)
-    except:
-        return 0.0
-
-# Mostrar partidos con estimación de rompimiento
+# Mostrar partidos con análisis de rompimiento en primer set
 
 def main():
     partidos = obtener_partidos()
-    estadisticas = obtener_estadisticas_rompimiento()
+    rompimientos = obtener_ultimos_rompimientos()
 
-    print("\n🎾 PARTIDOS DE TENIS DISPONIBLES HOY (CON ESTIMACIÓN DE ROMPIMIENTO):\n")
+    print("\n🎾 PARTIDOS DE TENIS DISPONIBLES HOY (ROMPIMIENTO 1ER SET):\n")
 
     if not partidos:
         print("❌ No se encontraron partidos disponibles.")
@@ -96,22 +88,16 @@ def main():
 
     for p in partidos:
         match_id = p["match_id"]
-        j1 = p['jugador1']
-        j2 = p['jugador2']
-        stats_match = estadisticas.get(match_id, {})
+        j1 = formatear_nombre(p["jugador1"]["name"])
+        j2 = formatear_nombre(p["jugador2"]["name"])
+        romp = rompimientos.get(match_id, {"jugador1": 0, "jugador2": 0})
 
-        stats_j1 = stats_match.get(j1["id"], {})
-        stats_j2 = stats_match.get(j2["id"], {})
+        r1 = romp.get("jugador1", 0)
+        r2 = romp.get("jugador2", 0)
 
-        prob1 = evaluar_rompimiento_con_stats(j1, stats_j1)
-        prob2 = evaluar_rompimiento_con_stats(j2, stats_j2)
-
-        j1_name = formatear_nombre(j1["name"])
-        j2_name = formatear_nombre(j2["name"])
-
-        print(f"- {j1_name} vs {j2_name} | 🏟️ {p['torneo']} | 🕒 {p['hora']} | 📅 {p['fecha']}")
-        print(f"  🔎 {j1_name} - Rompimiento estimado: {prob1}%")
-        print(f"  🔎 {j2_name} - Rompimiento estimado: {prob2}%\n")
+        print(f"- {j1} vs {j2} | 🏟️ {p['torneo']} | 🕒 {p['hora']} | 📅 {p['fecha']}")
+        print(f"  🔎 {j1} - Rompimientos 1er set: {r1}")
+        print(f"  🔎 {j2} - Rompimientos 1er set: {r2}\n")
 
 if __name__ == "__main__":
     main()
