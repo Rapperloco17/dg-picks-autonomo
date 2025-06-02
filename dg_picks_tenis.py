@@ -40,18 +40,18 @@ def get_nested(data: Dict, *keys, default=None) -> any:
             return default
     return data
 
-def make_request(url: str, use_ts: bool = False) -> Optional[Dict]:
+def make_request(endpoint: str, use_ts: bool = False) -> Optional[Dict]:
     """Realiza una solicitud a la API de Goalserve manejando GZIP y ts."""
     global REQUEST_COUNT, LAST_TS
     if REQUEST_COUNT >= MAX_REQUESTS:
         print(f"❌ Límite de {MAX_REQUESTS} solicitudes alcanzado.")
         return None
     
-    # Añadir parámetro json=1 y ts si aplica
-    params = "?json=1"
+    # Construir URL con la clave como parámetro
+    params = f"?key={GOALSERVE_API_KEY}&json=1"
     if use_ts and LAST_TS:
         params += f"&ts={LAST_TS}"
-    full_url = f"{url}/{GOALSERVE_API_KEY}/tennis_scores/{url}{params}"
+    full_url = f"{BASE_URL}/{endpoint}{params}"
     
     try:
         response = requests.get(full_url, timeout=10)
@@ -75,7 +75,7 @@ def make_request(url: str, use_ts: bool = False) -> Optional[Dict]:
         time.sleep(2)  # Pausa de 2 segundos para evitar límites
         return data
     except requests.exceptions.RequestException as e:
-        print(f"❌ Error en la solicitud a {url}: {e}")
+        print(f"❌ Error en la solicitud a {endpoint}: {e}")
         return None
 
 def obtener_partidos_atp_challenger(timezone: str = "America/Mexico_City", max_partidos: int = 5, days_ahead: int = 0) -> List[Dict]:
@@ -83,12 +83,12 @@ def obtener_partidos_atp_challenger(timezone: str = "America/Mexico_City", max_p
     fecha = (datetime.now(pytz.timezone(timezone)) + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
     
     # Obtener torneos ATP y Challenger
-    atp_url = f"{BASE_URL}/atp_tournaments"
-    challenger_url = f"{BASE_URL}/challenger_shedule"
+    atp_url = "atp_tournaments"
+    challenger_url = "challenger_shedule"
     partidos = []
     
-    for url in [atp_url, challenger_url]:
-        data = make_request(url, use_ts=True)
+    for endpoint in [atp_url, challenger_url]:
+        data = make_request(endpoint, use_ts=True)
         if not data:
             continue
         
@@ -130,8 +130,8 @@ def obtener_partidos_atp_challenger(timezone: str = "America/Mexico_City", max_p
 
 def obtener_estadisticas(match_id: str) -> Optional[Dict]:
     """Obtiene las estadísticas de un partido específico."""
-    url = f"{BASE_URL}/home_gamestats"
-    data = make_request(url, use_ts=True)
+    endpoint = "home_gamestats"
+    data = make_request(endpoint, use_ts=True)
     
     if not data:
         return None
@@ -151,8 +151,8 @@ def obtener_estadisticas(match_id: str) -> Optional[Dict]:
                 return match
     
     # Si no se encuentra en estadísticas en vivo, buscar en datos históricos
-    url_hist = f"{BASE_URL}/d-1_gamestats"
-    data_hist = make_request(url_hist, use_ts=True)
+    endpoint_hist = "d-1_gamestats"
+    data_hist = make_request(endpoint_hist, use_ts=True)
     
     if not data_hist:
         print(f"⚠️ No hay estadísticas disponibles para el partido {match_id}.")
