@@ -2,7 +2,6 @@ import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime
 import logging
-import json
 
 # Configuración inicial
 API_KEY = "189a631b589d485730ac08dda125528a"
@@ -13,20 +12,22 @@ HEADERS = {"User-Agent": "DG Picks Tenis"}
 FIXTURES_URL = f"{BASE_URL}/home"
 P2P_URL = f"{BASE_URL}/home_p2p"
 
-# Utilidad para formatear nombre de jugador
+# Configurar logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Utilidad para formatear nombre de jugador
 def formatear_nombre(nombre):
     return nombre.strip().replace("\n", " ").title()
 
 # Obtener partidos del día desde XML
-
 def obtener_partidos():
     try:
         response = requests.get(FIXTURES_URL, headers=HEADERS)
+        response.raise_for_status()
         root = ET.fromstring(response.content)
         partidos = []
         for category in root.findall("category"):
-            torneo = category.get("name")
+            torneo = category.get("name", "Torneo desconocido")
             for match in category.findall("match"):
                 if match.get("status") == "Not Started":
                     players = match.findall("player")
@@ -39,43 +40,48 @@ def obtener_partidos():
                             "jugador1": {"id": players[0].get("id"), "name": players[0].get("name")},
                             "jugador2": {"id": players[1].get("id"), "name": players[1].get("name")}
                         })
+        logging.info(f"Obtenidos {len(partidos)} partidos.")
         return partidos
     except Exception as e:
         logging.error(f"Error al obtener partidos: {e}")
         return []
 
 # Obtener historial punto a punto
-
 def obtener_ultimos_rompimientos():
     try:
         response = requests.get(P2P_URL, headers=HEADERS)
+        response.raise_for_status()
         root = ET.fromstring(response.content)
         historial = {}
-
         for match in root.findall("match"):
             match_id = match.get("id")
+            if not match_id:
+                continue
             sets = match.findall("set")
             if not sets:
+                logging.warning(f"No hay sets para match_id {match_id}")
                 continue
             primer_set = sets[0]
             juegos = primer_set.findall("game")
+            if not juegos:
+                logging.warning(f"No hay juegos en el primer set para match_id {match_id}")
+                continue
             resumen = {"jugador1": 0, "jugador2": 0}
-
             for game in juegos:
-                if game.get("server") == "player1" and game.get("winner") == "player2":
+                server = game.get("server")
+                winner = game.get("winner")
+                if server == "player1" and winner == "player2":
                     resumen["jugador2"] += 1
-                elif game.get("server") == "player2" and game.get("winner") == "player1":
+                elif server == "player2" and winner == "player1":
                     resumen["jugador1"] += 1
-
             historial[match_id] = resumen
-
+        logging.info(f"Obtenidos rompimientos para {len(historial)} partidos.")
         return historial
     except Exception as e:
         logging.error(f"Error al obtener p2p: {e}")
         return {}
 
 # Mostrar partidos con análisis de rompimiento en primer set
-
 def main():
     partidos = obtener_partidos()
     rompimientos = obtener_ultimos_rompimientos()
@@ -96,8 +102,12 @@ def main():
         r2 = romp.get("jugador2", 0)
 
         print(f"- {j1} vs {j2} | 🏟️ {p['torneo']} | 🕒 {p['hora']} | 📅 {p['fecha']}")
-        print(f"  🔎 {j1} - Rompimientos 1er set: {r1}")
-        print(f"  🔎 {j2} - Rompimientos 1er set: {r2}\n")
+        if r1 == 0 and r2 == 0:
+            print(f"  🔎 {j1} - Rompimientos 1er set: {r1} (Sin datos disponibles)")
+            print(f"  🔎 {j2} - Rompimientos 1er set: {r2} (Sin datos disponibles)\n")
+        else:
+            print(f"  🔎 {j1} - Rompimientos 1er set: {r1}")
+            print(f"  🔎 {j2} - Rompimientos 1er set: {r2}\n")
 
 if __name__ == "__main__":
     main()
