@@ -2,7 +2,6 @@ import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime
 import logging
-import json
 
 # Configuración inicial
 API_KEY = "189a631b589d485730ac08dda125528a"
@@ -11,7 +10,7 @@ HEADERS = {"User-Agent": "DG Picks Tenis"}
 
 # Endpoints
 FIXTURES_URL = f"{BASE_URL}/home"
-P2P_BASE_URL = f"{BASE_URL}/d-"
+STATS_URL = f"{BASE_URL}/home_gamestats"
 
 # Utilidad para formatear nombre de jugador
 
@@ -39,83 +38,89 @@ def obtener_partidos():
                             "jugador1": {"id": players[0].get("id"), "name": players[0].get("name")},
                             "jugador2": {"id": players[1].get("id"), "name": players[1].get("name")}
                         })
+        logging.info(f"Obtenidos {len(partidos)} partidos del día.")
         return partidos
     except Exception as e:
         logging.error(f"Error al obtener partidos: {e}")
         return []
 
-# Analizar historial de rompimientos en 1er set para un jugador en 20 partidos
+# Obtener estadísticas de rompimiento por match_id
 
-def analizar_historial_rompimientos(jugador_id):
-    partidos_analizados = 0
-    rompimientos = 0
-
+def obtener_estadisticas_rompimiento():
     try:
-        for i in range(1, 21):
-            url = f"{P2P_BASE_URL}{i}_p2p"
-            response = requests.get(url, headers=HEADERS)
-            if response.status_code != 200:
-                continue
-            root = ET.fromstring(response.content)
+        response = requests.get(STATS_URL, headers=HEADERS)
+        root = ET.fromstring(response.content)
+        estadisticas = {}
 
-            for match in root.findall("match"):
-                players = match.findall("player")
-                if len(players) != 2:
-                    continue
+        for category in root.findall("category"):
+            for match in category.findall("match"):
+                match_id = match.get("id")
+                jugadores = match.findall("player")
+                stats = {}
 
-                id1 = players[0].get("id")
-                id2 = players[1].get("id")
+                for player in jugadores:
+                    player_id = player.get("id")
+                    stat_block = {}
+                    for stat in player:
+                        stat_block[stat.tag.lower()] = stat.text
+                    stats[player_id] = stat_block
 
-                if jugador_id != id1 and jugador_id != id2:
-                    continue
-
-                posicion = "player1" if jugador_id == id1 else "player2"
-                rival = "player2" if posicion == "player1" else "player1"
-
-                sets = match.findall("set")
-                if not sets:
-                    continue
-                primer_set = sets[0]
-                juegos = primer_set.findall("game")
-
-                for game in juegos:
-                    if game.get("server") == rival and game.get("winner") == posicion:
-                        rompimientos += 1
-                        break
-
-                partidos_analizados += 1
-                if partidos_analizados >= 20:
-                    break
-
+                estadisticas[match_id] = stats
+        logging.info(f"Obtenidas estadísticas de {len(estadisticas)} partidos.")
+        return estadisticas
     except Exception as e:
-        logging.error(f"Error al analizar historial de rompimientos: {e}")
+        logging.error(f"Error al obtener estadísticas: {e}")
+        return {}
 
-    porcentaje = round((rompimientos / partidos_analizados) * 100, 2) if partidos_analizados else 0.0
-    return partidos_analizados, rompimientos, porcentaje
+# Evaluar probabilidad de rompimiento con stats reales
 
-# Mostrar partidos con análisis de historial de rompimiento en primer set
+def evaluar_rompimiento_con_stats(jugador, stats):
+    try:
+        break_points = float(stats.get("breakpointsconverted", "0").replace("%", "").strip())
+        return_points = float(stats.get("returnpointswon", "0").replace("%", "").strip())
+        prob = (break_points + return_points) / 2
+        return round(prob, 1)
+    except:
+        return 0.0
+
+# Mostrar picks de rompimiento por estimación estadística
 
 def main():
     partidos = obtener_partidos()
-    print("\n🎾 HISTORIAL DE ROMPIMIENTOS EN PRIMER SET (últimos 20 partidos):\n")
+    estadisticas = obtener_estadisticas_rompimiento()
+
+    print("\n🎾 ESTIMACIÓN DE ROMPIMIENTOS EN PRIMER SET (por estadísticas globales):\n")
 
     if not partidos:
         print("❌ No se encontraron partidos disponibles.")
         return
 
     for p in partidos:
+        match_id = p["match_id"]
         j1 = p["jugador1"]
         j2 = p["jugador2"]
         j1_name = formatear_nombre(j1["name"])
         j2_name = formatear_nombre(j2["name"])
 
+        stats_match = estadisticas.get(match_id, {})
+        stats_j1 = stats_match.get(j1["id"], {})
+        stats_j2 = stats_match.get(j2["id"], {})
+
+        p1 = evaluar_rompimiento_con_stats(j1, stats_j1)
+        p2 = evaluar_rompimiento_con_stats(j2, stats_j2)
+
         print(f"- {j1_name} vs {j2_name} | 🏟️ {p['torneo']} | 🕒 {p['hora']} | 📅 {p['fecha']}")
+        print(f"  🔍 {j1_name}: prob. de rompimiento estimada → {p1}%")
+        print(f"  🔍 {j2_name}: prob. de rompimiento estimada → {p2}%")
 
-        t1, r1, pct1 = analizar_historial_rompimientos(j1["id"])
-        t2, r2, pct2 = analizar_historial_rompimientos(j2["id"])
-
-        print(f"  🔍 {j1_name}: {r1}/{t1} partidos con rompimiento (1er set) → {pct1}%")
-        print(f"  🔍 {j2_name}: {r2}/{t2} partidos con rompimiento (1er set) → {pct2}%\n")
+        if p1 >= 60 and p2 < 50:
+            print(f"  ✅ PICK: {j1_name} rompe servicio en 1er set\n")
+        elif p2 >= 60 and p1 < 50:
+            print(f"  ✅ PICK: {j2_name} rompe servicio en 1er set\n")
+        elif p1 >= 60 and p2 >= 60:
+            print(f"  ⚠️ PICK: Ambos jugadores pueden romper en 1er set\n")
+        else:
+            print("  ❌ No se recomienda pick para rompimiento en este partido\n")
 
 if __name__ == "__main__":
     main()
