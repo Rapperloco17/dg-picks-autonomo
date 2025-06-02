@@ -3,6 +3,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import logging
 import json
+import re
 
 # Configuración inicial
 API_KEY = "189a631b589d485730ac08dda125528a"
@@ -13,8 +14,9 @@ HEADERS = {"User-Agent": "DG Picks Tenis"}
 JSON_SUFFIX = "?json=1"
 
 # Endpoints
-FIXTURES_URL = f"{BASE_URL}/home{JSON_SUFFIX}"
 D1_URL = f"{BASE_URL}/d1{JSON_SUFFIX}"
+HOME_URL = f"{BASE_URL}/home{JSON_SUFFIX}"
+ATP_URL = f"{BASE_URL}/atp_tournaments{JSON_SUFFIX}"
 H2H_BASE_URL = f"{BASE_URL}/h2h_"
 PROFILE_URL = f"{BASE_URL}/profile"
 ODDS_URL = f"{BASE_URL}/getodds?cat=tennis_10{JSON_SUFFIX}"
@@ -23,15 +25,27 @@ ODDS_URL = f"{BASE_URL}/getodds?cat=tennis_10{JSON_SUFFIX}"
 def formatear_nombre(nombre):
     return nombre.strip().replace("\n", " ").title()
 
+# Limpieza de texto para evitar entidades no definidas
+def clean_xml_text(text):
+    return re.sub(r"&nbsp;", " ", text) if text else text
+
 # Obtener partidos del día (detecta JSON o XML)
 def obtener_partidos():
     try:
-        # Intentar con endpoint d1 (partidos de hoy) primero
-        for url in [D1_URL, FIXTURES_URL]:
+        endpoints = [
+            (D1_URL, "d1"),
+            (HOME_URL, "home"),
+            (ATP_URL, "atp_tournaments")
+        ]
+        for url, endpoint_name in endpoints:
             params = {"key": API_KEY}
             response = requests.get(url, headers=HEADERS, params=params)
             content_type = response.headers.get("Content-Type", "")
             data = None
+
+            if response.status_code != 200:
+                logging.warning(f"Error {response.status_code} en {endpoint_name}: {response.text}")
+                continue
 
             if "application/json" in content_type:
                 data = response.json()
@@ -39,27 +53,34 @@ def obtener_partidos():
                 try:
                     data = json.loads(response.text)
                 except json.JSONDecodeError:
-                    logging.warning(f"Respuesta no es JSON en {url}. Probando como XML...")
-                    root = ET.fromstring(response.content)
-                    partidos = []
-                    for category in root.findall(".//category"):
-                        torneo = category.get("name", "Torneo desconocido")
-                        for match in category.findall(".//match"):
-                            if match.get("status") == "Not Started":
-                                players = match.findall(".//player")
-                                if len(players) == 2:
-                                    partidos.append({
-                                        "match_id": match.get("id"),
-                                        "fecha": match.get("date"),
-                                        "hora": match.get("time"),
-                                        "torneo": torneo,
-                                        "jugador1": {"name": players[0].get("name")},
-                                        "jugador2": {"name": players[1].get("name")}
-                                    })
-                    return partidos if partidos else None
+                    logging.warning(f"Respuesta no es JSON en {endpoint_name}. Probando como XML...")
+                    # Limpiar texto antes de parsear
+                    cleaned_content = clean_xml_text(response.text)
+                    try:
+                        root = ET.fromstring(cleaned_content.encode('utf-8') if isinstance(cleaned_content, str) else cleaned_content)
+                        partidos = []
+                        for category in root.findall(".//category"):
+                            torneo = category.get("name", "Torneo desconocido")
+                            for match in category.findall(".//match"):
+                                if match.get("status") == "Not Started":
+                                    players = match.findall(".//player")
+                                    if len(players) == 2:
+                                        partidos.append({
+                                            "match_id": match.get("id"),
+                                            "fecha": match.get("date"),
+                                            "hora": match.get("time"),
+                                            "torneo": torneo,
+                                            "jugador1": {"name": players[0].get("name")},
+                                            "jugador2": {"name": players[1].get("name")}
+                                        })
+                        if partidos:
+                            return partidos
+                    except ET.ParseError as e:
+                        logging.error(f"Error al parsear XML en {endpoint_name}: {e}")
+                        continue
 
             if not data or not isinstance(data, dict):
-                logging.error(f"La respuesta de {url} no es un JSON válido (dict)")
+                logging.error(f"La respuesta de {endpoint_name} no es un JSON válido (dict)")
                 continue
 
             partidos = []
@@ -85,7 +106,8 @@ def obtener_partidos():
                                     "jugador1": {"name": players[0].get("@name")},
                                     "jugador2": {"name": players[1].get("@name")}
                                 })
-            return partidos if partidos else None
+            if partidos:
+                return partidos
 
         logging.error("No se obtuvieron partidos de ningún endpoint.")
         return []
