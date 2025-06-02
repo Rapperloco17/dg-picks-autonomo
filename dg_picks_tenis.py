@@ -2,27 +2,30 @@ import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime
 import logging
+import json
 
 # Configuración inicial
 API_KEY = "189a631b589d485730ac08dda125528a"
-BASE_URL = f"http://www.goalserve.com/getfeed/{API_KEY}/tennis_scores"
-ODDS_URL = f"http://www.goalserve.com/getfeed/{API_KEY}/getodds/soccer?cat=tennis_10&json=1"
+BASE_URL = "http://www.goalserve.com/getfeed"
+ODDS_URL = f"{BASE_URL}/getodds?cat=tennis_10&json=1"
 HEADERS = {"User-Agent": "DG Picks Tenis"}
 
-# Utilidad para formatear nombre
+# Configurar logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Utilidad para formatear nombre
 def formatear_nombre(nombre):
     return nombre.strip().replace("\n", " ").title()
 
 # Obtener partidos del día
-
 def obtener_partidos():
     try:
-        response = requests.get(f"{BASE_URL}/home", headers=HEADERS)
+        response = requests.get(f"{BASE_URL}/home?key={API_KEY}", headers=HEADERS)
+        response.raise_for_status()
         root = ET.fromstring(response.content)
         partidos = []
         for category in root.findall("category"):
-            torneo = category.get("name")
+            torneo = category.get("name", "Torneo desconocido")
             for match in category.findall("match"):
                 if match.get("status") == "Not Started":
                     players = match.findall("player")
@@ -35,23 +38,26 @@ def obtener_partidos():
                             "jugador1": formatear_nombre(players[0].get("name")),
                             "jugador2": formatear_nombre(players[1].get("name"))
                         })
+        logging.info(f"Obtenidos {len(partidos)} partidos.")
         return partidos
+    except ET.ParseError as e:
+        logging.error(f"Error al parsear XML de partidos: {e}")
+        return []
     except Exception as e:
         logging.error(f"Error al obtener partidos: {e}")
         return []
 
 # Obtener cuotas ML
-
 def obtener_cuotas_ml():
     try:
-        response = requests.get(ODDS_URL, headers=HEADERS)
+        response = requests.get(ODDS_URL, headers=HEADERS, params={"key": API_KEY})
+        response.raise_for_status()
         data = response.json()
         cuotas = {}
 
-        for item in data:
+        for item in data.get("odds", []):
             if item.get("sport") != "Tennis":
                 continue
-
             teams = item.get("teams", [])
             odds = item.get("odds", [])
             if len(teams) != 2 or not odds:
@@ -61,20 +67,24 @@ def obtener_cuotas_ml():
             team2 = formatear_nombre(teams[1])
 
             for mercado in odds:
-                if mercado["label"] == "Match Winner" and len(mercado["odds"]):
-                    ml1 = float(mercado["odds"][0]["value"])
-                    ml2 = float(mercado["odds"][1]["value"])
-                    cuotas[f"{team1} vs {team2}"] = {
-                        team1: ml1,
-                        team2: ml2
-                    }
+                if mercado.get("label") == "Match Winner" and len(mercado.get("odds", [])) >= 2:
+                    ml1 = float(mercado["odds"][0].get("value", 0))
+                    ml2 = float(mercado["odds"][1].get("value", 0))
+                    if ml1 > 1.0 and ml2 > 1.0:  # Validar cuotas positivas
+                        cuotas[f"{team1} vs {team2}"] = {
+                            team1: ml1,
+                            team2: ml2
+                        }
+        logging.info(f"Obtenidas {len(cuotas)} cuotas ML.")
         return cuotas
+    except json.JSONDecodeError as e:
+        logging.error(f"Error al parsear JSON de cuotas: {e}")
+        return {}
     except Exception as e:
         logging.error(f"Error al obtener cuotas ML: {e}")
         return {}
 
 # Seleccionar el mejor pick con valor real
-
 def seleccionar_pick_ml(partidos, cuotas):
     mejor_pick = None
     mejor_valor = 0.0
@@ -84,12 +94,15 @@ def seleccionar_pick_ml(partidos, cuotas):
         if clave not in cuotas:
             continue
 
-        c1 = cuotas[clave][p['jugador1']]
-        c2 = cuotas[clave][p['jugador2']]
+        c1 = cuotas[clave].get(p['jugador1'], 0.0)
+        c2 = cuotas[clave].get(p['jugador2'], 0.0)
 
-        # Valor inverso para detectar infravalorados (cuota más alta con contexto favorable)
-        if 1.50 <= c1 <= 1.90:
-            valor = (2.1 - c1) * 1.0  # Fuerte favorito razonable
+        if not (1.0 < c1 <= 10.0 and 1.0 < c2 <= 10.0):  # Validar rango de cuotas
+            continue
+
+        # Valor inverso para detectar infravalorados
+        if 1.50 <= c1 <= 1.90:  # Favorito razonable
+            valor = (2.1 - c1) * 1.0
             if valor > mejor_valor:
                 mejor_valor = valor
                 mejor_pick = {
@@ -99,8 +112,8 @@ def seleccionar_pick_ml(partidos, cuotas):
                     "hora": p['hora'],
                     "torneo": p['torneo']
                 }
-        elif 2.00 <= c2 <= 2.80:
-            valor = (c2 - 1.8) * 1.1  # Underdog con potencial
+        elif 2.00 <= c2 <= 2.80:  # Underdog con potencial
+            valor = (c2 - 1.8) * 1.1
             if valor > mejor_valor:
                 mejor_valor = valor
                 mejor_pick = {
@@ -114,7 +127,6 @@ def seleccionar_pick_ml(partidos, cuotas):
     return mejor_pick
 
 # Ejecutar selección y mostrar pick
-
 def main():
     partidos = obtener_partidos()
     cuotas = obtener_cuotas_ml()
@@ -128,7 +140,7 @@ def main():
     pick = seleccionar_pick_ml(partidos, cuotas)
     if pick:
         print(f"🎯 {pick['jugador']} gana su partido (ML)")
-        print(f"💰 Cuota: {pick['cuota']}")
+        print(f"💰 Cuota: {pick['cuota']:.2f}")
         print(f"🆚 Rival: {pick['rival']}")
         print(f"📅 {pick['torneo']} | 🕒 {pick['hora']}")
         print("✅ Valor detectado en la cuota")
