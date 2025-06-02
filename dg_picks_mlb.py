@@ -163,11 +163,11 @@ def estimate_runs(form_eq, venue):
     return round(base_runs * boost, 1)
 
 # Función para calcular probabilidad de Over/Under
-def calculate_over_under_prob(form_home, form_away, venue, line=8.5):
+def calculate_over_under_prob(form_home, form_away, venue, over_line=8.5):
     runs_home = estimate_runs(form_home, venue)
     runs_away = estimate_runs(form_away, venue)
     total_runs = runs_home + runs_away
-    diff = total_runs - line
+    diff = total_runs - over_line
     prob_over = max(0, min(100, 50 + (diff * 10)))  # 50% base, ajustado por diferencia
     prob_under = 100 - prob_over
     return total_runs, prob_over, prob_under
@@ -182,7 +182,7 @@ def evaluate_run_line(form_home, form_away, pitcher_home, pitcher_away, venue, c
     diff_runs = runs_home - runs_away
     diff_era = era_away - era_home  # Mayor ERA del rival favorece al equipo
     
-    # Criterios para Run Line: diferencia de carreras >= 1.5 y ventaja en ERA
+    # Criterios para Run Line: diferencia de al menos 1.5 carreras estimadas y ventaja en ERA
     if diff_runs >= 1.5 and diff_era >= 0.5:
         if cuota_spread_home:
             return f"🔥 Run Line {form_home['home_team']} -1.5 @ {cuota_spread_home} | Ventaja clara: +{diff_runs:.1f} carreras estimadas, ERA rival +{diff_era:.1f}"
@@ -258,8 +258,8 @@ def main():
         form_home['home_team'] = home
         form_away['away_team'] = away
 
-        # Calcular probabilidad de Over/Under
-        total_runs, prob_over, prob_under = calculate_over_under_prob(form_home, form_away, venue)
+        # Calcular probabilidad de Over/Under con línea por defecto
+        total_runs, prob_over, prob_under = calculate_over_under_prob(form_home, form_away, venue, over_line=8.5)
 
         matched = False
         for odd in odds:
@@ -306,20 +306,17 @@ def main():
             print(f"Horario: {game_time} | Estadio: {venue}")
             print(f"Pitchers: {pitcher_away_name} ({away}, ERA {pitcher_away.get('era', '❌')}, {pitcher_away.get('strikeOuts', '❌')} K) vs {pitcher_home_name} ({home}, ERA {pitcher_home.get('era', '❌')}, {pitcher_home.get('strikeOuts', '❌')} K)")
             print(f"Estimado de carreras: {estimate_runs(form_away, venue)} ({away}) vs {estimate_runs(form_home, venue)} ({home})")
-            print(f"Total estimado: {total_runs} | Over {over_line}: {prob_over:.1f}% | Under {over_line}: {prob_under:.1f}%")
+            print(f"Total estimado: {total_runs} | Over 8.5: {prob_over:.1f}% | Under 8.5: {prob_under:.1f}%")
             print(evaluate_run_line(form_home, form_away, pitcher_home, pitcher_away, venue))
             print(f"⚠️ No se encontraron cuotas para este partido")
             print(f"Forma (últ 10): {form_away.get('record', '❌')} vs {form_home.get('record', '❌')}")
-            print(f"Anotadas/Recibidas: {form_away.get('anotadas', '-')}/{form_away.get('recibidas', '-')} vs {form_home.get('anotadas', '-')}/{form_home.get('recibidas', '-')}")
+            print(f"Anotadas/Recibidas: {form_away.get('anotadas', '-')}/{form_away.get('recibidas', '-')} vs {form_home.get('anotadas', '-')} /{form_home.get('recibidas', '-')}")
             print("---")
             pick_home = sugerir_pick(home, form_home, pitcher_home, venue)
             pick_away = sugerir_pick(away, form_away, pitcher_away, venue)
             print("🧠", pick_home if form_home.get("anotadas", 0) >= form_away.get("anotadas", 0) else pick_away)
 
     print("\n✅ Análisis completo")
-
-if __name__ == "__main__":
-    main()
 
 if __name__ == "__main__":
     main()
