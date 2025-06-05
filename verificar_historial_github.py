@@ -34,7 +34,6 @@ for archivo in archivos:
             teams = partido.get("teams", {})
             goals = partido.get("goals", {})
             league = partido.get("league", {})
-            statistics = partido.get("statistics", [])
 
             row = {
                 "Fecha": fixture.get("date", ""),
@@ -46,8 +45,8 @@ for archivo in archivos:
                 "Estado": fixture.get("status", {}).get("short", "")
             }
 
-            # Extraer estadísticas si están presentes
-            for equipo_stats in statistics:
+            estadisticas = partido.get("estadisticas", [])
+            for equipo_stats in estadisticas:
                 team_name = equipo_stats.get("team", {}).get("name", "")
                 prefix = "Local" if team_name == row["Local"] else "Visitante"
                 for stat in equipo_stats.get("statistics", []):
