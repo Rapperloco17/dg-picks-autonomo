@@ -1,6 +1,12 @@
 
 import requests
 import pandas as pd
+import os
+import logging
+
+# Configuración de logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 BOT_TOKEN = "7520899056:AAHaS2Id5BGa9HlrX6YWJFX6hCnZsADTOFA"
 CHAT_ID = "7450739156"
@@ -9,24 +15,37 @@ archivos = ["39.json", "40.json"]
 BASE_URL = "https://raw.githubusercontent.com/Rapperloco17/dg-picks-autonomo/main/historial/"
 
 def enviar_excel_telegram(nombre_archivo):
-    with open(nombre_archivo, "rb") as f:
-        response = requests.post(
-            f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument",
-            data={"chat_id": CHAT_ID},
-            files={"document": (nombre_archivo, f)}
-        )
-        if response.status_code == 200:
-            print(f"📤 Enviado a Telegram: {nombre_archivo}")
-        else:
-            print(f"❌ Error al enviar {nombre_archivo}: {response.text}")
+    try:
+        file_size = os.path.getsize(nombre_archivo) / (1024 * 1024)  # En MB
+        if file_size > 49:
+            logger.warning(f"{nombre_archivo} excede el límite de 50 MB ({file_size:.2f} MB)")
+            return
+
+        with open(nombre_archivo, "rb") as f:
+            response = requests.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument",
+                data={"chat_id": CHAT_ID},
+                files={"document": (nombre_archivo, f)},
+                timeout=30
+            )
+            if response.status_code == 200:
+                logger.info(f"📤 Enviado a Telegram: {nombre_archivo}")
+            else:
+                logger.error(f"❌ Error al enviar {nombre_archivo}: {response.text}")
+    except Exception as e:
+        logger.error(f"❌ Error en enviar_excel_telegram: {e}")
 
 for archivo in archivos:
     url = BASE_URL + archivo
-    response = requests.get(url)
-
-    if response.status_code == 200:
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
         data = response.json()
         partidos = data if isinstance(data, list) else data.get("response", [])
+
+        if not partidos:
+            logger.warning(f"⚠️ No se encontraron partidos en {archivo}")
+            continue
 
         rows = []
         for partido in partidos:
@@ -45,6 +64,7 @@ for archivo in archivos:
                 "Estado": fixture.get("status", {}).get("short", "")
             }
 
+            # Extraer estadísticas si existen
             estadisticas = partido.get("estadisticas", [])
             for equipo_stats in estadisticas:
                 team_name = equipo_stats.get("team", {}).get("name", "")
@@ -60,8 +80,10 @@ for archivo in archivos:
         df = pd.DataFrame(rows)
         nombre_excel = archivo.replace(".json", ".xlsx")
         df.to_excel(nombre_excel, index=False)
-
-        print(f"✅ Excel generado: {nombre_excel}")
+        logger.info(f"✅ Excel generado: {nombre_excel}")
         enviar_excel_telegram(nombre_excel)
-    else:
-        print(f"❌ Error al leer {archivo}: {response.status_code}")
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"❌ Error al leer {archivo}: {e}")
+    except Exception as e:
+        logger.error(f"❌ Error inesperado con {archivo}: {e}")
