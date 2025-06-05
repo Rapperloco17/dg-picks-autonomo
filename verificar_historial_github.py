@@ -1,33 +1,22 @@
 import requests
-import json
+import dicttoxml
 
-# Lista de archivos que quieres validar desde GitHub
-ARCHIVOS = [
-    "39.json",
-    "40.json",
-]
-
+# Lista de archivos a procesar
+archivos = ["39.json", "40.json"]
 BASE_URL = "https://raw.githubusercontent.com/Rapperloco17/dg-picks-autonomo/main/historial/"
 
-total_general = 0
-
-for archivo in ARCHIVOS:
+for archivo in archivos:
     url = BASE_URL + archivo
-    try:
-        response = requests.get(url)
+    response = requests.get(url)
+    
+    if response.status_code == 200:
         data = response.json()
+        xml_data = dicttoxml.dicttoxml(data, custom_root='data', attr_type=False)
 
-        if isinstance(data, list):
-            cantidad = len(data)
-        elif isinstance(data, dict) and "response" in data:
-            cantidad = len(data["response"])
-        else:
-            cantidad = 0
+        nombre_xml = archivo.replace(".json", ".xml")
+        with open(nombre_xml, "wb") as f:
+            f.write(xml_data)
 
-        total_general += cantidad
-        print(f"📁 Archivo: {archivo} → {cantidad} juegos")
-
-    except Exception as e:
-        print(f"❌ Error leyendo {archivo}: {e}")
-
-print(f"\n✅ Total general: {total_general} partidos")
+        print(f"✅ Guardado: {nombre_xml}")
+    else:
+        print(f"❌ Error al leer {archivo}: {response.status_code}")
