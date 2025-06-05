@@ -1,15 +1,13 @@
+
 import requests
 import pandas as pd
 
-# Datos del bot y chat de destino
 BOT_TOKEN = "7520899056:AAHaS2Id5BGa9HlrX6YWJFX6hCnZsADTOFA"
 CHAT_ID = "7450739156"
 
-# Archivos JSON a procesar desde GitHub
 archivos = ["39.json", "40.json"]
 BASE_URL = "https://raw.githubusercontent.com/Rapperloco17/dg-picks-autonomo/main/historial/"
 
-# Función para enviar el archivo .xlsx por Telegram
 def enviar_excel_telegram(nombre_archivo):
     with open(nombre_archivo, "rb") as f:
         response = requests.post(
@@ -22,14 +20,13 @@ def enviar_excel_telegram(nombre_archivo):
         else:
             print(f"❌ Error al enviar {nombre_archivo}: {response.text}")
 
-# Procesar cada archivo JSON
 for archivo in archivos:
     url = BASE_URL + archivo
     response = requests.get(url)
 
     if response.status_code == 200:
         data = response.json()
-        partidos = data.get("response", data)
+        partidos = data if isinstance(data, list) else data.get("response", [])
 
         rows = []
         for partido in partidos:
@@ -37,8 +34,9 @@ for archivo in archivos:
             teams = partido.get("teams", {})
             goals = partido.get("goals", {})
             league = partido.get("league", {})
+            statistics = partido.get("statistics", [])
 
-            rows.append({
+            row = {
                 "Fecha": fixture.get("date", ""),
                 "Liga": league.get("name", ""),
                 "Local": teams.get("home", {}).get("name", ""),
@@ -46,7 +44,19 @@ for archivo in archivos:
                 "Goles Local": goals.get("home", ""),
                 "Goles Visitante": goals.get("away", ""),
                 "Estado": fixture.get("status", {}).get("short", "")
-            })
+            }
+
+            # Extraer estadísticas si están presentes
+            for equipo_stats in statistics:
+                team_name = equipo_stats.get("team", {}).get("name", "")
+                prefix = "Local" if team_name == row["Local"] else "Visitante"
+                for stat in equipo_stats.get("statistics", []):
+                    tipo = stat.get("type", "").strip()
+                    valor = stat.get("value", "")
+                    columna = f"{prefix} - {tipo}"
+                    row[columna] = valor
+
+            rows.append(row)
 
         df = pd.DataFrame(rows)
         nombre_excel = archivo.replace(".json", ".xlsx")
