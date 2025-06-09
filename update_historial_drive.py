@@ -1,5 +1,6 @@
 import requests
 import os
+import json
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 import asyncio
@@ -19,10 +20,12 @@ season = 2024   # Temporada reciente
 url = f"https://v3.football.api-sports.io/fixtures?league={league_id}&season={season}"
 
 # Configuración de Google Drive
+GOOGLE_CREDENTIALS_JSON = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+if not GOOGLE_CREDENTIALS_JSON:
+    raise ValueError("La variable GOOGLE_APPLICATION_CREDENTIALS no está configurada.")
+credentials_info = json.loads(GOOGLE_CREDENTIALS_JSON)
 SCOPES = ["https://www.googleapis.com/auth/drive"]
-SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-credentials = service_account.Credentials.from_service_account_file(
-    SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+credentials = service_account.Credentials.from_service_account_info(credentials_info, scopes=SCOPES)
 drive_service = build("drive", "v3", credentials=credentials)
 
 async def main():
