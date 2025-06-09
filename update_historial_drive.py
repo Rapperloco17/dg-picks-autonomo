@@ -1,8 +1,7 @@
 import requests
 import json
 import os
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from datetime import datetime
@@ -11,12 +10,11 @@ from datetime import datetime
 SCOPES = ['https://www.googleapis.com/auth/drive']
 CREDS_CONTENT = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')  # Obtener el JSON de la variable de entorno
 if CREDS_CONTENT:
-    # Guardar temporalmente el JSON si es una cadena
-    with open('temp_credentials.json', 'w') as f:
-        f.write(CREDS_CONTENT)
-    CREDS_FILE = 'temp_credentials.json'
+    # Cargar directamente las credenciales de la cuenta de servicio
+    creds = Credentials.from_service_account_info(json.loads(CREDS_CONTENT), scopes=SCOPES)
 else:
-    CREDS_FILE = 'credentials.json'  # Fallback local (para pruebas)
+    raise ValueError("La variable de entorno GOOGLE_APPLICATION_CREDENTIALS no está configurada.")
+
 FOLDER_NAME = 'historial_fusionado'
 API_KEY = os.environ.get("API_KEY")  # Leer desde Railway
 HEADERS = {"x-apisports-key": API_KEY}
@@ -29,18 +27,6 @@ LIGAS_ASIGNADAS = [
 
 # Autenticación de Google Drive
 def get_drive_service():
-    creds = None
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    if not creds or not creds.valid:
-        try:
-            flow = InstalledAppFlow.from_client_secrets_file(CREDS_FILE, SCOPES)
-            creds = flow.run_local_server(port=0)
-            with open('token.json', 'w') as token:
-                token.write(creds.to_json())
-        except Exception as e:
-            print(f"❌ Error en autenticación de Google Drive: {e}")
-            raise
     return build('drive', 'v3', credentials=creds)
 
 # Obtener o crear carpeta en Google Drive
