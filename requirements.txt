@@ -17,3 +17,7 @@ python-dotenv==1.0.1
 dicttoxml
 openpyxl
 pydrive2
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+google-api-python-client
