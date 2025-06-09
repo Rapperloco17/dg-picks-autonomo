@@ -9,9 +9,9 @@ from datetime import datetime
 
 # Configuración
 SCOPES = ['https://www.googleapis.com/auth/drive']
-CREDS_FILE = 'credentials.json'  # Reemplaza con la ruta a tu archivo de credenciales
+CREDS_FILE = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', 'credentials.json')  # Soporte para secreto
 FOLDER_NAME = 'historial_fusionado'
-API_KEY = os.environ.get("API_KEY")  # Leer desde variables de entorno de Railway
+API_KEY = os.environ.get("API_KEY")  # Leer desde Railway
 HEADERS = {"x-apisports-key": API_KEY}
 LIGAS_ASIGNADAS = [
     1, 2, 3, 4, 9, 11, 13, 16, 39, 40, 61, 62, 71, 72, 73, 45, 78, 79, 88, 94,
@@ -26,10 +26,14 @@ def get_drive_service():
     if os.path.exists('token.json'):
         creds = Credentials.from_authorized_user_file('token.json', SCOPES)
     if not creds or not creds.valid:
-        flow = InstalledAppFlow.from_client_secrets_file(CREDS_FILE, SCOPES)
-        creds = flow.run_local_server(port=0)
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
+        try:
+            flow = InstalledAppFlow.from_client_secrets_file(CREDS_FILE, SCOPES)
+            creds = flow.run_local_server(port=0)
+            with open('token.json', 'w') as token:
+                token.write(creds.to_json())
+        except Exception as e:
+            print(f"❌ Error en autenticación de Google Drive: {e}")
+            raise
     return build('drive', 'v3', credentials=creds)
 
 # Obtener o crear carpeta en Google Drive
@@ -144,7 +148,11 @@ def update_drive_files(service, folder_id, historial):
 
 # Ejecución principal
 if __name__ == "__main__":
-    service = get_drive_service()
-    folder_id = get_or_create_folder(service, FOLDER_NAME)
-    historial = fetch_football_data()
-    update_drive_files(service, folder_id, historial)
+    try:
+        service = get_drive_service()
+        folder_id = get_or_create_folder(service, FOLDER_NAME)
+        historial = fetch_football_data()
+        update_drive_files(service, folder_id, historial)
+    except Exception as e:
+        print(f"❌ Error general: {e}")
+        raise
