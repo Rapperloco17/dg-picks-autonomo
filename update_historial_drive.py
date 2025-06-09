@@ -9,7 +9,7 @@ from datetime import datetime
 
 # Configuración
 SCOPES = ['https://www.googleapis.com/auth/drive']
-CREDS_FILE = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', 'credentials.json')  # Soporte para secreto
+CREDS_FILE = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', 'credentials.json')  # Usa variable de entorno o archivo local
 FOLDER_NAME = 'historial_fusionado'
 API_KEY = os.environ.get("API_KEY")  # Leer desde Railway
 HEADERS = {"x-apisports-key": API_KEY}
@@ -27,6 +27,11 @@ def get_drive_service():
         creds = Credentials.from_authorized_user_file('token.json', SCOPES)
     if not creds or not creds.valid:
         try:
+            # Si CREDS_FILE es una cadena JSON, guardarla temporalmente
+            if CREDS_FILE and not os.path.exists(CREDS_FILE):
+                with open('temp_credentials.json', 'w') as f:
+                    f.write(CREDS_FILE)
+                CREDS_FILE = 'temp_credentials.json'
             flow = InstalledAppFlow.from_client_secrets_file(CREDS_FILE, SCOPES)
             creds = flow.run_local_server(port=0)
             with open('token.json', 'w') as token:
