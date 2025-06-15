@@ -18,9 +18,9 @@ else:
     CREDS_FILE = 'credentials.json'
 
 FOLDER_NAME = 'historial_fusionado'
-API_KEY = os.environ.get("API_KEY")
+API_KEY = os.environ.get("API_FOOTBALL_KEY")
 if not API_KEY:
-    print("❌ Error: API_KEY no está definida en las variables de entorno.")
+    print("❌ Error: API_FOOTBALL_KEY no está definida en las variables de entorno.")
 else:
     print(f"✅ API_KEY detectada: {API_KEY[:5]}... (ocultada por seguridad)")
 
@@ -143,4 +143,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error general: {e}")
         raise
-
