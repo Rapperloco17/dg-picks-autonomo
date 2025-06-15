@@ -64,15 +64,18 @@ def fetch_football_data():
         for league_id in LIGAS_ASIGNADAS:
             historial[league_id] = []
             page = 1
+            total_fixtures = 0
             while True:
                 url = f"https://v3.football.api-sports.io/fixtures?league={league_id}&season={season}&page={page}"
+                print(f"🔎 Consultando: {url}")
                 try:
                     response = requests.get(url, headers=HEADERS, timeout=10)
                     response.raise_for_status()
                     fixtures = response.json().get('response', [])
+                    print(f"📊 Liga {league_id}, temporada {season}, página {page} - {len(fixtures)} partidos")
                     if not fixtures:
                         break
-                    print(f"📄 Liga {league_id}, temporada {season}, página {page} - {len(fixtures)} partidos")
+                    total_fixtures += len(fixtures)
                     for fixture in fixtures:
                         fixture_id = fixture['fixture']['id']
                         match = {
@@ -108,6 +111,7 @@ def fetch_football_data():
                 except requests.exceptions.RequestException as e:
                     print(f"❌ Error en liga {league_id}, temporada {season}: {str(e)}")
                     break
+            print(f"✅ Total de partidos encontrados para liga {league_id}, temporada {season}: {total_fixtures}\n")
     return historial
 
 
@@ -143,3 +147,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error general: {e}")
         raise
+
