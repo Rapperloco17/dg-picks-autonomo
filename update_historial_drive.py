@@ -21,10 +21,11 @@ FOLDER_NAME = 'historial_fusionado'
 API_KEY = os.environ.get("API_FOOTBALL_KEY")
 if not API_KEY:
     print("❌ Error: API_FOOTBALL_KEY no está definida en las variables de entorno.")
+    raise ValueError("API_FOOTBALL_KEY no configurada")
 else:
     print(f"✅ API_KEY detectada: {API_KEY[:5]}... (ocultada por seguridad)")
-
 HEADERS = {"x-apisports-key": API_KEY}
+print(f"🔍 Headers enviados: {HEADERS}")
 LIGAS_ASIGNADAS = [
     1, 2, 3, 4, 9, 11, 13, 16, 39, 40, 61, 62, 71, 72, 73, 45, 78, 79, 88, 94,
     103, 106, 113, 119, 128, 129, 130, 135, 136, 137, 140, 141, 143, 144, 162,
@@ -32,15 +33,17 @@ LIGAS_ASIGNADAS = [
     262, 263, 265, 268, 271, 281, 345, 357
 ]
 
-
 def get_drive_service():
     creds = None
     if os.path.exists('token.json'):
         creds = service_account.Credentials.from_service_account_file('token.json', scopes=SCOPES)
     if not creds or not creds.valid:
-        creds = service_account.Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES)
+        try:
+            creds = service_account.Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES)
+        except Exception as e:
+            print(f"❌ Error en autenticación de Google Drive: {e}")
+            raise
     return build('drive', 'v3', credentials=creds)
-
 
 def get_or_create_folder(service, folder_name):
     query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
@@ -52,10 +55,16 @@ def get_or_create_folder(service, folder_name):
     folder = service.files().create(body=folder_metadata, fields='id').execute()
     return folder['id']
 
-
 def parse_statistics(stats_list):
-    return {item['type']: item['value'] for item in stats_list}
-
+    stats = {}
+    for item in stats_list:
+        stat_type = item.get('type', 'unknown')
+        value = item.get('value', None)
+        if isinstance(value, (int, float, str)) or value is None:
+            stats[stat_type] = value
+        elif isinstance(value, list):
+            stats[stat_type] = [v for v in value if v is not None]
+    return stats
 
 def fetch_football_data():
     historial = {}
@@ -64,31 +73,34 @@ def fetch_football_data():
         for league_id in LIGAS_ASIGNADAS:
             historial[league_id] = []
             page = 1
-            total_fixtures = 0
-            while True:
+            max_pages = 50  # Límite razonable para evitar bucles infinitos
+            while page <= max_pages:
                 url = f"https://v3.football.api-sports.io/fixtures?league={league_id}&season={season}&page={page}"
                 print(f"🔎 Consultando: {url}")
                 try:
                     response = requests.get(url, headers=HEADERS, timeout=10)
                     response.raise_for_status()
-                    fixtures = response.json().get('response', [])
-                    print(f"📊 Liga {league_id}, temporada {season}, página {page} - {len(fixtures)} partidos")
-                    if not fixtures:
+                    data = response.json()
+                    fixtures = data.get('response', [])
+                    paging = data.get('paging', {})
+                    total_pages = paging.get('total', 1)
+                    print(f"📊 Liga {league_id}, temporada {season}, página {page}/{total_pages} - {len(fixtures)} partidos")
+                    if not fixtures or page >= total_pages:
                         break
-                    total_fixtures += len(fixtures)
                     for fixture in fixtures:
                         fixture_id = fixture['fixture']['id']
+                        print(f"📋 Procesando fixture {fixture_id}")
                         match = {
                             "teams": {
-                                "home": {"name": fixture['teams']['home']['name']},
-                                "away": {"name": fixture['teams']['away']['name']}
+                                "home": {"name": fixture['teams']['home'].get('name', 'Unknown')},
+                                "away": {"name": fixture['teams']['away'].get('name', 'Unknown')}
                             },
                             "goals": {
-                                "home": fixture['goals']['home'] or 0,
-                                "away": fixture['goals']['away'] or 0
+                                "home": fixture['goals'].get('home', 0) or 0,
+                                "away": fixture['goals'].get('away', 0) or 0
                             },
-                            "league": {"id": league_id, "name": fixture['league']['name']},
-                            "fixture": {"date": fixture['fixture']['date']}
+                            "league": {"id": league_id, "name": fixture['league'].get('name', 'Unknown')},
+                            "fixture": {"date": fixture['fixture'].get('date', 'N/A')}
                         }
                         try:
                             r_stats = requests.get(f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fixture_id}", headers=HEADERS, timeout=10)
@@ -97,23 +109,27 @@ def fetch_football_data():
                             if stats_data:
                                 stats = {}
                                 for team_stats in stats_data:
-                                    team_name = team_stats["team"]["name"]
-                                    parsed = parse_statistics(team_stats["statistics"])
+                                    team_name = team_stats["team"].get("name", "Unknown")
+                                    parsed = parse_statistics(team_stats.get("statistics", []))
                                     if team_name == match["teams"]["home"]["name"]:
                                         stats["home"] = parsed
                                     elif team_name == match["teams"]["away"]["name"]:
                                         stats["away"] = parsed
-                                match["stats"] = stats
+                                if stats:
+                                    match["stats"] = stats
+                                else:
+                                    print(f"⚠️ Sin estadísticas para fixture {fixture_id}")
+                            else:
+                                print(f"⚠️ Respuesta vacía de estadísticas para fixture {fixture_id}")
                         except requests.exceptions.RequestException as e:
-                            print(f"❌ Error obteniendo estadísticas para fixture {fixture_id}: {str(e)}")
+                            print(f"❌ Error obteniendo estadísticas para fixture {fixture_id}: {str(e)} - Status Code: {getattr(e.response, 'status_code', 'N/A')}")
                         historial[league_id].append(match)
                     page += 1
                 except requests.exceptions.RequestException as e:
-                    print(f"❌ Error en liga {league_id}, temporada {season}: {str(e)}")
+                    print(f"❌ Error en liga {league_id}, temporada {season}: {str(e)} - Status Code: {getattr(e.response, 'status_code', 'N/A')}")
                     break
-            print(f"✅ Total de partidos encontrados para liga {league_id}, temporada {season}: {total_fixtures}\n")
+            print(f"✅ Total de partidos encontrados para liga {league_id}, temporada {season}: {len(historial[league_id])}\n")
     return historial
-
 
 def update_drive_files(service, folder_id, historial):
     for league_id, matches in historial.items():
@@ -137,7 +153,6 @@ def update_drive_files(service, folder_id, historial):
             os.remove(file_path)
     print(f"✅ Total actualizado: {sum(len(m) for m in historial.values())} partidos.")
 
-
 if __name__ == "__main__":
     try:
         service = get_drive_service()
@@ -147,4 +162,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error general: {e}")
         raise
-
