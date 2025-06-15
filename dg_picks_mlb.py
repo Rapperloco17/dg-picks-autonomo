@@ -1,5 +1,5 @@
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 import os
 import time
@@ -8,12 +8,13 @@ import time
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/baseball_mlb/odds"
 MLB_STATS_BASE_URL = "https://statsapi.mlb.com/api/v1/schedule"
 MLB_PLAYER_STATS_URL = "https://statsapi.mlb.com/api/v1/people/{}?hydrate=stats(group=[pitching],type=[byDateAll])"
-MLB_TEAM_STATS_URL = "https://statsapi.mlb.com/api/v1/teams/{}/stats?group=hitting"
+MLB_TEAM_STATS_URL = "https://statsapi.mlb.com/api/v1/teams/{}/stats?group=hitting&season={}"
 HEADERS = {"User-Agent": "DG Picks"}
 
 # Configuración de zona horaria
 MX_TZ = pytz.timezone("America/Mexico_City")
 HOY = datetime.now(MX_TZ).strftime("%Y-%m-%d")
+SEASON = datetime.now(MX_TZ).strftime("%Y")
 
 # Estadio impact factors
 STADIUM_FACTORS = {
@@ -25,34 +26,30 @@ STADIUM_FACTORS = {
     "Oriole Park": {"offense_boost": 1.0}
 }
 
-# Función para obtener juegos de MLB de hoy
-def get_today_mlb_games():
-    params = {"sportId": 1, "date": HOY, "hydrate": "team,linescore,probablePitcher,venue"}
+# Función para obtener juegos de MLB de hoy desde Odds API
+def get_odds_for_mlb():
+    params = {
+        "apiKey": os.getenv("ODDS_API_KEY"),
+        "regions": "us",
+        "markets": "h2h,spreads,totals",
+        "oddsFormat": "decimal",
+        "dateFormat": "iso"
+    }
     try:
-        response = requests.get(MLB_STATS_BASE_URL, headers=HEADERS, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        games = []
-        for date_info in data.get("dates", []):
-            for game in date_info.get("games", []):
-                venue = game["venue"]["name"]
-                home_pitcher = game["teams"]["home"].get("probablePitcher", {})
-                away_pitcher = game["teams"]["away"].get("probablePitcher", {})
-                game_time = datetime.strptime(game["gameDate"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=pytz.UTC).astimezone(MX_TZ).strftime("%I:%M %p CST")
-                games.append({
-                    "home_team": game["teams"]["home"]["team"]["name"],
-                    "away_team": game["teams"]["away"]["team"]["name"],
-                    "home_pitcher_id": home_pitcher.get("id"),
-                    "away_pitcher_id": away_pitcher.get("id"),
-                    "home_team_id": game["teams"]["home"]["team"]["id"],
-                    "away_team_id": game["teams"]["away"]["team"]["id"],
-                    "game_time": game_time,
-                    "venue": venue
-                })
-        print(f"🔍 Encontrados {len(games)} partidos de MLB para hoy.")
-        return games
+        response = requests.get(ODDS_API_URL, headers=HEADERS, params=params, timeout=10)
+        if response.status_code != 200:
+            print(f"❌ Error al obtener cuotas: Código HTTP {response.status_code}")
+            return []
+        odds_data = response.json()
+        if not isinstance(odds_data, list):
+            print("❌ Formato de datos inesperado. Se esperaba una lista.")
+            return []
+        # Filtrar solo juegos de hoy
+        games_today = [game for game in odds_data if game["commence_time"].startswith(HOY)]
+        print(f"🔍 Encontrados {len(games_today)} partidos de MLB para hoy.")
+        return games_today
     except Exception as e:
-        print(f"❌ Error al obtener juegos de MLB: {e}")
+        print(f"❌ Error al obtener cuotas: {e}")
         return []
 
 # Función para obtener nombre del pitcher
@@ -71,33 +68,6 @@ def get_pitcher_name(pitcher_id):
         print(f"❌ Error al obtener nombre del pitcher {pitcher_id}: {e}")
         return "N/A"
 
-# Función para normalizar nombres de equipos
-def normalize_team(name):
-    return name.lower().replace(" ", "").replace("-", "").replace(".", "")
-
-# Función para obtener cuotas
-def get_odds_for_mlb():
-    params = {
-        "apiKey": os.getenv("ODDS_API_KEY"),
-        "regions": "us",
-        "markets": "h2h,spreads,totals",
-        "oddsFormat": "decimal"
-    }
-    try:
-        response = requests.get(ODDS_API_URL, headers=HEADERS, params=params, timeout=10)
-        if response.status_code != 200:
-            print(f"❌ Error al obtener cuotas: Código HTTP {response.status_code}")
-            return []
-        odds_data = response.json()
-        if not isinstance(odds_data, list):
-            print("❌ Formato de datos inesperado. Se esperaba una lista.")
-            return []
-        print(f"📊 Número de partidos con cuotas: {len(odds_data)}")
-        return odds_data
-    except Exception as e:
-        print(f"❌ Error al obtener cuotas: {e}")
-        return []
-
 # Función para obtener stats del pitcher
 def get_pitcher_stats(pitcher_id):
     if not pitcher_id:
@@ -114,6 +84,7 @@ def get_pitcher_stats(pitcher_id):
                 stats = splits[0].get("stat", {})
                 stats["strikeOuts"] = stats.get("strikeOuts", 0)
                 stats["whip"] = stats.get("whip", 0.0)
+                stats["era"] = stats.get("era", 0.0)
         return stats
     except Exception as e:
         print(f"❌ Error al obtener stats del pitcher {pitcher_id}: {e}")
@@ -121,9 +92,15 @@ def get_pitcher_stats(pitcher_id):
 
 # Función para obtener forma del equipo
 def get_team_form(team_id):
+    if not team_id:
+        return {}
+    url = MLB_TEAM_STATS_URL.format(team_id, SEASON)
     try:
-        url = MLB_TEAM_STATS_URL.format(team_id)
         response = requests.get(url, headers=HEADERS, timeout=10)
+        if response.status_code == 404:
+            print(f"⚠️ 404 al obtener stats del equipo {team_id}, intentando sin season...")
+            url = MLB_TEAM_STATS_URL.format(team_id, "").replace("&season={}", "")
+            response = requests.get(url, headers=HEADERS, timeout=10)
         response.raise_for_status()
         data = response.json()
         stats = {}
@@ -162,8 +139,6 @@ def evaluate_run_line(form_home, form_away, pitcher_home, pitcher_away, venue, c
     runs_away = estimate_runs(form_away, venue)
     era_home = float(pitcher_home.get("era", 99))
     era_away = float(pitcher_away.get("era", 99))
-    whip_home = float(pitcher_home.get("whip", 99))
-    whip_away = float(pitcher_away.get("whip", 99))
     ops_home = form_home.get("ops", 0)
     ops_away = form_away.get("ops", 0)
     
@@ -179,127 +154,113 @@ def evaluate_run_line(form_home, form_away, pitcher_home, pitcher_away, venue, c
         return "⚖️ Partido parejo para Run Line | Diferencia no suficiente"
 
 # Función para sugerir pick
-def sugerir_pick(equipo, form_eq, pitcher_eq, venue, cuota_ml=None, cuota_spread=None):
+def sugerir_pick(home_team, away_team, form_home, form_away, pitcher_home, pitcher_away, venue, cuota_ml_home=None, cuota_ml_away=None, cuota_spread_home=None):
     try:
-        era = float(pitcher_eq.get("era", 99))
-        whip = float(pitcher_eq.get("whip", 99))
-        runs = form_eq.get("runsPerGame", 0)
-        ops = form_eq.get("ops", 0)
-        
-        if cuota_ml is None and cuota_spread is None:
-            if runs >= 4.5 and era < 3.5 and ops > 0.750:
-                return f"🎯 {equipo} ML | {runs:.1f} carreras/juego, OPS {ops:.3f}, ERA {era}"
-            elif runs >= 4.8 and era < 3.2:
-                return f"🔥 {equipo} -1.5 | {runs:.1f} carreras/juego, ERA top {era}"
-            else:
-                return f"⚠️ Evalúa {equipo} con cuidado | {runs:.1f} carreras/juego, OPS {ops:.3f}"
-        
-        if cuota_ml and cuota_ml < 1.70 and runs >= 4.0 and era < 3.8 and whip < 1.3:
-            return f"🎯 {equipo} ML @ {cuota_ml} | {runs:.1f} carreras/juego, ERA {era}, WHIP {whip}"
-        elif cuota_spread and runs >= 4.5 and era < 3.5 and ops > 0.750:
-            return f"🔥 {equipo} -1.5 @ {cuota_spread} | {runs:.1f} carreras/juego, OPS {ops:.3f}, ERA {era}"
+        era_home = float(pitcher_home.get("era", 99))
+        era_away = float(pitcher_away.get("era", 99))
+        runs_home = form_home.get("runsPerGame", 0)
+        runs_away = form_away.get("runsPerGame", 0)
+        ops_home = form_home.get("ops", 0)
+        ops_away = form_away.get("ops", 0)
+
+        if cuota_ml_home and cuota_ml_home < 1.70 and runs_home >= 4.0 and era_home < 3.8 and ops_home > 0.750:
+            return f"🎯 {home_team} ML @ {cuota_ml_home:.2f} | {runs_home:.1f} carreras/juego, ERA {era_home}, OPS {ops_home:.3f}"
+        elif cuota_ml_away and cuota_ml_away < 1.70 and runs_away >= 4.0 and era_away < 3.8 and ops_away > 0.750:
+            return f"🎯 {away_team} ML @ {cuota_ml_away:.2f} | {runs_away:.1f} carreras/juego, ERA {era_away}, OPS {ops_away:.3f}"
+        elif cuota_spread_home and runs_home >= 4.5 and era_home < 3.5 and ops_home > 0.750:
+            return f"🔥 {home_team} -1.5 @ {cuota_spread_home:.2f} | {runs_home:.1f} carreras/juego, OPS {ops_home:.3f}"
+        elif cuota_spread_away and runs_away >= 4.5 and era_away < 3.5 and ops_away > 0.750:
+            return f"🔥 {away_team} -1.5 @ {cuota_spread_away:.2f} | {runs_away:.1f} carreras/juego, OPS {ops_away:.3f}"
         else:
-            return f"⚠️ Partido reñido para {equipo} | {runs:.1f} carreras/juego, OPS {ops:.3f}"
+            return f"⚠️ Partido reñido para {home_team} vs {away_team} | {runs_home:.1f} vs {runs_away:.1f} carreras/juego"
     except Exception as e:
-        print(f"❌ Error al sugerir pick para {equipo}: {e}")
+        print(f"❌ Error al sugerir pick para {home_team} vs {away_team}: {e}")
         return "❌ Sin datos, ¡revisa los números!"
 
 # Función principal
 def main():
     print("🔍 Analizando partidos de MLB de hoy...")
-    games = get_today_mlb_games()
+    games = get_odds_for_mlb()
     if not games:
-        print("⚠️ No hay juegos programados para hoy o hubo un error al obtenerlos.")
+        print("⚠️ No hay juegos programados para hoy o hubo un error al obtener las cuotas.")
         return
-    
-    odds = get_odds_for_mlb()
 
     # Crear directorio /data si no existe
     os.makedirs("/data", exist_ok=True)
     with open("/data/picks_hoy.txt", "a") as f:
         f.write(f"=== Análisis de MLB - {HOY} ===\n\n")
         for game in games:
-            home = game['home_team']
-            away = game['away_team']
-            pitcher_home_id = game['home_pitcher_id']
-            pitcher_away_id = game['away_pitcher_id']
-            home_team_id = game['home_team_id']
-            away_team_id = game['away_team_id']
-            game_time = game['game_time']
-            venue = game['venue']
+            commence_time = datetime.strptime(game["commence_time"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=pytz.UTC).astimezone(MX_TZ).strftime("%I:%M %p CST")
+            home_team = game["home_team"]
+            away_team = game["away_team"]
+            home_team_id = None
+            away_team_id = None
+            home_pitcher_id = None
+            away_pitcher_id = None
 
-            # Añadir retardo para evitar límites de tasa
+            # Obtener IDs de equipos y pitchers desde la API de MLB
+            try:
+                params = {"sportId": 1, "date": HOY, "hydrate": "team,linescore,probablePitcher,venue"}
+                response = requests.get(MLB_STATS_BASE_URL, headers=HEADERS, params=params, timeout=10)
+                response.raise_for_status()
+                data = response.json()
+                for date_info in data.get("dates", []):
+                    for g in date_info.get("games", []):
+                        if (normalize_team(g["teams"]["home"]["team"]["name"]) == normalize_team(home_team) and
+                            normalize_team(g["teams"]["away"]["team"]["name"]) == normalize_team(away_team)):
+                            home_team_id = g["teams"]["home"]["team"]["id"]
+                            away_team_id = g["teams"]["away"]["team"]["id"]
+                            home_pitcher_id = g["teams"]["home"].get("probablePitcher", {}).get("id")
+                            away_pitcher_id = g["teams"]["away"].get("probablePitcher", {}).get("id")
+                            break
+                    if home_team_id:
+                        break
+            except Exception as e:
+                print(f"❌ Error al obtener detalles del juego {home_team} vs {away_team}: {e}")
+
+            # Obtener stats con retardo para evitar límites
             time.sleep(1)
-            pitcher_home = get_pitcher_stats(pitcher_home_id)
+            pitcher_home = get_pitcher_stats(home_pitcher_id) if home_pitcher_id else {}
             time.sleep(1)
-            pitcher_away = get_pitcher_stats(pitcher_away_id)
+            pitcher_away = get_pitcher_stats(away_pitcher_id) if away_pitcher_id else {}
             time.sleep(1)
-            form_home = get_team_form(home_team_id)
+            form_home = get_team_form(home_team_id) if home_team_id else {}
             time.sleep(1)
-            form_away = get_team_form(away_team_id)
-            pitcher_home_name = get_pitcher_name(pitcher_home_id)
-            pitcher_away_name = get_pitcher_name(pitcher_away_id)
+            form_away = get_team_form(away_team_id) if away_team_id else {}
 
-            form_home['home_team'] = home
-            form_away['away_team'] = away
+            form_home['home_team'] = home_team
+            form_away['away_team'] = away_team
 
-            total_runs, prob_over, prob_under = calculate_over_under_prob(form_home, form_away, venue, over_line=8.5)
+            bookmakers = game.get("bookmakers", [])
+            if bookmakers:
+                h2h_market = next((m for m in bookmakers[0]["markets"] if m["key"] == "h2h"), None)
+                spreads_market = next((m for m in bookmakers[0]["markets"] if m["key"] == "spreads"), None)
+                totals_market = next((m for m in bookmakers[0]["markets"] if m["key"] == "totals"), None)
 
-            matched = False
-            for odd in odds:
-                if normalize_team(home) in normalize_team(odd.get("home_team", "")) and \
-                   normalize_team(away) in normalize_team(odd.get("away_team", "")):
-                    matched = True
-                    cuotas = {o["name"]: o["price"] for bookmaker in odd.get("bookmakers", []) for market in bookmaker.get("markets", []) for o in market.get("outcomes", []) if market["key"] == "h2h"}
-                    spreads = {o["name"]: (o["point"], o["price"]) for bookmaker in odd.get("bookmakers", []) for market in bookmaker.get("markets", []) for o in market.get("outcomes", []) if market["key"] == "spreads"}
-                    totals = next((o for bookmaker in odd.get("bookmakers", []) for market in bookmaker.get("markets", []) for o in market.get("outcomes", []) if market["key"] == "totals" and o["name"].lower() == "over"), None)
-                    over_line = totals["point"] if totals else 8.5
-                    over_price = totals["price"] if totals else None
-                    under_price = next((o["price"] for bookmaker in odd.get("bookmakers", []) for market in bookmaker.get("markets", []) for o in market.get("outcomes", []) if market["key"] == "totals" and o["name"].lower() == "under"), None)
+                home_odds = next((o["price"] for o in h2h_market["outcomes"] if normalize_team(o["name"]) == normalize_team(home_team)), None) if h2h_market else None
+                away_odds = next((o["price"] for o in h2h_market["outcomes"] if normalize_team(o["name"]) == normalize_team(away_team)), None) if h2h_market else None
+                home_spread_odds = next((o["price"] for o in spreads_market["outcomes"] if normalize_team(o["name"]) == normalize_team(home_team)), None) if spreads_market else None
+                away_spread_odds = next((o["price"] for o in spreads_market["outcomes"] if normalize_team(o["name"]) == normalize_team(away_team)), None) if spreads_market else None
+                over_line = next((o["point"] for o in totals_market["outcomes"] if o["name"].lower() == "over"), 8.5) if totals_market else 8.5
+                over_odds = next((o["price"] for o in totals_market["outcomes"] if o["name"].lower() == "over"), None) if totals_market else None
+                under_odds = next((o["price"] for o in totals_market["outcomes"] if o["name"].lower() == "under"), None) if totals_market else None
 
-                    output = f"\n=== {away} vs {home} ===\n"
-                    output += f"Horario: {game_time} | Estadio: {venue}\n"
-                    output += f"Pitchers: {pitcher_away_name} ({away}, ERA {pitcher_away.get('era', 'N/A')}, WHIP {pitcher_away.get('whip', 'N/A')}, {pitcher_away.get('strikeOuts', 'N/A')} K) vs {pitcher_home_name} ({home}, ERA {pitcher_home.get('era', 'N/A')}, WHIP {pitcher_home.get('whip', 'N/A')}, {pitcher_home.get('strikeOuts', 'N/A')} K)\n"
-                    output += f"Equipos: {away} (AVG {form_away.get('avg', 'N/A')}, OPS {form_away.get('ops', 'N/A')}, {form_away.get('homeRuns', 'N/A')} HR) vs {home} (AVG {form_home.get('avg', 'N/A')}, OPS {form_home.get('ops', 'N/A')}, {form_home.get('homeRuns', 'N/A')} HR)\n"
-                    output += f"Estimado de carreras: {estimate_runs(form_away, venue)} ({away}) vs {estimate_runs(form_home, venue)} ({home})\n"
-                    output += f"Total estimado: {total_runs} | Over {over_line}: {prob_over:.1f}% | Under {over_line}: {prob_under:.1f}%\n"
-                    output += evaluate_run_line(form_home, form_away, pitcher_home, pitcher_away, venue, spreads.get(home, (None, None))[1], spreads.get(away, (None, None))[1]) + "\n"
-                    output += f"ML: {away} @ {cuotas.get(away, 'N/A')} | {home} @ {cuotas.get(home, 'N/A')}\n"
-                    output += f"Run Line: {away} {spreads.get(away, ('N/A', 'N/A'))[0]} @ {spreads.get(away, ('N/A', 'N/A'))[1]} | {home} {spreads.get(home, ('N/A', 'N/A'))[0]} @ {spreads.get(home, ('N/A', 'N/A'))[1]}\n"
-                    output += f"Over/Under: O{over_line} @ {over_price} | U{over_line} @ {under_price}\n"
+                if home_odds and away_odds:
+                    total_runs, prob_over, prob_under = calculate_over_under_prob(form_home, form_away, game.get("venue", "Unknown"))
+                    output = f"\n=== {away_team} vs {home_team} ===\n"
+                    output += f"Horario: {commence_time} | Estadio: {game.get('venue', 'N/A')}\n"
+                    output += f"Pitchers: {get_pitcher_name(away_pitcher_id)} ({away_team}, ERA {pitcher_away.get('era', 'N/A')}) vs {get_pitcher_name(home_pitcher_id)} ({home_team}, ERA {pitcher_home.get('era', 'N/A')})\n"
+                    output += f"Equipos: {away_team} (AVG {form_away.get('avg', 'N/A')}, OPS {form_away.get('ops', 'N/A')}) vs {home_team} (AVG {form_home.get('avg', 'N/A')}, OPS {form_home.get('ops', 'N/A')})\n"
+                    output += f"Estimado de carreras: {estimate_runs(form_away, game.get('venue', 'N/A'))} ({away_team}) vs {estimate_runs(form_home, game.get('venue', 'N/A'))} ({home_team})\n"
+                    output += f"Total estimado: {total_runs:.1f} | Over {over_line}: {prob_over:.1f}% | Under {over_line}: {prob_under:.1f}%\n"
+                    output += evaluate_run_line(form_home, form_away, pitcher_home, pitcher_away, game.get("venue", "N/A"), home_spread_odds, away_spread_odds) + "\n"
+                    output += f"ML: {away_team} @ {away_odds:.2f} | {home_team} @ {home_odds:.2f}\n"
+                    output += f"Run Line: {away_team} @ {away_spread_odds:.2f} | {home_team} @ {home_spread_odds:.2f}\n"
+                    output += f"Over/Under: O{over_line} @ {over_odds:.2f} | U{over_line} @ {under_odds:.2f}\n"
                     output += "---\n"
-                    
-                    ventaja_home = form_home.get("runsPerGame", 0) > form_away.get("runsPerGame", 0) and float(pitcher_home.get("era", 99)) < float(pitcher_away.get("era", 99))
-                    ventaja_away = form_away.get("runsPerGame", 0) > form_home.get("runsPerGame", 0) and float(pitcher_away.get("era", 99)) < float(pitcher_home.get("era", 99))
-
-                    if ventaja_home and not ventaja_away:
-                        pick_home = sugerir_pick(home, form_home, pitcher_home, venue, cuotas.get(home), spreads.get(home, (None, None))[1])
-                        output += "🧠 " + pick_home + "\n"
-                    elif ventaja_away and not ventaja_home:
-                        pick_away = sugerir_pick(away, form_away, pitcher_away, venue, cuotas.get(away), spreads.get(away, (None, None))[1])
-                        output += "🧠 " + pick_away + "\n"
-                    else:
-                        pick_home = sugerir_pick(home, form_home, pitcher_home, venue)
-                        pick_away = sugerir_pick(away, form_away, pitcher_away, venue)
-                        output += "🧠 " + (pick_home if form_home.get("runsPerGame", 0) >= form_away.get("runsPerGame", 0) else pick_away) + "\n"
-
+                    pick = sugerir_pick(home_team, away_team, form_home, form_away, pitcher_home, pitcher_away, game.get("venue", "N/A"), home_odds, away_odds, home_spread_odds)
+                    output += "🧠 " + pick + "\n"
                     f.write(output)
-                    break
-
-            if not matched:
-                output = f"\n=== {away} vs {home} ===\n"
-                output += f"Horario: {game_time} | Estadio: {venue}\n"
-                output += f"Pitchers: {pitcher_away_name} ({away}, ERA {pitcher_away.get('era', 'N/A')}, WHIP {pitcher_away.get('whip', 'N/A')}, {pitcher_away.get('strikeOuts', 'N/A')} K) vs {pitcher_home_name} ({home}, ERA {pitcher_home.get('era', 'N/A')}, WHIP {pitcher_home.get('whip', 'N/A')}, {pitcher_home.get('strikeOuts', 'N/A')} K)\n"
-                output += f"Equipos: {away} (AVG {form_away.get('avg', 'N/A')}, OPS {form_away.get('ops', 'N/A')}, {form_away.get('homeRuns', 'N/A')} HR) vs {home} (AVG {form_home.get('avg', 'N/A')}, OPS {form_home.get('ops', 'N/A')}, {form_home.get('homeRuns', 'N/A')} HR)\n"
-                output += f"Estimado de carreras: {estimate_runs(form_away, venue)} ({away}) vs {estimate_runs(form_home, venue)} ({home})\n"
-                output += f"Total estimado: {total_runs} | Over 8.5: {prob_over:.1f}% | Under 8.5: {prob_under:.1f}%\n"
-                output += evaluate_run_line(form_home, form_away, pitcher_home, pitcher_away, venue) + "\n"
-                output += f"⚠️ No se encontraron cuotas para este partido\n"
-                output += "---\n"
-                pick_home = sugerir_pick(home, form_home, pitcher_home, venue)
-                pick_away = sugerir_pick(away, form_away, pitcher_away, venue)
-                output += "🧠 " + (pick_home if form_home.get("runsPerGame", 0) >= form_away.get("runsPerGame", 0) else pick_away) + "\n"
-                f.write(output)
 
         f.write("\n✅ Análisis completo\n")
 
