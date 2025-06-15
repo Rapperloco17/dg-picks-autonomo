@@ -1,8 +1,7 @@
 import requests
 import json
 import os
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from datetime import datetime
@@ -11,9 +10,10 @@ from datetime import datetime
 SCOPES = ['https://www.googleapis.com/auth/drive']
 CREDS_CONTENT = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')  # Obtener el JSON de la variable de entorno
 if CREDS_CONTENT:
-    # Guardar temporalmente el JSON si es una cadena
+    # Convertir la cadena JSON a un diccionario y guardar temporalmente si es necesario
+    creds_info = json.loads(CREDS_CONTENT)
     with open('temp_credentials.json', 'w') as f:
-        f.write(CREDS_CONTENT)
+        json.dump(creds_info, f)
     CREDS_FILE = 'temp_credentials.json'
 else:
     CREDS_FILE = 'credentials.json'  # Fallback local (para pruebas)
@@ -27,17 +27,14 @@ LIGAS_ASIGNADAS = [
     262, 263, 265, 268, 271, 281, 345, 357
 ]
 
-# Autenticación de Google Drive
+# Autenticación de Google Drive con cuenta de servicio
 def get_drive_service():
     creds = None
     if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+        creds = service_account.Credentials.from_service_account_file('token.json', scopes=SCOPES)
     if not creds or not creds.valid:
         try:
-            flow = InstalledAppFlow.from_client_secrets_file(CREDS_FILE, SCOPES)
-            creds = flow.run_local_server(port=0)
-            with open('token.json', 'w') as token:
-                token.write(creds.to_json())
+            creds = service_account.Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES)
         except Exception as e:
             print(f"❌ Error en autenticación de Google Drive: {e}")
             raise
