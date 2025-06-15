@@ -214,6 +214,8 @@ def main():
     
     odds = get_odds_for_mlb()
 
+    # Crear directorio /data si no existe
+    os.makedirs("/data", exist_ok=True)
     with open("/data/picks_hoy.txt", "a") as f:
         f.write(f"=== Análisis de MLB - {HOY} ===\n\n")
         for game in games:
