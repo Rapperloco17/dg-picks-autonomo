@@ -1,7 +1,7 @@
 import os
 import json
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
@@ -19,8 +19,8 @@ LIGAS_ASIGNADAS = [
     262, 263, 265, 268, 271, 281, 345, 357
 ]
 
-# Fechas de los últimos 14 días
-end_date = datetime.utcnow().date()
+# Fechas de los últimos 14 días en formato UTC
+end_date = datetime.now(timezone.utc).date()
 start_date = end_date - timedelta(days=14)
 
 # Autenticación con Google Drive
@@ -53,6 +53,7 @@ def download_file(service, file_id):
 
 def fetch_fixtures(league_id):
     url = f"https://v3.football.api-sports.io/fixtures?league={league_id}&from={start_date}&to={end_date}"
+    print(f"Consultando: {url}")
     response = requests.get(url, headers=HEADERS, timeout=10)
     response.raise_for_status()
     return response.json().get("response", [])
