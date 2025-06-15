@@ -2,12 +2,13 @@ import requests
 from datetime import datetime, timedelta
 import pytz
 import os
+import time
 
 # URLs y constantes
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/baseball_mlb/odds"
 MLB_STATS_BASE_URL = "https://statsapi.mlb.com/api/v1/schedule"
-MLB_PLAYER_STATS_URL = "https://statsapi.mlb.com/api/v1/people/{}?hydrate=stats(group=[pitching],type=[season])"
-MLB_RESULTS_URL = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&teamId={}&startDate={}&endDate={}"
+MLB_PLAYER_STATS_URL = "https://statsapi.mlb.com/api/v1/people/{}?hydrate=stats(group=[pitching],type=[byDateAll])"
+MLB_TEAM_STATS_URL = "https://statsapi.mlb.com/api/v1/teams/{}/stats?group=hitting"
 HEADERS = {"User-Agent": "DG Picks"}
 
 # Configuración de zona horaria
@@ -101,78 +102,47 @@ def get_odds_for_mlb():
 def get_pitcher_stats(pitcher_id):
     if not pitcher_id:
         return {}
-    url = MLB_PLAYER_STATS_URL.format(pitcher_id) + "&season=2025"
+    url = MLB_PLAYER_STATS_URL.format(pitcher_id)
     try:
         response = requests.get(url, headers=HEADERS, timeout=10)
         response.raise_for_status()
         data = response.json()
-        stats_2025 = {}
-        stats_2024 = {}
+        stats = {}
         if data.get("people") and data["people"][0].get("stats"):
             splits = data["people"][0]["stats"][0].get("splits", [])
             if splits:
-                stats_2025 = splits[0].get("stat", {})
-                stats_2025["strikeOuts"] = stats_2025.get("strikeOuts", 0)
-                stats_2025["whip"] = stats_2025.get("whip", 0.0)
-
-        # Intentar obtener stats de 2024
-        url_2024 = MLB_PLAYER_STATS_URL.format(pitcher_id) + "&season=2024"
-        response_2024 = requests.get(url_2024, headers=HEADERS, timeout=10)
-        if response_2024.status_code == 200:
-            data_2024 = response_2024.json()
-            if data_2024.get("people") and data_2024["people"][0].get("stats"):
-                splits_2024 = data_2024["stats"][0].get("splits", [])
-                if splits_2024:
-                    stats_2024 = splits_2024[0].get("stat", {})
-                    stats_2024["strikeOuts"] = stats_2024.get("strikeOuts", 0)
-                    stats_2024["whip"] = stats_2024.get("whip", 0.0)
-
-        return {"2025": stats_2025, "2024": stats_2024}
+                stats = splits[0].get("stat", {})
+                stats["strikeOuts"] = stats.get("strikeOuts", 0)
+                stats["whip"] = stats.get("whip", 0.0)
+        return stats
     except Exception as e:
         print(f"❌ Error al obtener stats del pitcher {pitcher_id}: {e}")
-        return {"2025": {}, "2024": {}}
+        return {}
 
 # Función para obtener forma del equipo
 def get_team_form(team_id):
     try:
-        # Obtener stats de bateo de 2025
-        url_2025 = f"https://statsapi.mlb.com/api/v1/teams/{team_id}/stats?season=2025&group=hitting"
-        response_2025 = requests.get(url_2025, headers=HEADERS, timeout=10)
-        response_2025.raise_for_status()
-        data_2025 = response_2025.json()
-        stats_2025 = {}
-        if data_2025.get("stats"):
-            hitting = data_2025["stats"][0].get("splits", [{}])[0].get("stat", {})
-            stats_2025 = {
+        url = MLB_TEAM_STATS_URL.format(team_id)
+        response = requests.get(url, headers=HEADERS, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        stats = {}
+        if data.get("stats"):
+            hitting = data["stats"][0].get("splits", [{}])[0].get("stat", {})
+            stats = {
                 "avg": float(hitting.get("avg", ".000") or ".000"),
                 "ops": float(hitting.get("ops", ".000") or ".000"),
                 "homeRuns": hitting.get("homeRuns", 0),
                 "runsPerGame": hitting.get("runsPerGame", 0.0)
             }
-
-        # Obtener stats de bateo de 2024
-        url_2024 = f"https://statsapi.mlb.com/api/v1/teams/{team_id}/stats?season=2024&group=hitting"
-        response_2024 = requests.get(url_2024, headers=HEADERS, timeout=10)
-        stats_2024 = {}
-        if response_2024.status_code == 200:
-            data_2024 = response_2024.json()
-            if data_2024.get("stats"):
-                hitting_2024 = data_2024["stats"][0].get("splits", [{}])[0].get("stat", {})
-                stats_2024 = {
-                    "avg": float(hitting_2024.get("avg", ".000") or ".000"),
-                    "ops": float(hitting_2024.get("ops", ".000") or ".000"),
-                    "homeRuns": hitting_2024.get("homeRuns", 0),
-                    "runsPerGame": hitting_2024.get("runsPerGame", 0.0)
-                }
-
-        return {"2025": stats_2025, "2024": stats_2024}
+        return stats
     except Exception as e:
         print(f"❌ Error al obtener forma del equipo {team_id}: {e}")
-        return {"2025": {}, "2024": {}}
+        return {}
 
 # Función para estimar carreras
 def estimate_runs(form_eq, venue):
-    base_runs = form_eq.get("2025", {}).get("runsPerGame", 0)
+    base_runs = form_eq.get("runsPerGame", 0)
     boost = STADIUM_FACTORS.get(venue, {"offense_boost": 1.0})["offense_boost"]
     return round(base_runs * boost, 1)
 
@@ -190,12 +160,12 @@ def calculate_over_under_prob(form_home, form_away, venue, over_line=8.5):
 def evaluate_run_line(form_home, form_away, pitcher_home, pitcher_away, venue, cuota_spread_home=None, cuota_spread_away=None):
     runs_home = estimate_runs(form_home, venue)
     runs_away = estimate_runs(form_away, venue)
-    era_home = float(pitcher_home.get("2025", {}).get("era", 99))
-    era_away = float(pitcher_away.get("2025", {}).get("era", 99))
-    whip_home = float(pitcher_home.get("2025", {}).get("whip", 99))
-    whip_away = float(pitcher_away.get("2025", {}).get("whip", 99))
-    ops_home = form_home.get("2025", {}).get("ops", 0)
-    ops_away = form_away.get("2025", {}).get("ops", 0)
+    era_home = float(pitcher_home.get("era", 99))
+    era_away = float(pitcher_away.get("era", 99))
+    whip_home = float(pitcher_home.get("whip", 99))
+    whip_away = float(pitcher_away.get("whip", 99))
+    ops_home = form_home.get("ops", 0)
+    ops_away = form_away.get("ops", 0)
     
     diff_runs = runs_home - runs_away
     diff_era = era_away - era_home
@@ -211,15 +181,14 @@ def evaluate_run_line(form_home, form_away, pitcher_home, pitcher_away, venue, c
 # Función para sugerir pick
 def sugerir_pick(equipo, form_eq, pitcher_eq, venue, cuota_ml=None, cuota_spread=None):
     try:
-        era = float(pitcher_eq.get("2025", {}).get("era", 99))
-        whip = float(pitcher_eq.get("2025", {}).get("whip", 99))
-        runs = form_eq.get("2025", {}).get("runsPerGame", 0)
-        ops = form_eq.get("2025", {}).get("ops", 0)
-        era_2024 = float(pitcher_eq.get("2024", {}).get("era", 99))
+        era = float(pitcher_eq.get("era", 99))
+        whip = float(pitcher_eq.get("whip", 99))
+        runs = form_eq.get("runsPerGame", 0)
+        ops = form_eq.get("ops", 0)
         
         if cuota_ml is None and cuota_spread is None:
             if runs >= 4.5 and era < 3.5 and ops > 0.750:
-                return f"🎯 {equipo} ML | {runs:.1f} carreras/juego, OPS {ops:.3f}, ERA {era} (2024: {era_2024})"
+                return f"🎯 {equipo} ML | {runs:.1f} carreras/juego, OPS {ops:.3f}, ERA {era}"
             elif runs >= 4.8 and era < 3.2:
                 return f"🔥 {equipo} -1.5 | {runs:.1f} carreras/juego, ERA top {era}"
             else:
@@ -245,8 +214,7 @@ def main():
     
     odds = get_odds_for_mlb()
 
-    # Abrir archivo para escribir resultados
-    with open("picks_hoy.txt", "a") as f:
+    with open("/data/picks_hoy.txt", "a") as f:
         f.write(f"=== Análisis de MLB - {HOY} ===\n\n")
         for game in games:
             home = game['home_team']
@@ -258,9 +226,14 @@ def main():
             game_time = game['game_time']
             venue = game['venue']
 
+            # Añadir retardo para evitar límites de tasa
+            time.sleep(1)
             pitcher_home = get_pitcher_stats(pitcher_home_id)
+            time.sleep(1)
             pitcher_away = get_pitcher_stats(pitcher_away_id)
+            time.sleep(1)
             form_home = get_team_form(home_team_id)
+            time.sleep(1)
             form_away = get_team_form(away_team_id)
             pitcher_home_name = get_pitcher_name(pitcher_home_id)
             pitcher_away_name = get_pitcher_name(pitcher_away_id)
@@ -284,10 +257,8 @@ def main():
 
                     output = f"\n=== {away} vs {home} ===\n"
                     output += f"Horario: {game_time} | Estadio: {venue}\n"
-                    output += f"Pitchers: {pitcher_away_name} ({away}, ERA {pitcher_away.get('2025', {}).get('era', 'N/A')}, WHIP {pitcher_away.get('2025', {}).get('whip', 'N/A')}, {pitcher_away.get('2025', {}).get('strikeOuts', 'N/A')} K) vs {pitcher_home_name} ({home}, ERA {pitcher_home.get('2025', {}).get('era', 'N/A')}, WHIP {pitcher_home.get('2025', {}).get('whip', 'N/A')}, {pitcher_home.get('2025', {}).get('strikeOuts', 'N/A')} K)\n"
-                    output += f"2024 Pitching: {pitcher_away_name} (ERA {pitcher_away.get('2024', {}).get('era', 'N/A')}) vs {pitcher_home_name} (ERA {pitcher_home.get('2024', {}).get('era', 'N/A')})\n"
-                    output += f"Equipos 2025: {away} (AVG {form_away.get('2025', {}).get('avg', 'N/A')}, OPS {form_away.get('2025', {}).get('ops', 'N/A')}, {form_away.get('2025', {}).get('homeRuns', 'N/A')} HR) vs {home} (AVG {form_home.get('2025', {}).get('avg', 'N/A')}, OPS {form_home.get('2025', {}).get('ops', 'N/A')}, {form_home.get('2025', {}).get('homeRuns', 'N/A')} HR)\n"
-                    output += f"2024 Bateo: {away} (OPS {form_away.get('2024', {}).get('ops', 'N/A')}) vs {home} (OPS {form_home.get('2024', {}).get('ops', 'N/A')})\n"
+                    output += f"Pitchers: {pitcher_away_name} ({away}, ERA {pitcher_away.get('era', 'N/A')}, WHIP {pitcher_away.get('whip', 'N/A')}, {pitcher_away.get('strikeOuts', 'N/A')} K) vs {pitcher_home_name} ({home}, ERA {pitcher_home.get('era', 'N/A')}, WHIP {pitcher_home.get('whip', 'N/A')}, {pitcher_home.get('strikeOuts', 'N/A')} K)\n"
+                    output += f"Equipos: {away} (AVG {form_away.get('avg', 'N/A')}, OPS {form_away.get('ops', 'N/A')}, {form_away.get('homeRuns', 'N/A')} HR) vs {home} (AVG {form_home.get('avg', 'N/A')}, OPS {form_home.get('ops', 'N/A')}, {form_home.get('homeRuns', 'N/A')} HR)\n"
                     output += f"Estimado de carreras: {estimate_runs(form_away, venue)} ({away}) vs {estimate_runs(form_home, venue)} ({home})\n"
                     output += f"Total estimado: {total_runs} | Over {over_line}: {prob_over:.1f}% | Under {over_line}: {prob_under:.1f}%\n"
                     output += evaluate_run_line(form_home, form_away, pitcher_home, pitcher_away, venue, spreads.get(home, (None, None))[1], spreads.get(away, (None, None))[1]) + "\n"
@@ -296,8 +267,8 @@ def main():
                     output += f"Over/Under: O{over_line} @ {over_price} | U{over_line} @ {under_price}\n"
                     output += "---\n"
                     
-                    ventaja_home = form_home.get("2025", {}).get("runsPerGame", 0) > form_away.get("2025", {}).get("runsPerGame", 0) and float(pitcher_home.get("2025", {}).get("era", 99)) < float(pitcher_away.get("2025", {}).get("era", 99))
-                    ventaja_away = form_away.get("2025", {}).get("runsPerGame", 0) > form_home.get("2025", {}).get("runsPerGame", 0) and float(pitcher_away.get("2025", {}).get("era", 99)) < float(pitcher_home.get("2025", {}).get("era", 99))
+                    ventaja_home = form_home.get("runsPerGame", 0) > form_away.get("runsPerGame", 0) and float(pitcher_home.get("era", 99)) < float(pitcher_away.get("era", 99))
+                    ventaja_away = form_away.get("runsPerGame", 0) > form_home.get("runsPerGame", 0) and float(pitcher_away.get("era", 99)) < float(pitcher_home.get("era", 99))
 
                     if ventaja_home and not ventaja_away:
                         pick_home = sugerir_pick(home, form_home, pitcher_home, venue, cuotas.get(home), spreads.get(home, (None, None))[1])
@@ -308,7 +279,7 @@ def main():
                     else:
                         pick_home = sugerir_pick(home, form_home, pitcher_home, venue)
                         pick_away = sugerir_pick(away, form_away, pitcher_away, venue)
-                        output += "🧠 " + (pick_home if form_home.get("2025", {}).get("runsPerGame", 0) >= form_away.get("2025", {}).get("runsPerGame", 0) else pick_away) + "\n"
+                        output += "🧠 " + (pick_home if form_home.get("runsPerGame", 0) >= form_away.get("runsPerGame", 0) else pick_away) + "\n"
 
                     f.write(output)
                     break
@@ -316,10 +287,8 @@ def main():
             if not matched:
                 output = f"\n=== {away} vs {home} ===\n"
                 output += f"Horario: {game_time} | Estadio: {venue}\n"
-                output += f"Pitchers: {pitcher_away_name} ({away}, ERA {pitcher_away.get('2025', {}).get('era', 'N/A')}, WHIP {pitcher_away.get('2025', {}).get('whip', 'N/A')}, {pitcher_away.get('2025', {}).get('strikeOuts', 'N/A')} K) vs {pitcher_home_name} ({home}, ERA {pitcher_home.get('2025', {}).get('era', 'N/A')}, WHIP {pitcher_home.get('2025', {}).get('whip', 'N/A')}, {pitcher_home.get('2025', {}).get('strikeOuts', 'N/A')} K)\n"
-                output += f"2024 Pitching: {pitcher_away_name} (ERA {pitcher_away.get('2024', {}).get('era', 'N/A')}) vs {pitcher_home_name} (ERA {pitcher_home.get('2024', {}).get('era', 'N/A')})\n"
-                output += f"Equipos 2025: {away} (AVG {form_away.get('2025', {}).get('avg', 'N/A')}, OPS {form_away.get('2025', {}).get('ops', 'N/A')}, {form_away.get('2025', {}).get('homeRuns', 'N/A')} HR) vs {home} (AVG {form_home.get('2025', {}).get('avg', 'N/A')}, OPS {form_home.get('2025', {}).get('ops', 'N/A')}, {form_home.get('2025', {}).get('homeRuns', 'N/A')} HR)\n"
-                output += f"2024 Bateo: {away} (OPS {form_away.get('2024', {}).get('ops', 'N/A')}) vs {home} (OPS {form_home.get('2024', {}).get('ops', 'N/A')})\n"
+                output += f"Pitchers: {pitcher_away_name} ({away}, ERA {pitcher_away.get('era', 'N/A')}, WHIP {pitcher_away.get('whip', 'N/A')}, {pitcher_away.get('strikeOuts', 'N/A')} K) vs {pitcher_home_name} ({home}, ERA {pitcher_home.get('era', 'N/A')}, WHIP {pitcher_home.get('whip', 'N/A')}, {pitcher_home.get('strikeOuts', 'N/A')} K)\n"
+                output += f"Equipos: {away} (AVG {form_away.get('avg', 'N/A')}, OPS {form_away.get('ops', 'N/A')}, {form_away.get('homeRuns', 'N/A')} HR) vs {home} (AVG {form_home.get('avg', 'N/A')}, OPS {form_home.get('ops', 'N/A')}, {form_home.get('homeRuns', 'N/A')} HR)\n"
                 output += f"Estimado de carreras: {estimate_runs(form_away, venue)} ({away}) vs {estimate_runs(form_home, venue)} ({home})\n"
                 output += f"Total estimado: {total_runs} | Over 8.5: {prob_over:.1f}% | Under 8.5: {prob_under:.1f}%\n"
                 output += evaluate_run_line(form_home, form_away, pitcher_home, pitcher_away, venue) + "\n"
@@ -327,7 +296,7 @@ def main():
                 output += "---\n"
                 pick_home = sugerir_pick(home, form_home, pitcher_home, venue)
                 pick_away = sugerir_pick(away, form_away, pitcher_away, venue)
-                output += "🧠 " + (pick_home if form_home.get("2025", {}).get("runsPerGame", 0) >= form_away.get("2025", {}).get("runsPerGame", 0) else pick_away) + "\n"
+                output += "🧠 " + (pick_home if form_home.get("runsPerGame", 0) >= form_away.get("runsPerGame", 0) else pick_away) + "\n"
                 f.write(output)
 
         f.write("\n✅ Análisis completo\n")
