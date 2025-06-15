@@ -145,4 +145,21 @@ def update_drive_files(service, folder_id, historial):
             files = response.get('files', [])
             file_id = files[0]['id'] if files else None
             if file_id:
-                service.files().update(fileId=file_id, media
+                service.files().update(fileId=file_id, media_body=media).execute()
+                print(f"Archivo {file_name} sobreescrito en Google Drive.")
+            else:
+                file_metadata = {'name': file_name, 'parents': [folder_id]}
+                service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+                print(f"Archivo {file_name} creado en Google Drive.")
+    print(f"✅ Actualizados {sum(len(matches) for matches in historial.values())} partidos en total.")
+
+# Ejecución principal
+if __name__ == "__main__":
+    try:
+        service = get_drive_service()
+        folder_id = get_or_create_folder(service, FOLDER_NAME)
+        historial = fetch_football_data()
+        update_drive_files(service, folder_id, historial)
+    except Exception as e:
+        print(f"❌ Error general: {e}")
+        raise
