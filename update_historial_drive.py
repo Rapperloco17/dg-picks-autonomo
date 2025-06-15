@@ -33,6 +33,9 @@ LIGAS_ASIGNADAS = [
     262, 263, 265, 268, 271, 281, 345, 357
 ]
 
+# Fecha actual para filtrar
+current_date = datetime.now().strftime('%Y-%m-%d')
+
 def get_drive_service():
     creds = None
     if os.path.exists('token.json'):
@@ -69,13 +72,14 @@ def parse_statistics(stats_list):
 def fetch_football_data():
     historial = {}
     seasons = [2024, 2025]
+    start_date = '2024-01-01'  # Inicio de 2024
     for season in seasons:
         for league_id in LIGAS_ASIGNADAS:
             historial[league_id] = []
             page = 1
-            max_pages = 50  # Límite razonable para evitar bucles infinitos
+            max_pages = 50  # Límite razonable
             while page <= max_pages:
-                url = f"https://v3.football.api-sports.io/fixtures?league={league_id}&season={season}&page={page}"
+                url = f"https://v3.football.api-sports.io/fixtures?league={league_id}&season={season}&page={page}&from={start_date}&to={current_date}"
                 print(f"🔎 Consultando: {url}")
                 try:
                     response = requests.get(url, headers=HEADERS, timeout=10)
@@ -86,10 +90,12 @@ def fetch_football_data():
                     total_pages = paging.get('total', 1)
                     print(f"📊 Liga {league_id}, temporada {season}, página {page}/{total_pages} - {len(fixtures)} partidos")
                     if not fixtures or page >= total_pages:
+                        if not fixtures:
+                            print(f"⚠️ Sin fixtures disponibles para liga {league_id}, temporada {season} entre {start_date} y {current_date}")
                         break
                     for fixture in fixtures:
                         fixture_id = fixture['fixture']['id']
-                        print(f"📋 Procesando fixture {fixture_id}")
+                        print(f"📋 Procesando fixture {fixture_id} - Fecha: {fixture['fixture'].get('date', 'N/A')}")
                         match = {
                             "teams": {
                                 "home": {"name": fixture['teams']['home'].get('name', 'Unknown')},
@@ -100,7 +106,10 @@ def fetch_football_data():
                                 "away": fixture['goals'].get('away', 0) or 0
                             },
                             "league": {"id": league_id, "name": fixture['league'].get('name', 'Unknown')},
-                            "fixture": {"date": fixture['fixture'].get('date', 'N/A')}
+                            "fixture": {
+                                "date": fixture['fixture'].get('date', 'N/A'),
+                                "status": fixture['fixture'].get('status', 'N/A')
+                            }
                         }
                         try:
                             r_stats = requests.get(f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fixture_id}", headers=HEADERS, timeout=10)
@@ -118,7 +127,7 @@ def fetch_football_data():
                                 if stats:
                                     match["stats"] = stats
                                 else:
-                                    print(f"⚠️ Sin estadísticas para fixture {fixture_id}")
+                                    print(f"⚠️ Sin estadísticas válidas para fixture {fixture_id}")
                             else:
                                 print(f"⚠️ Respuesta vacía de estadísticas para fixture {fixture_id}")
                         except requests.exceptions.RequestException as e:
