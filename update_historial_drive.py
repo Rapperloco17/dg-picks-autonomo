@@ -19,6 +19,10 @@ else:
     CREDS_FILE = 'credentials.json'  # Fallback local (para pruebas)
 FOLDER_NAME = 'historial_fusionado'
 API_KEY = os.environ.get("API_KEY")  # Leer desde Railway
+if not API_KEY:
+    print("❌ Error: API_KEY no está definida en las variables de entorno.")
+else:
+    print(f"✅ API_KEY detectada: {API_KEY[:5]}... (ocultada por seguridad)")
 HEADERS = {"x-apisports-key": API_KEY}
 LIGAS_ASIGNADAS = [
     1, 2, 3, 4, 9, 11, 13, 16, 39, 40, 61, 62, 71, 72, 73, 45, 78, 79, 88, 94,
@@ -63,8 +67,8 @@ def fetch_football_data():
             historial[league_id] = []
             url = f"https://v3.football.api-sports.io/fixtures?league={league_id}&season={season}"
             try:
-                response = requests.get(url, headers=HEADERS)
-                response.raise_for_status()
+                response = requests.get(url, headers=HEADERS, timeout=10)
+                response.raise_for_status()  # Lanza excepción si el estado no es 200
                 fixtures = response.json().get('response', [])
                 print(f"✅ Recibidos {len(fixtures)} fixtures para liga {league_id}, temporada {season}")
                 for fixture in fixtures:
@@ -83,7 +87,7 @@ def fetch_football_data():
                     }
                     # Obtener estadísticas detalladas
                     try:
-                        r_stats = requests.get(f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fixture_id}", headers=HEADERS)
+                        r_stats = requests.get(f"https://v3.football.api-sports.io/fixtures/statistics?fixture={fixture_id}", headers=HEADERS, timeout=10)
                         r_stats.raise_for_status()
                         stats_data = r_stats.json().get("response", [])
                         if stats_data:
@@ -121,11 +125,11 @@ def fetch_football_data():
                                         "away": stats["away"].get("ball_possession", {}).get("percentage", "N/A")
                                     }
                                 }
-                    except Exception as e:
-                        print(f"❌ Error obteniendo estadísticas para fixture {fixture_id}: {e}")
+                    except requests.exceptions.RequestException as e:
+                        print(f"❌ Error obteniendo estadísticas para fixture {fixture_id}: {str(e)} - Status Code: {getattr(e.response, 'status_code', 'N/A')}")
                     historial[league_id].append(match)
-            except Exception as e:
-                print(f"❌ Error fetching data for league {league_id}, season {season}: {e}")
+            except requests.exceptions.RequestException as e:
+                print(f"❌ Error fetching data for league {league_id}, season {season}: {str(e)} - Status Code: {getattr(e.response, 'status_code', 'N/A')}")
     return historial
 
 # Guardar y subir archivos a Google Drive
