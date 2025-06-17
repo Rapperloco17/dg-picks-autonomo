@@ -35,7 +35,12 @@ HEADERS = {"User-Agent": "DG Picks"}
 
 def check_env_vars():
     """Valida que todas las variables de entorno necesarias estén definidas."""
-    required_vars = ["ODDS_API_KEY", "OPENAI_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]
+    required_vars = ["ODDS_API_KEY", "OPENAI_API_KEY", "TELEGRAM_BOT_TOKEN"]
+    # Verificar al menos una variable de chat ID
+    chat_vars = ["CHAT_ID_VIP", "CHAT_ID_FREE", "chat_id_reto"]
+    missing_chat = [var for var in chat_vars if not os.getenv(var)]
+    if len(missing_chat) == len(chat_vars):
+        logger.warning("Ninguna variable de chat ID encontrada, pero el script intentará continuar")
     missing = [var for var in required_vars if not os.getenv(var)]
     if missing:
         raise EnvironmentError(f"Missing environment variables: {', '.join(missing)}")
@@ -195,15 +200,15 @@ def sugerir_pick(equipo: str, form: dict, pitcher: dict, cuota_ml: float) -> str
         return None
 
 async def enviar_telegram_async(mensaje: str):
-    """
-    Envía un mensaje a Telegram de forma asíncrona.
-    Args:
-        mensaje: Texto a enviar.
-    """
+    """Envía un mensaje a Telegram de forma asíncrona."""
     try:
         bot = Bot(token=os.getenv("TELEGRAM_BOT_TOKEN"))
-        await bot.send_message(chat_id=os.getenv("TELEGRAM_CHAT_ID"), text=mensaje)
-        logger.info("Mensaje enviado a Telegram")
+        # Priorizar CHAT_ID_VIP (canal premium) y caer a otras opciones si no está
+        chat_id = os.getenv("CHAT_ID_VIP") or os.getenv("CHAT_ID_FREE") or os.getenv("chat_id_reto")
+        if not chat_id:
+            raise ValueError("No chat ID available")
+        await bot.send_message(chat_id=chat_id, text=mensaje)
+        logger.info(f"Mensaje enviado a Telegram al chat ID: {chat_id}")
     except Exception as e:
         logger.error(f"Error al enviar a Telegram: {e}")
 
@@ -246,7 +251,7 @@ def get_cached_openai_response(prompt: str) -> str:
 
 async def main():
     """Función principal para generar y enviar pronósticos de MLB."""
-    logger.info(f"📅 Iniciando pronósticos MLB – {HOY}")
+    logger.info(f"📅 Iniciando pronósticos MLB – {HOY} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST")
     
     if not is_mlb_season(datetime.now(MX_TZ)):
         logger.warning("No es temporada de MLB")
@@ -287,7 +292,7 @@ async def main():
     if not resumen_picks:
         resumen_picks.append("⚠️ No se detectó valor en los partidos de hoy.")
 
-    mensaje_base = f"📅 Pronósticos MLB – {FECHA_TEXTO}\n\n" + "\n".join(resumen_picks)
+    mensaje_base = f"📅 Pronósticos MLB – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n" + "\n".join(resumen_picks)
 
     mensaje_final = get_cached_openai_response(mensaje_base)
 
