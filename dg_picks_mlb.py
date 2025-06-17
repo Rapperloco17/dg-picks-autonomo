@@ -1,156 +1,150 @@
-import os
 import requests
-import openai
 from datetime import datetime, timedelta
 import pytz
+import os
 
-# Configuración desde Railway
-openai.api_key = os.getenv("OPENAI_API_KEY")
-token_telegram = os.getenv("TELEGRAM_BOT_TOKEN")
-chat_id_vip = os.getenv("CHAT_ID_VIP")
-chat_id_free = os.getenv("CHAT_ID_FREE")
+# Configuración
+MX_TZ = pytz.timezone("America/Mexico_City")
+HOY = datetime.now(MX_TZ).strftime("%Y-%m-%d")
 
-# Constantes para consultas
+ODDS_API_KEY = "137992569bc2352366c01e6928577b2d"
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/baseball_mlb/odds"
-MLB_STATS_BASE_URL = "https://statsapi.mlb.com/api/v1/schedule"
-MLB_PLAYER_STATS_URL = "https://statsapi.mlb.com/api/v1/people/{}?hydrate=stats(group=[pitching],type=[season])"
-MLB_TEAM_STATS_URL = "https://statsapi.mlb.com/api/v1/teams/{}/stats"
+MLB_API_URL = "https://statsapi.mlb.com/api/v1/schedule"
 MLB_RESULTS_URL = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&teamId={}&startDate={}&endDate={}"
+PITCHER_STATS_URL = "https://statsapi.mlb.com/api/v1/people/{}?hydrate=stats(group=[pitching],type=[season])"
+
 HEADERS = {"User-Agent": "DG Picks"}
-HOY = datetime.now(pytz.timezone("America/Mexico_City")).strftime("%Y-%m-%d")
-ODDS_API_KEY = os.getenv("ODDS_API_KEY")
 
-
-def get_today_mlb_games():
-    params = {"sportId": 1, "date": HOY, "hydrate": "team,linescore,probablePitcher"}
-    data = requests.get(MLB_STATS_BASE_URL, headers=HEADERS, params=params).json()
+# Obtener partidos de hoy
+def get_today_games():
+    params = {"sportId": 1, "date": HOY, "hydrate": "team,linescore,probablePitcher,venue"}
+    res = requests.get(MLB_API_URL, headers=HEADERS, params=params, timeout=10)
+    res.raise_for_status()
+    data = res.json()
     games = []
     for date_info in data.get("dates", []):
-        for game in date_info.get("games", []):
-            home_pitcher = game["teams"]["home"].get("probablePitcher", {})
-            away_pitcher = game["teams"]["away"].get("probablePitcher", {})
+        for g in date_info.get("games", []):
+            venue = g["venue"]["name"]
+            home = g["teams"]["home"]
+            away = g["teams"]["away"]
             games.append({
-                "home_team": game["teams"]["home"]["team"]["name"],
-                "away_team": game["teams"]["away"]["team"]["name"],
-                "home_pitcher_id": home_pitcher.get("id"),
-                "away_pitcher_id": away_pitcher.get("id"),
-                "home_team_id": game["teams"]["home"]["team"]["id"],
-                "away_team_id": game["teams"]["away"]["team"]["id"]
+                "home": home["team"]["name"],
+                "away": away["team"]["name"],
+                "home_id": home["team"]["id"],
+                "away_id": away["team"]["id"],
+                "pitcher_home": home.get("probablePitcher", {}).get("id"),
+                "pitcher_away": away.get("probablePitcher", {}).get("id"),
+                "venue": venue
             })
     return games
 
+# Forma del equipo (últimos 10 partidos)
+def get_team_form(team_id):
+    end_date = HOY
+    start_date = (datetime.now() - timedelta(days=20)).strftime("%Y-%m-%d")
+    url = MLB_RESULTS_URL.format(team_id, start_date, end_date)
+    res = requests.get(url, headers=HEADERS, timeout=10)
+    res.raise_for_status()
+    data = res.json().get("dates", [])
+    resultados = []
+    for d in data:
+        for g in d.get("games", []):
+            if g.get("status", {}).get("detailedState") != "Final":
+                continue
+            home = g["teams"]["home"]
+            away = g["teams"]["away"]
+            if home["team"]["id"] == team_id:
+                anotadas = home["score"]
+                recibidas = away["score"]
+                victoria = anotadas > recibidas
+            else:
+                anotadas = away["score"]
+                recibidas = home["score"]
+                victoria = anotadas > recibidas
+            resultados.append((anotadas, recibidas, victoria))
+    ultimos = resultados[-10:]
+    if not ultimos:
+        return {}
+    return {
+        "anotadas": round(sum(x[0] for x in ultimos) / len(ultimos), 2),
+        "recibidas": round(sum(x[1] for x in ultimos) / len(ultimos), 2),
+        "victorias": sum(1 for x in ultimos if x[2])
+    }
+
+# Stats del pitcher
 def get_pitcher_stats(pitcher_id):
     if not pitcher_id:
         return {}
-    url = MLB_PLAYER_STATS_URL.format(pitcher_id)
-    data = requests.get(url, headers=HEADERS).json()
-    splits = data.get("people", [{}])[0].get("stats", [{}])[0].get("splits", [])
-    return splits[0].get("stat", {}) if splits else {}
+    url = PITCHER_STATS_URL.format(pitcher_id)
+    res = requests.get(url, headers=HEADERS, timeout=10)
+    res.raise_for_status()
+    data = res.json()
+    stats = data.get("people", [])[0].get("stats", [])[0].get("splits", [])
+    return stats[0].get("stat", {}) if stats else {}
 
-def get_team_form(team_id):
-    end_date = datetime.now().strftime("%Y-%m-%d")
-    start_date = (datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d")
-    url = MLB_RESULTS_URL.format(team_id, start_date, end_date)
-    data = requests.get(url, headers=HEADERS).json()
-    resultados = []
-    for fecha in data.get("dates", []):
-        for game in fecha.get("games", []):
-            if game.get("status", {}).get("detailedState") != "Final": continue
-            home = game["teams"]["home"]
-            away = game["teams"]["away"]
-            if home["team"]["id"] == team_id:
-                anotadas, recibidas = home["score"], away["score"]
-            else:
-                anotadas, recibidas = away["score"], home["score"]
-            resultados.append((anotadas, recibidas))
-    if not resultados: return {"anotadas": 0, "recibidas": 0}
-    ultimos = resultados[-5:]
-    return {
-        "anotadas": round(sum(x[0] for x in ultimos) / len(ultimos), 2),
-        "recibidas": round(sum(x[1] for x in ultimos) / len(ultimos), 2)
-    }
-
-def get_team_avg(team_id):
-    data = requests.get(MLB_TEAM_STATS_URL.format(team_id), headers=HEADERS).json()
-    try:
-        return float(data["stats"][0]["splits"][0]["stat"]["battingAvg"])
-    except:
-        return 0.25
-
-def ajustar_por_era(base, era):
-    if era < 2.5: return base - 0.7
-    elif era < 3.5: return base - 0.3
-    elif era < 4.5: return base
-    elif era < 5.5: return base + 0.5
-    else: return base + 0.8
-
-def ajustar_por_avg(base, avg):
-    if avg < 0.230: return base - 0.5
-    elif avg < 0.250: return base - 0.2
-    elif avg < 0.270: return base
-    elif avg < 0.290: return base + 0.3
-    else: return base + 0.6
-
+# Cuotas reales
 def get_odds():
-    params = {"apiKey": ODDS_API_KEY, "regions": "us", "markets": "totals", "oddsFormat": "decimal"}
-    return requests.get(ODDS_API_URL, headers=HEADERS, params=params).json()
+    params = {
+        "apiKey": ODDS_API_KEY,
+        "regions": "us",
+        "markets": "h2h,spreads,totals",
+        "oddsFormat": "decimal"
+    }
+    res = requests.get(ODDS_API_URL, headers=HEADERS, params=params, timeout=10)
+    res.raise_for_status()
+    return res.json()
 
-def generar_mensaje_ia(partido, pick, cuota, linea, estimado):
-    prompt = f"Genera un mensaje estilo canal premium de apuestas para Telegram.\nPartido: {partido}\nPick: {pick} @ {cuota} | Línea: {linea} | Estimado: {estimado} carreras.\nNo menciones IA ni OpenAI. Termina con '✅ Valor detectado en la cuota'."
-    res = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=300
-    )
-    return res.choices[0].message.content.strip()
+# Normalizar nombres
+def normalize(name):
+    return name.lower().replace(" ", "").replace("-", "")
 
-def enviar_a_telegram(mensaje, tipo):
-    destino = chat_id_vip if tipo == "candado" else chat_id_free
-    url = f"https://api.telegram.org/bot{token_telegram}/sendMessage"
-    requests.post(url, data={"chat_id": destino, "text": mensaje, "parse_mode": "HTML"})
+# Sugerir pick con valor real
+def sugerir_pick(equipo, form, pitcher, cuota_ml):
+    era = float(pitcher.get("era", 99))
+    k = pitcher.get("strikeOuts", 0)
+    anotadas = form.get("anotadas", 0)
+    if cuota_ml < 1.70 and anotadas >= 4 and era < 3.5:
+        return f"🎯 {equipo} ML @ {cuota_ml} | Anota {anotadas}/j, ERA {era}, {k} K"
+    elif cuota_ml >= 1.70 and cuota_ml <= 2.30 and anotadas >= 4 and era < 4:
+        return f"🔥 {equipo} ML @ {cuota_ml} | Buen valor: {anotadas}/j, ERA {era}, {k} K"
+    elif cuota_ml > 2.30 and anotadas >= 4.5 and era < 4.5:
+        return f"💥 Sorpresa {equipo} ML @ {cuota_ml} | Alto riesgo, pero con forma ofensiva"
+    return None
 
+# Análisis completo
 def main():
-    print("🔍 Ejecutando DG Picks MLB completo")
-    juegos = get_today_mlb_games()
-    odds = get_odds()
+    print(f"📅 Pronósticos MLB – {HOY}\n")
+    juegos = get_today_games()
+    cuotas = get_odds()
 
-    for juego in juegos:
-        home = juego["home_team"]
-        away = juego["away_team"]
-        form_home = get_team_form(juego["home_team_id"])
-        form_away = get_team_form(juego["away_team_id"])
-        avg_home = get_team_avg(juego["home_team_id"])
-        avg_away = get_team_avg(juego["away_team_id"])
-        era_home = float(get_pitcher_stats(juego["home_pitcher_id"]).get("era", 99))
-        era_away = float(get_pitcher_stats(juego["away_pitcher_id"]).get("era", 99))
+    for j in juegos:
+        home, away = j["home"], j["away"]
+        form_home = get_team_form(j["home_id"])
+        form_away = get_team_form(j["away_id"])
+        pitcher_home = get_pitcher_stats(j["pitcher_home"])
+        pitcher_away = get_pitcher_stats(j["pitcher_away"])
 
-        ajustado_home = ajustar_por_avg(ajustar_por_era(form_home["anotadas"], era_away), avg_home)
-        ajustado_away = ajustar_por_avg(ajustar_por_era(form_away["anotadas"], era_home), avg_away)
-        estimado = round((ajustado_home + ajustado_away + form_home["recibidas"] + form_away["recibidas"]) / 2, 2)
+        match = next((o for o in cuotas if normalize(o["home_team"]) in normalize(home) and normalize(o["away_team"]) in normalize(away)), None)
+        if not match:
+            continue
 
-        for odd in odds:
-            if home in odd.get("home_team", "") and away in odd.get("away_team", ""):
-                for o in odd["bookmakers"][0]["markets"]:
-                    if o["key"] == "totals":
-                        for outcome in o["outcomes"]:
-                            if outcome["name"].lower() == "over":
-                                linea = outcome["point"]
-                                cuota = outcome["price"]
-                                diferencia = estimado - linea
+        ml = {o["name"]: o["price"] for b in match["bookmakers"] for m in b["markets"] if m["key"] == "h2h" for o in m["outcomes"]}
+        cuota_home = ml.get(home)
+        cuota_away = ml.get(away)
 
-                                tipo = "normal"
-                                if abs(diferencia) >= 3:
-                                    tipo = "candado"
-                                elif abs(diferencia) >= 2:
-                                    tipo = "normal"
-                                else:
-                                    continue
+        print(f"⚔️ {away} @ {home}")
+        pick_home = sugerir_pick(home, form_home, pitcher_home, cuota_home) if cuota_home else None
+        pick_away = sugerir_pick(away, form_away, pitcher_away, cuota_away) if cuota_away else None
 
-                                pick = "Over" if diferencia > 0 else "Under"
-                                mensaje = generar_mensaje_ia(f"{away} vs {home}", f"{pick} {linea}", cuota, linea, estimado)
-                                enviar_a_telegram(mensaje, tipo)
-                                print(f"✅ Enviado: {pick} {linea} ({tipo}) | {away} vs {home}")
-                                break
+        if pick_home:
+            print("🧠", pick_home)
+        elif pick_away:
+            print("🧠", pick_away)
+        else:
+            print("⚠️ No se recomienda ML para este juego")
+
+        print("---")
 
 if __name__ == "__main__":
     main()
+
