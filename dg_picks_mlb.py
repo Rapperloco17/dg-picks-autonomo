@@ -265,35 +265,34 @@ async def main():
         form_home = get_full_season_form(j["home_id"])
         form_away = get_full_season_form(j["away_id"])
         pitcher_home = get_pitcher_stats(j["pitcher_home"])
-        pitcher_teams = get_pitcher_stats(j["pitcher_away"])
+        pitcher_away = get_pitcher_stats(j["pitcher_away"])
 
-        match = find_matching_team(home, {"teams": cuotas})
+        match = find_matching_team(home, cuotas)
         if not match:
             logger.warning(f"No se encontraron cuotas para {home} vs {away}")
             continue
 
-        ml_teams = {o["name"]: o["price"] for b in match.get("teams", []) for m in b.get_matches"] if m["key"] == "teams" for o in m["outcomes"]}
-            teams = teams_team)
-        cuota = ml_teams.get("home_team", None)
-        cuota_ml = ml_ways.get("away_team", None)
+        ml_teams = {o["name"]: o["price"] for b in match.get("bookmakers", []) for m in b.get("markets", []) if m["key"] == "h2h" for o in m.get("outcomes", [])}
+        cuota_home = ml_teams.get(home)
+        cuota_away = ml_teams.get(away)
 
-        pick_team = sugerir_pick(home_team, form_home, pitcher_team, cuota_ml) if cuota else None
-        pick_team_away = sugerir_pick_team(away_team, a_form_way, a_pitcher_way, cuota_team) if cuota else None
+        pick_home = sugerir_pick(home, form_home, pitcher_home, cuota_home) if cuota_home else None
+        pick_away = sugerir_pick(away, form_away, pitcher_away, cuota_away) if cuota_away else None
 
-        if pick_team:
-            resumen_picks.append(f"⚔️ {away_team} @ {home_team}\n🧠 {pick_team}\n---")
-        elif pick_team_away:
-            resumen_picks.append(f"⚔️ {away_team} @ {home_team}\n🧠 {pick_team_away}\n---")
+        if pick_home:
+            resumen_picks.append(f"⚔️ {away} @ {home}\n🧠 {pick_home}\n---")
+        elif pick_away:
+            resumen_picks.append(f"⚔️ {away} @ {home}\n🧠 {pick_away}\n---")
 
     if not resumen_picks:
         resumen_picks.append("⚠️ No se detectó valor en los partidos de hoy.")
 
-    mensaje_base_m = f"📅 Pronósticos MLB – {FECHA_texto}\n\n" + "\n".join(resumen_picks)
+    mensaje_base = f"📅 Pronósticos MLB – {FECHA_TEXTO}\n\n" + "\n".join(resumen_picks)
 
-    mensaje_final = get_cached_openai_response(mensaje_base_m)
+    mensaje_final = get_cached_openai_response(mensaje_base)
 
     await enviar_telegram_async(mensaje_final)
 
 if __name__ == "__main__":
     check_env_vars()
-        asyncio.run(main())
+    asyncio.run(main())
