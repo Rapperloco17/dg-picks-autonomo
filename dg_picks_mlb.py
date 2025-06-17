@@ -9,6 +9,7 @@ import hashlib
 from datetime import datetime
 from telegram import Bot
 from fuzzywuzzy import fuzz
+from openai import OpenAI
 
 # Configuración de logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -47,7 +48,10 @@ def check_env_vars():
 
 def is_mlb_season(date: datetime) -> bool:
     """Verifica si la fecha está dentro de la temporada de MLB (marzo a octubre)."""
-    return 3 <= date.month <= 10
+    if not (3 <= date.month <= 10):
+        logger.warning("No es temporada de MLB, ejecución detenida")
+        return False
+    return True
 
 def normalize(name: str) -> str:
     """Normaliza nombres de equipos para comparación."""
@@ -137,18 +141,18 @@ def get_pitcher_stats(pitcher_id: int) -> dict:
         dict: Estadísticas del pitcher (e.g., ERA).
     """
     if not pitcher_id:
-        logger.warning("No pitcher ID provided")
-        return {}
+        logger.warning("No pitcher ID provided, usando valores por defecto")
+        return {"era": 99.0}
     try:
         url = PITCHER_STATS_URL.format(pitcher_id)
         res = requests.get(url, headers=HEADERS, timeout=10)
         res.raise_for_status()
         data = res.json()
         stats = data.get("people", [])[0].get("stats", [])[0].get("splits", [])
-        return stats[0].get("stat", {}) if stats else {}
+        return stats[0].get("stat", {"era": 99.0}) if stats else {"era": 99.0}
     except Exception as e:
         logger.error(f"Error al obtener stats del pitcher {pitcher_id}: {e}")
-        return {}
+        return {"era": 99.0}
 
 def get_odds() -> list:
     """
@@ -190,6 +194,9 @@ def sugerir_pick(equipo: str, form: dict, pitcher: dict, cuota_ml: float) -> str
     try:
         era = float(pitcher.get("era", 99))
         anotadas = form.get("anotadas", 0)
+        if not form or anotadas == 0:
+            logger.warning(f"No hay datos de forma para {equipo}, pick no sugerido")
+            return None
         for threshold in PICK_THRESHOLDS.values():
             if (threshold.get("min_odds", 0) <= cuota_ml <= threshold.get("max_odds", float('inf')) and
                 anotadas >= threshold["min_runs"] and era < threshold["max_era"]):
@@ -231,15 +238,15 @@ def get_cached_openai_response(prompt: str) -> str:
     except FileNotFoundError:
         cache = {}
     try:
-        openai.api_key = os.getenv("OPENAI_API_KEY")
-        respuesta = openai.ChatCompletion.create(
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": "Eres un experto en apuestas deportivas y Telegram. Redacta el siguiente texto con estilo atractivo y profesional para un canal premium de MLB."},
                 {"role": "user", "content": prompt}
             ]
         )
-        result = respuesta["choices"][0]["message"]["content"]
+        result = response.choices[0].message.content
         cache[prompt_hash] = result
         with open(cache_file, "w") as f:
             json.dump(cache, f)
@@ -254,7 +261,6 @@ async def main():
     logger.info(f"📅 Iniciando pronósticos MLB – {HOY} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST")
     
     if not is_mlb_season(datetime.now(MX_TZ)):
-        logger.warning("No es temporada de MLB")
         return
 
     try:
