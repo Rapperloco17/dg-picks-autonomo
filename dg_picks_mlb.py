@@ -1,3 +1,6 @@
+
+# dg_picks_mlb.py (versión actualizada con envío al bot y VIP, sin canal Free)
+
 import requests
 import openai
 import os
@@ -11,310 +14,150 @@ from telegram import Bot
 from fuzzywuzzy import fuzz
 from openai import OpenAI
 
-# Configuración de logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Zona horaria y fecha
 MX_TZ = pytz.timezone("America/Mexico_City")
+ES_TZ = pytz.timezone("Europe/Madrid")
 HOY = datetime.now(MX_TZ).strftime("%Y-%m-%d")
 FECHA_TEXTO = datetime.now(MX_TZ).strftime("%d de %B")
 
-# Umbrales configurables para sugerir picks
 PICK_THRESHOLDS = {
     "low_odds": {"max_odds": 1.70, "min_runs": 4.0, "max_era": 3.5, "label": "Valor medio"},
     "mid_odds": {"min_odds": 1.70, "max_odds": 2.30, "min_runs": 4.0, "max_era": 4.2, "label": "Valor sólido"},
     "high_odds": {"min_odds": 2.30, "min_runs": 4.5, "max_era": 4.5, "label": "Underdog con ataque"}
 }
 
-# URLs
 ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/baseball_mlb/odds"
 MLB_SCHEDULE_URL = "https://statsapi.mlb.com/api/v1/schedule"
 MLB_RESULTS_URL = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&teamId={}&startDate=2025-03-28&endDate={}"
 PITCHER_STATS_URL = "https://statsapi.mlb.com/api/v1/people/{}?hydrate=stats(group=[pitching],type=[season])"
 HEADERS = {"User-Agent": "DG Picks"}
 
-def check_env_vars():
-    """Valida que todas las variables de entorno necesarias estén definidas."""
-    required_vars = ["ODDS_API_KEY", "OPENAI_API_KEY", "TELEGRAM_BOT_TOKEN"]
-    chat_vars = ["CHAT_ID_VIP", "CHAT_ID_FREE", "chat_id_reto"]
-    missing_chat = [var for var in chat_vars if not os.getenv(var)]
-    if len(missing_chat) == len(chat_vars):
-        logger.warning("Ninguna variable de chat ID encontrada, pero el script intentará continuar")
-    missing = [var for var in required_vars if not os.getenv(var)]
-    if missing:
-        raise EnvironmentError(f"Missing environment variables: {', '.join(missing)}")
+def normalize(name): return name.lower().replace(" ", "").replace("-", "")
 
-def is_mlb_season(date: datetime) -> bool:
-    """Verifica si la fecha está dentro de la temporada de MLB (marzo a octubre)."""
-    if not (3 <= date.month <= 10):
-        logger.warning("No es temporada de MLB, ejecución detenida")
-        return False
-    return True
-
-def normalize(name: str) -> str:
-    """Normaliza nombres de equipos para comparación."""
-    return name.lower().replace(" ", "").replace("-", "")
-
-def find_matching_team(team_name: str, odds_data: list) -> dict:
-    """Encuentra un partido en los datos de cuotas usando coincidencia aproximada."""
+def find_matching_team(team_name, odds_data):
     team_name_norm = normalize(team_name)
     for odds in odds_data:
-        home_norm = normalize(odds["home_team"])
-        away_norm = normalize(odds["away_team"])
-        if fuzz.ratio(team_name_norm, home_norm) > 85 or fuzz.ratio(team_name_norm, away_norm) > 85:
+        if fuzz.ratio(team_name_norm, normalize(odds["home_team"])) > 85 or            fuzz.ratio(team_name_norm, normalize(odds["away_team"])) > 85:
             return odds
     return None
 
-def get_today_games() -> list:
-    """
-    Obtiene la lista de partidos de MLB programados para hoy.
-    Returns:
-        list: Lista de diccionarios con información de cada partido.
-    Raises:
-        requests.RequestException: Si la solicitud a la API falla.
-    """
-    try:
-        params = {"sportId": 1, "date": HOY, "hydrate": "team,linescore,probablePitcher,venue"}
-        res = requests.get(MLB_SCHEDULE_URL, headers=HEADERS, params=params, timeout=10)
-        res.raise_for_status()
-        data = res.json()
-        games = []
-        for date_info in data.get("dates", []):
-            for g in date_info.get("games", []):
-                games.append({
-                    "home": g["teams"]["home"]["team"]["name"],
-                    "away": g["teams"]["away"]["team"]["name"],
-                    "home_id": g["teams"]["home"]["team"]["id"],
-                    "away_id": g["teams"]["away"]["team"]["id"],
-                    "pitcher_home": g["teams"]["home"].get("probablePitcher", {}).get("id"),
-                    "pitcher_away": g["teams"]["away"].get("probablePitcher", {}).get("id"),
-                    "venue": g["venue"]["name"]
-                })
-        logger.info(f"Obtenidos {len(games)} partidos para {HOY}")
-        return games
-    except Exception as e:
-        logger.error(f"Error al obtener partidos: {e}")
-        return []
+def get_today_games():
+    params = {"sportId": 1, "date": HOY, "hydrate": "team,linescore,probablePitcher,venue"}
+    res = requests.get(MLB_SCHEDULE_URL, headers=HEADERS, params=params, timeout=10)
+    res.raise_for_status()
+    data = res.json()
+    games = []
+    for date_info in data.get("dates", []):
+        for g in date_info.get("games", []):
+            game_date_utc = datetime.strptime(g["gameDate"], "%Y-%m-%dT%H:%M:%SZ")
+            hora_mx = game_date_utc.replace(tzinfo=pytz.utc).astimezone(MX_TZ).strftime("%H:%M")
+            hora_es = game_date_utc.replace(tzinfo=pytz.utc).astimezone(ES_TZ).strftime("%H:%M")
+            games.append({
+                "home": g["teams"]["home"]["team"]["name"],
+                "away": g["teams"]["away"]["team"]["name"],
+                "home_id": g["teams"]["home"]["team"]["id"],
+                "away_id": g["teams"]["away"]["team"]["id"],
+                "pitcher_home": g["teams"]["home"].get("probablePitcher", {}).get("id"),
+                "pitcher_away": g["teams"]["away"].get("probablePitcher", {}).get("id"),
+                "venue": g["venue"]["name"],
+                "hora_mx": hora_mx,
+                "hora_es": hora_es
+            })
+    return games
 
-def get_full_season_form(team_id: int) -> dict:
-    """
-    Calcula el promedio de carreras anotadas y recibidas por un equipo en la temporada.
-    Args:
-        team_id: ID del equipo.
-    Returns:
-        dict: Estadísticas de carreras anotadas, recibidas y juegos jugados.
-    """
-    try:
-        url = MLB_RESULTS_URL.format(team_id, HOY)
-        res = requests.get(url, headers=HEADERS, timeout=15)
-        res.raise_for_status()
-        juegos = []
-        for d in res.json().get("dates", []):
-            for g in d.get("games", []):
-                if g["status"]["detailedState"] != "Final":
-                    continue
-                home, away = g["teams"]["home"], g["teams"]["away"]
-                if home["team"]["id"] == team_id:
-                    anotadas, recibidas = home["score"], away["score"]
-                else:
-                    anotadas, recibidas = away["score"], home["score"]
-                juegos.append((anotadas, recibidas))
-        if not juegos:
-            logger.warning(f"No hay historial suficiente para el equipo {team_id}, usando valores por defecto")
-            return {"anotadas": 4.0, "recibidas": 4.0, "juegos": 1}  # Valores por defecto
-        return {
-            "anotadas": round(sum(j[0] for j in juegos) / len(juegos), 2),
-            "recibidas": round(sum(j[1] for j in juegos) / len(juegos), 2),
-            "juegos": len(juegos)
-        }
-    except Exception as e:
-        logger.error(f"Error al obtener forma del equipo {team_id}: {e}")
-        return {"anotadas": 4.0, "recibidas": 4.0, "juegos": 1}  # Valores por defecto
+def get_pitcher_stats(pitcher_id):
+    if not pitcher_id: return {"era": 99.0, "nombre": "No confirmado"}
+    url = PITCHER_STATS_URL.format(pitcher_id)
+    res = requests.get(url, headers=HEADERS, timeout=10)
+    data = res.json()
+    person = data.get("people", [])[0]
+    nombre = person.get("fullName", "No confirmado")
+    stats = person.get("stats", [])[0].get("splits", [])
+    era = stats[0].get("stat", {}).get("era", 99.0) if stats else 99.0
+    return {"era": float(era), "nombre": nombre}
 
-def get_pitcher_stats(pitcher_id: int) -> dict:
-    """
-    Obtiene las estadísticas de un pitcher para la temporada actual.
-    Args:
-        pitcher_id: ID del pitcher.
-    Returns:
-        dict: Estadísticas del pitcher (e.g., ERA).
-    """
-    if not pitcher_id:
-        logger.warning("No pitcher ID provided, usando valores por defecto")
-        return {"era": 99.0}
-    try:
-        url = PITCHER_STATS_URL.format(pitcher_id)
-        res = requests.get(url, headers=HEADERS, timeout=10)
-        res.raise_for_status()
-        data = res.json()
-        stats = data.get("people", [])[0].get("stats", [])[0].get("splits", [])
-        return stats[0].get("stat", {"era": 99.0}) if stats else {"era": 99.0}
-    except Exception as e:
-        logger.error(f"Error al obtener stats del pitcher {pitcher_id}: {e}")
-        return {"era": 99.0}
+def get_full_season_form(team_id):
+    url = MLB_RESULTS_URL.format(team_id, HOY)
+    res = requests.get(url, headers=HEADERS, timeout=15)
+    juegos = []
+    for d in res.json().get("dates", []):
+        for g in d.get("games", []):
+            if g["status"]["detailedState"] != "Final":
+                continue
+            home, away = g["teams"]["home"], g["teams"]["away"]
+            if home["team"]["id"] == team_id:
+                anotadas, recibidas = home["score"], away["score"]
+            else:
+                anotadas, recibidas = away["score"], home["score"]
+            juegos.append((anotadas, recibidas))
+    if not juegos: return {"anotadas": 4.0, "recibidas": 4.0}
+    return {
+        "anotadas": round(sum(j[0] for j in juegos) / len(juegos), 2),
+        "recibidas": round(sum(j[1] for j in juegos) / len(juegos), 2)
+    }
 
-def get_odds() -> list:
-    """
-    Obtiene las cuotas de apuestas para los partidos de MLB.
-    Returns:
-        list: Lista de cuotas por partido.
-    Raises:
-        Exception: Si falta la API Key o la solicitud falla.
-    """
-    ODDS_API_KEY = os.getenv("ODDS_API_KEY")
-    if not ODDS_API_KEY:
-        raise Exception("❌ Falta la API Key de Odds")
-    try:
-        params = {
-            "apiKey": ODDS_API_KEY,
-            "regions": "us",
-            "markets": "h2h",
-            "oddsFormat": "decimal"
-        }
-        res = requests.get(ODDS_API_URL, headers=HEADERS, params=params, timeout=10)
-        res.raise_for_status()
-        logger.info("Cuotas obtenidas correctamente")
-        return res.json()
-    except Exception as e:
-        logger.error(f"Error al obtener cuotas: {e}")
-        return []
+def get_odds():
+    key = os.getenv("ODDS_API_KEY")
+    params = {"apiKey": key, "regions": "us", "markets": "h2h", "oddsFormat": "decimal"}
+    res = requests.get(ODDS_API_URL, headers=HEADERS, params=params, timeout=10)
+    return res.json()
 
-def sugerir_pick(equipo: str, form: dict, pitcher: dict, cuota_ml: float) -> tuple:
-    """
-    Sugiere un pick de apuesta basado en cuotas, forma del equipo y stats del pitcher.
-    Returns: tuple (pick_str, cuota_ml) o (None, None) si no hay valor.
-    """
-    try:
-        era = float(pitcher.get("era", 99))
-        anotadas = form.get("anotadas", 4.0)  # Usar 4.0 como valor por defecto
-        for threshold in PICK_THRESHOLDS.values():
-            if (threshold.get("min_odds", 0) <= cuota_ml <= threshold.get("max_odds", float('inf')) and
-                anotadas >= threshold["min_runs"] and era < threshold["max_era"]):
-                return f"🎯 {equipo} ML @ {cuota_ml} | {threshold['label']}: {anotadas}/j, ERA {era}", cuota_ml
-        return f"ℹ️ {equipo} ML @ {cuota_ml} | Sin valor: {anotadas}/j, ERA {era}", cuota_ml  # Informative pick
-    except Exception as e:
-        logger.error(f"Error al sugerir pick para {equipo}: {e}")
-        return None, None
+def sugerir_pick(team, form, pitcher, odds, rival, venue, hora_mx, hora_es):
+    for t in PICK_THRESHOLDS.values():
+        if (t.get("min_odds", 0) <= odds <= t.get("max_odds", 99)) and            form["anotadas"] >= t["min_runs"] and pitcher["era"] < t["max_era"]:
+            return {
+                "msg": f"⚾ {team} vs {rival}
+📍 Estadio: {venue}
+🕒 {hora_mx} 🇲🇽 / {hora_es} 🇪🇸
+👤 Pitcher: {pitcher['nombre']} (ERA {pitcher['era']})
+🎯 Pick: {team} ML @ {odds} — {t['label']}: {form['anotadas']} carreras/j",
+                "odds": odds
+            }
+    return None
 
 async def enviar_telegram_async(mensaje: str, chat_id: str):
-    """Envía un mensaje a Telegram de forma asíncrona a un chat específico."""
-    try:
-        bot = Bot(token=os.getenv("TELEGRAM_BOT_TOKEN"))
-        if not chat_id:
-            raise ValueError("No chat ID available")
-        await bot.send_message(chat_id=chat_id, text=mensaje)
-        logger.info(f"Mensaje enviado a Telegram al chat ID: {chat_id}")
-    except Exception as e:
-        logger.error(f"Error al enviar a Telegram: {e}")
-
-def get_cached_openai_response(prompt: str) -> str:
-    """
-    Obtiene una respuesta de OpenAI, usando caché si está disponible.
-    Args:
-        prompt: Texto del prompt para OpenAI.
-    Returns:
-        str: Respuesta generada o el prompt original si falla.
-    """
-    cache_file = "openai_cache.json"
-    prompt_hash = hashlib.md5(prompt.encode()).hexdigest()
-    try:
-        with open(cache_file, "r") as f:
-            cache = json.load(f)
-        if prompt_hash in cache:
-            logger.info("Usando respuesta de OpenAI desde caché")
-            return cache[prompt_hash]
-    except FileNotFoundError:
-        cache = {}
-    try:
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": "Eres un experto en apuestas deportivas y Telegram. Redacta el siguiente texto con estilo atractivo y profesional para un canal premium de MLB."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        result = response.choices[0].message.content
-        cache[prompt_hash] = result
-        with open(cache_file, "w") as f:
-            json.dump(cache, f)
-        logger.info("Respuesta de OpenAI almacenada en caché")
-        return result
-    except Exception as e:
-        logger.error(f"Error con OpenAI: {e}")
-        return prompt
+    bot = Bot(token=os.getenv("TELEGRAM_BOT_TOKEN"))
+    await bot.send_message(chat_id=chat_id, text=mensaje)
 
 async def main():
-    """Función principal para generar y enviar pronósticos de MLB."""
-    logger.info(f"📅 Iniciando pronósticos MLB – {HOY} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST")
-    
-    if not is_mlb_season(datetime.now(MX_TZ)):
-        return
+    juegos = get_today_games()
+    cuotas = get_odds()
+    picks_all = []
 
-    try:
-        juegos = get_today_games()
-        if not juegos:
-            logger.warning("No se encontraron partidos para hoy, ejecución detenida")
-            mensaje = f"📅 Pronósticos MLB – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n⚠️ No se encontraron partidos para hoy."
-            await enviar_telegram_async(mensaje, os.getenv("CHAT_ID_VIP"))
-            await enviar_telegram_async(mensaje, os.getenv("CHAT_ID_FREE") or os.getenv("chat_id_reto"))
-            return
-        cuotas = get_odds()
-        if not cuotas:
-            logger.warning("No se encontraron cuotas, ejecución detenida")
-            mensaje = f"📅 Pronósticos MLB – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n⚠️ No se encontraron cuotas para hoy."
-            await enviar_telegram_async(mensaje, os.getenv("CHAT_ID_VIP"))
-            await enviar_telegram_async(mensaje, os.getenv("CHAT_ID_FREE") or os.getenv("chat_id_reto"))
-            return
-    except Exception as e:
-        logger.error(f"Error al obtener datos iniciales: {e}")
-        return
+    for g in juegos:
+        form_home = get_full_season_form(g["home_id"])
+        form_away = get_full_season_form(g["away_id"])
+        pitcher_home = get_pitcher_stats(g["pitcher_home"])
+        pitcher_away = get_pitcher_stats(g["pitcher_away"])
+        match = find_matching_team(g["home"], cuotas)
+        if not match: continue
+        ml = {o["name"]: o["price"] for b in match["bookmakers"] for m in b["markets"] if m["key"] == "h2h" for o in m["outcomes"]}
+        ch, ca = ml.get(g["home"]), ml.get(g["away"])
+        if ch:
+            r = sugerir_pick(g["home"], form_home, pitcher_home, ch, g["away"], g["venue"], g["hora_mx"], g["hora_es"])
+            if r: picks_all.append((r["msg"], r["odds"]))
+        if ca:
+            r = sugerir_pick(g["away"], form_away, pitcher_away, ca, g["home"], g["venue"], g["hora_mx"], g["hora_es"])
+            if r: picks_all.append((r["msg"], r["odds"]))
 
-    picks = []  # Lista de tuplas (pick_str, cuota, home_team)
-    for j in juegos:
-        home, away = j["home"], j["away"]
-        form_home = get_full_season_form(j["home_id"])
-        form_away = get_full_season_form(j["away_id"])
-        pitcher_home = get_pitcher_stats(j["pitcher_home"])
-        pitcher_away = get_pitcher_stats(j["pitcher_away"])
+    picks_all.sort(key=lambda x: x[1])
+    top_vip = picks_all[:3]
+    mensaje_vip = f"🔥 Picks MLB VIP – {FECHA_TEXTO}
 
-        match = find_matching_team(home, cuotas)
-        if not match:
-            logger.warning(f"No se encontraron cuotas para {home} vs {away}")
-            continue
+" + "
 
-        ml_teams = {o["name"]: o["price"] for b in match.get("bookmakers", []) for m in b.get("markets", []) if m["key"] == "h2h" for o in m.get("outcomes", [])}
-        cuota_home = ml_teams.get(home)
-        cuota_away = ml_teams.get(away)
+".join(p[0] for p in top_vip)
+    await enviar_telegram_async(mensaje_vip, os.getenv("CHAT_ID_VIP"))
 
-        if cuota_home and isinstance(cuota_home, (int, float)):
-            pick_home, cuota = sugerir_pick(home, form_home, pitcher_home, cuota_home)
-            if pick_home:
-                picks.append((pick_home, cuota, home))
-        if cuota_away and isinstance(cuota_away, (int, float)):
-            pick_away, cuota = sugerir_pick(away, form_away, pitcher_away, cuota_away)
-            if pick_away:
-                picks.append((pick_away, cuota, away))
+    if picks_all:
+        mensaje_bot = f"📊 Análisis completo MLB – {FECHA_TEXTO}
 
-    # Mensaje para el bot (todos los picks)
-    if not picks:
-        mensaje_bot = f"📅 Pronósticos MLB – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n⚠️ No se detectaron picks con valor hoy."
-    else:
-        all_picks = "\n".join(f"{p[0]}" for p in picks)
-        mensaje_bot = f"📅 Pronósticos MLB Completo – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n{all_picks}"
-    mensaje_bot = get_cached_openai_response(mensaje_bot)
-    await enviar_telegram_async(mensaje_bot, os.getenv("CHAT_ID_FREE") or os.getenv("chat_id_reto"))
+" + "
 
-    # Mensaje para VIP (2-3 picks más seguros)
-    if picks:
-        picks.sort(key=lambda x: x[1])  # Ordenar por cuota (menor = más seguro)
-        top_picks = picks[:3] if len(picks) >= 3 else picks[:len(picks)]
-        vip_picks = "\n".join(f"{p[0]}" for p in top_picks)
-        mensaje_vip = f"📅 Pronósticos MLB VIP – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n{vip_picks}"
-        mensaje_vip = get_cached_openai_response(mensaje_vip)
-        await enviar_telegram_async(mensaje_vip, os.getenv("CHAT_ID_VIP"))
+".join(p[0] for p in picks_all)
+        await enviar_telegram_async(mensaje_bot, os.getenv("chat_id_reto"))
 
 if __name__ == "__main__":
-    check_env_vars()
     asyncio.run(main())
