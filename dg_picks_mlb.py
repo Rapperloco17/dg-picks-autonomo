@@ -121,7 +121,8 @@ def get_full_season_form(team_id: int) -> dict:
                     anotadas, recibidas = away["score"], home["score"]
                 juegos.append((anotadas, recibidas))
         if not juegos:
-            return {}
+            logger.warning(f"No hay historial suficiente para el equipo {team_id}, usando valores por defecto")
+            return {"anotadas": 4.0, "recibidas": 4.0, "juegos": 1}  # Valores por defecto
         return {
             "anotadas": round(sum(j[0] for j in juegos) / len(juegos), 2),
             "recibidas": round(sum(j[1] for j in juegos) / len(juegos), 2),
@@ -129,7 +130,7 @@ def get_full_season_form(team_id: int) -> dict:
         }
     except Exception as e:
         logger.error(f"Error al obtener forma del equipo {team_id}: {e}")
-        return {}
+        return {"anotadas": 4.0, "recibidas": 4.0, "juegos": 1}  # Valores por defecto
 
 def get_pitcher_stats(pitcher_id: int) -> dict:
     """
@@ -179,37 +180,27 @@ def get_odds() -> list:
         logger.error(f"Error al obtener cuotas: {e}")
         return []
 
-def sugerir_pick(equipo: str, form: dict, pitcher: dict, cuota_ml: float) -> str:
+def sugerir_pick(equipo: str, form: dict, pitcher: dict, cuota_ml: float) -> tuple:
     """
     Sugiere un pick de apuesta basado en cuotas, forma del equipo y stats del pitcher.
-    Args:
-        equipo: Nombre del equipo.
-        form: Estadísticas de forma del equipo.
-        pitcher: Estadísticas del pitcher.
-        cuota_ml: Cuota de la apuesta moneyline.
-    Returns:
-        str: Mensaje del pick sugerido o None si no hay valor.
+    Returns: tuple (pick_str, cuota_ml) o (None, None) si no hay valor.
     """
     try:
         era = float(pitcher.get("era", 99))
-        anotadas = form.get("anotadas", 0)
-        if not form or anotadas == 0:
-            logger.warning(f"No hay datos de forma para {equipo}, pick no sugerido")
-            return None
+        anotadas = form.get("anotadas", 4.0)  # Usar 4.0 como valor por defecto
         for threshold in PICK_THRESHOLDS.values():
             if (threshold.get("min_odds", 0) <= cuota_ml <= threshold.get("max_odds", float('inf')) and
                 anotadas >= threshold["min_runs"] and era < threshold["max_era"]):
-                return f"🎯 {equipo} ML @ {cuota_ml} | {threshold['label']}: {anotadas}/j, ERA {era}"
-        return None
+                return f"🎯 {equipo} ML @ {cuota_ml} | {threshold['label']}: {anotadas}/j, ERA {era}", cuota_ml
+        return f"ℹ️ {equipo} ML @ {cuota_ml} | Sin valor: {anotadas}/j, ERA {era}", cuota_ml  # Informative pick
     except Exception as e:
         logger.error(f"Error al sugerir pick para {equipo}: {e}")
-        return None
+        return None, None
 
-async def enviar_telegram_async(mensaje: str):
-    """Envía un mensaje a Telegram de forma asíncrona."""
+async def enviar_telegram_async(mensaje: str, chat_id: str):
+    """Envía un mensaje a Telegram de forma asíncrona a un chat específico."""
     try:
         bot = Bot(token=os.getenv("TELEGRAM_BOT_TOKEN"))
-        chat_id = os.getenv("CHAT_ID_VIP") or os.getenv("CHAT_ID_FREE") or os.getenv("chat_id_reto")
         if not chat_id:
             raise ValueError("No chat ID available")
         await bot.send_message(chat_id=chat_id, text=mensaje)
@@ -265,16 +256,22 @@ async def main():
         juegos = get_today_games()
         if not juegos:
             logger.warning("No se encontraron partidos para hoy, ejecución detenida")
+            mensaje = f"📅 Pronósticos MLB – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n⚠️ No se encontraron partidos para hoy."
+            await enviar_telegram_async(mensaje, os.getenv("CHAT_ID_VIP"))
+            await enviar_telegram_async(mensaje, os.getenv("CHAT_ID_FREE") or os.getenv("chat_id_reto"))
             return
         cuotas = get_odds()
         if not cuotas:
             logger.warning("No se encontraron cuotas, ejecución detenida")
+            mensaje = f"📅 Pronósticos MLB – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n⚠️ No se encontraron cuotas para hoy."
+            await enviar_telegram_async(mensaje, os.getenv("CHAT_ID_VIP"))
+            await enviar_telegram_async(mensaje, os.getenv("CHAT_ID_FREE") or os.getenv("chat_id_reto"))
             return
     except Exception as e:
         logger.error(f"Error al obtener datos iniciales: {e}")
         return
 
-    resumen_picks = set()  # Usar un set para evitar duplicados
+    picks = []  # Lista de tuplas (pick_str, cuota, home_team)
     for j in juegos:
         home, away = j["home"], j["away"]
         form_home = get_full_season_form(j["home_id"])
@@ -292,22 +289,31 @@ async def main():
         cuota_away = ml_teams.get(away)
 
         if cuota_home and isinstance(cuota_home, (int, float)):
-            pick_home = sugerir_pick(home, form_home, pitcher_home, cuota_home)
+            pick_home, cuota = sugerir_pick(home, form_home, pitcher_home, cuota_home)
             if pick_home:
-                resumen_picks.add(f"⚔️ {away} @ {home}\n🧠 {pick_home}\n---")
+                picks.append((pick_home, cuota, home))
         if cuota_away and isinstance(cuota_away, (int, float)):
-            pick_away = sugerir_pick(away, form_away, pitcher_away, cuota_away)
+            pick_away, cuota = sugerir_pick(away, form_away, pitcher_away, cuota_away)
             if pick_away:
-                resumen_picks.add(f"⚔️ {away} @ {home}\n🧠 {pick_away}\n---")
+                picks.append((pick_away, cuota, away))
 
-    if not resumen_picks:
-        resumen_picks.add("⚠️ No se detectó valor en los partidos de hoy.")
+    # Mensaje para el bot (todos los picks)
+    if not picks:
+        mensaje_bot = f"📅 Pronósticos MLB – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n⚠️ No se detectaron picks con valor hoy."
+    else:
+        all_picks = "\n".join(f"{p[0]}" for p in picks)
+        mensaje_bot = f"📅 Pronósticos MLB Completo – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n{all_picks}"
+    mensaje_bot = get_cached_openai_response(mensaje_bot)
+    await enviar_telegram_async(mensaje_bot, os.getenv("CHAT_ID_FREE") or os.getenv("chat_id_reto"))
 
-    mensaje_base = f"📅 Pronósticos MLB – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n" + "\n".join(resumen_picks)
-
-    mensaje_final = get_cached_openai_response(mensaje_base)
-
-    await enviar_telegram_async(mensaje_final)
+    # Mensaje para VIP (2-3 picks más seguros)
+    if picks:
+        picks.sort(key=lambda x: x[1])  # Ordenar por cuota (menor = más seguro)
+        top_picks = picks[:3] if len(picks) >= 3 else picks[:len(picks)]
+        vip_picks = "\n".join(f"{p[0]}" for p in top_picks)
+        mensaje_vip = f"📅 Pronósticos MLB VIP – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n{vip_picks}"
+        mensaje_vip = get_cached_openai_response(mensaje_vip)
+        await enviar_telegram_async(mensaje_vip, os.getenv("CHAT_ID_VIP"))
 
 if __name__ == "__main__":
     check_env_vars()
