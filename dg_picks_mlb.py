@@ -4,6 +4,7 @@ import asyncio
 import logging
 import pytz
 import hashlib
+import json  # Añadido para corregir el NameError
 from datetime import datetime
 from telegram import Bot
 from fuzzywuzzy import fuzz
@@ -206,7 +207,7 @@ def get_cached_openai_response(prompt: str) -> str:
     prompt_hash = hashlib.md5(prompt.encode()).hexdigest()
     try:
         with open(cache_file, "r") as f:
-            cache = json.load(f)
+            cache = json.load(f)  # Ahora funciona con json importado
         if prompt_hash in cache:
             logger.info("Usando respuesta de OpenAI desde caché")
             return cache[prompt_hash]
@@ -224,7 +225,7 @@ def get_cached_openai_response(prompt: str) -> str:
         result = response.choices[0].message.content
         cache[prompt_hash] = result
         with open(cache_file, "w") as f:
-            json.dump(cache, f)
+            json.dump(cache, f)  # Ahora funciona con json importado
         logger.info("Respuesta de OpenAI almacenada en caché")
         return result
     except Exception as e:
