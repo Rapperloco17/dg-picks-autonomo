@@ -3,6 +3,7 @@ import os
 import asyncio
 import logging
 import pytz
+import hashlib
 from datetime import datetime
 from telegram import Bot
 from fuzzywuzzy import fuzz
@@ -192,8 +193,8 @@ async def enviar_mensaje(mensaje: str, chat_id: str):
     """Envía un mensaje a Telegram de forma asíncrona a un chat específico."""
     try:
         bot = Bot(token=os.getenv("TELEGRAM_BOT_TOKEN"))
-        if not chat_id:
-            raise ValueError("No chat ID available")
+        if not chat_id or not chat_id.isdigit():
+            raise ValueError(f"Chat ID inválido: {chat_id}")
         await bot.send_message(chat_id=chat_id, text=mensaje)
         logger.info(f"Mensaje enviado a Telegram al chat ID: {chat_id}")
     except Exception as e:
@@ -237,9 +238,9 @@ async def main():
     picks = sugerir_picks()
     if not picks:
         mensaje = f"📅 MLB Picks – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n⚠️ No se detectaron picks ni partidos con valor hoy."
-        await enviar_mensaje(mensaje, os.getenv("chat_id_reto"))  # Reto
-        await enviar_mensaje(mensaje, os.getenv("CHAT_ID_VIP"))   # VIP
-        await enviar_mensaje(mensaje, os.getenv("CHAT_ID_BOT"))   # Bot
+        await enviar_mensaje(mensaje, os.getenv("chat_id_reto"))
+        await enviar_mensaje(mensaje, os.getenv("CHAT_ID_VIP"))
+        await enviar_mensaje(mensaje, "7450739156")  # Usamos el ID directamente aquí para probar
         return
 
     # Ordenar por puntaje (mayor = más seguro)
@@ -260,7 +261,7 @@ async def main():
     # Mensaje para Bot (toda la jornada)
     bot_mensaje = f"📅 MLB Picks Completo – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n" + "\n\n".join(p["msg"] for p in picks)
     bot_mensaje = get_cached_openai_response(bot_mensaje)
-    await enviar_mensaje(bot_mensaje, os.getenv("CHAT_ID_BOT"))
+    await enviar_mensaje(bot_mensaje, "7450739156")  # Usamos el ID directamente aquí para probar
 
 if __name__ == "__main__":
     if not os.getenv("ODDS_API_KEY") or not os.getenv("TELEGRAM_BOT_TOKEN") or not (os.getenv("chat_id_reto") or os.getenv("CHAT_ID_VIP") or os.getenv("CHAT_ID_BOT")):
