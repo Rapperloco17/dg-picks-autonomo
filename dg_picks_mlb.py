@@ -122,7 +122,6 @@ def get_form(team_id: int) -> dict:
         logger.error(f"Error al obtener forma del equipo {team_id}: {e}")
         return {"anotadas": 4.0, "recibidas": 4.0}
 
-
 def calcular_puntaje(form, pitcher, cuota):
     era_score = max(0, 5 - pitcher["era"]) / 5
     runs_score = min(form["anotadas"] / 6, 1)
