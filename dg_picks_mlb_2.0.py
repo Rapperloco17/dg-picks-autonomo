@@ -250,7 +250,7 @@ async def main():
     vip_picks = picks[:3] if len(picks) >= 3 else picks[:len(picks)]
 
     if reto_pick:
-        reto_mensaje = f"🏆 MLB Reto – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n{reto_pick['msg']}"
+        reto_mensaje = f"🏆 MLB Reto – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n{reto_pick['msg']}"  # Línea 123
         reto_mensaje = get_cached_openai_response(reto_mensaje)
         await enviar_mensaje(reto_mensaje, os.getenv("chat_id_reto"))
 
