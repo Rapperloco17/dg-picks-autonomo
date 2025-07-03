@@ -3,8 +3,6 @@ import os
 import asyncio
 import logging
 import pytz
-import hashlib
-import json
 from datetime import datetime
 from telegram import Bot
 from fuzzywuzzy import fuzz
@@ -31,8 +29,6 @@ MLB_SCHEDULE_URL = "https://statsapi.mlb.com/api/v1/schedule"
 MLB_RESULTS_URL = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&teamId={}&startDate=2025-03-28&endDate={}"
 PITCHER_STATS_URL = "https://statsapi.mlb.com/api/v1/people/{}?hydrate=stats(group=[pitching],type=[season])"
 HEADERS = {"User-Agent": "DG Picks"}
-
-# =================== FUNCIONES PRINCIPALES ===================
 
 def get_today_games():
     try:
@@ -166,7 +162,7 @@ def sugerir_picks():
             base_msg = (
                 f"⚾️ {away} vs {home}\n📍 {j['venue']}\n🕒 {j['hora_mx']} MX / {j['hora_es']} ES\n"
                 f"👤 {pitcher['nombre']} (ERA {pitcher['era']})\n"
-                f"📊 {form['anotadas']} carreras/juego – Racha: {'+' if form['streak'] > 0 else ''}{form['streak']}"
+                f"📊 {form['anotadas']} carreras/juego"
             )
 
             for threshold in PICK_THRESHOLDS.values():
@@ -182,6 +178,23 @@ async def enviar_mensaje(msg: str, chat_id: str):
     except Exception as e:
         logger.error(f"Telegram error: {e}")
 
+async def get_openai_justificacion(mensaje):
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        prompt = f"Redacta un análisis profesional, corto y persuasivo del siguiente pick de béisbol MLB como si fuera el más seguro del día para un reto escalera premium. Usa estilo limpio, argumentos tácticos y estadísticas que refuercen la selección:\\n\\n{mensaje}"
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "Eres un experto en apuestas deportivas y redactor profesional de análisis para picks premium."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        logger.error(f"Error con OpenAI justificando pick de reto: {e}")
+        return mensaje
+
 async def main():
     picks = sugerir_picks()
     if not picks:
@@ -190,12 +203,13 @@ async def main():
 
     picks.sort(key=lambda x: x["puntaje"], reverse=True)
     top = picks[0]
-    vip = picks[:3]
+    vip = [p for p in picks if p["msg"] != top["msg"]][:3]
     resumen = "\n\n".join(p["msg"] for p in vip)
 
-    await enviar_mensaje(f"🏆 Pick Reto Escalera:\n\n{top['msg']}", os.getenv("chat_id_reto"))
+    justificacion_reto = await get_openai_justificacion(top['msg'])
+    await enviar_mensaje(f"🏆 Pick Reto Escalera – {FECHA_TEXTO}\n\n{justificacion_reto}", os.getenv("chat_id_reto"))
     await enviar_mensaje(f"🔥 Picks VIP – {FECHA_TEXTO}\n\n{resumen}", os.getenv("CHAT_ID_VIP"))
-    await enviar_mensaje(f"📊 Picks Run Line Completos – {FECHA_TEXTO}\n\n" + "\n\n".join(p['msg'] for p in picks), os.getenv("CHAT_ID_BOT"))
+    await enviar_mensaje(f"📊 Picks Run Line Completos – {FECHA_TEXTO}\n\n" + "\n\n".join(p["msg"] for p in picks), os.getenv("CHAT_ID_BOT"))
 
 if __name__ == "__main__":
     if os.getenv("ODDS_API_KEY") and os.getenv("TELEGRAM_BOT_TOKEN"):
