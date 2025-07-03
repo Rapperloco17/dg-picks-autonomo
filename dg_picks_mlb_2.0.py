@@ -64,7 +64,7 @@ def get_today_games() -> list:
                     "pitcher_home": g["teams"]["home"].get("probablePitcher", {}).get("id"),
                     "pitcher_away": g["teams"]["away"].get("probablePitcher", {}).get("id"),
                     "venue": g["venue"]["name"],
-                    "hora_mx": hora_utc.astimezone(MX_TZ).strftime("%H:%M"),
+                    "hora_mx": hora_utc.astimezone(MX_TZ).strftime("%H:%M"),  # Línea 112
                     "hora_es": hora_utc.astimezone(ES_TZ).strftime("%H:%M")
                 })
         logger.info(f"Obtenidos {len(games)} partidos para {HOY}")
@@ -271,7 +271,7 @@ async def main():
         dreamer_parlay_odds = round(sum((p["cuota"] - 1) for p in dreamer_picks) + 1, 2) if dreamer_picks else 1.0
         dreamer_parlay = f"🌟 Parlay Soñador: {' + '.join(f'{p[\"msg\"].split(\"@\")[1].split(\"—\")[0]}' for p in dreamer_picks)} — Cuota Total: {dreamer_parlay_odds}\n"
         
-        bot_mensaje += f"\n{confident_parlay}{dreamer_parlay}"  # Línea 267
+        bot_mensaje += f"\n{confident_parlay}{dreamer_parlay}"
         bot_mensaje = get_cached_openai_response(bot_mensaje)
         await enviar_mensaje(bot_mensaje, os.getenv("CHAT_ID_BOT"))
 
