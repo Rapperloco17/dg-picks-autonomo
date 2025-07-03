@@ -109,7 +109,7 @@ def get_team_stats(team_id: int) -> dict:
         return {"ops": float(ops)}
     except Exception as e:
         logger.error(f"Error al obtener stats del equipo {team_id}: {e}")
-        return {"ops": 0.600}
+        return {"ops": 0.600"}
 
 def get_form(team_id: int) -> dict:
     try:
@@ -250,7 +250,7 @@ async def main():
     vip_picks = picks[:3] if len(picks) >= 3 else picks[:len(picks)]
 
     if reto_pick:
-        reto_mensaje = f"🏆 MLB Reto – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n{reto_pick['msg']}"  # Línea 123
+        reto_mensaje = f"🏆 MLB Reto – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n{reto_pick['msg']}"
         reto_mensaje = get_cached_openai_response(reto_mensaje)
         await enviar_mensaje(reto_mensaje, os.getenv("chat_id_reto"))
 
@@ -264,16 +264,14 @@ async def main():
         # Generar parlay de confianza (cuotas < 1.80, top 3-5 picks)
         confident_picks = [p for p in picks if p["cuota"] < 1.80][:5]
         confident_parlay_odds = round(sum((p["cuota"] - 1) for p in confident_picks) + 1, 2) if confident_picks else 1.0
-        confident_parlay = f"💪 Parlay de Confianza: {' + '.join(p['msg'].split('@')[1].split('—')[0] for p in confident_picks)} — Cuota Total: {confident_parlay_odds}\n"
-
+        confident_parlay = f"💪 Parlay de Confianza: {' + '.join(f'{p[\"msg\"].split(\"@\")[1].split(\"—\")[0]}' for p in confident_picks)} — Cuota Total: {confident_parlay_odds}\n"
         
         # Generar parlay soñador (cuotas > 2.00, top 3-5 picks con mayor cuota)
         dreamer_picks = sorted([p for p in picks if p["cuota"] > 2.00], key=lambda x: x["cuota"], reverse=True)[:5]
         dreamer_parlay_odds = round(sum((p["cuota"] - 1) for p in dreamer_picks) + 1, 2) if dreamer_picks else 1.0
-        dreamer_parlay = f"🌟 Parlay Soñador: {' + '.join(p['msg'].split('@')[1].split('—')[0] for p in dreamer_picks)} — Cuota Total: {dreamer_parlay_odds}\n"
-
-  
-        bot_mensaje += f"\n{confident_parlay}{dreamer_parlay}"
+        dreamer_parlay = f"🌟 Parlay Soñador: {' + '.join(f'{p[\"msg\"].split(\"@\")[1].split(\"—\")[0]}' for p in dreamer_picks)} — Cuota Total: {dreamer_parlay_odds}\n"
+        
+        bot_mensaje += f"\n{confident_parlay}{dreamer_parlay}"  # Línea 267
         bot_mensaje = get_cached_openai_response(bot_mensaje)
         await enviar_mensaje(bot_mensaje, os.getenv("CHAT_ID_BOT"))
 
