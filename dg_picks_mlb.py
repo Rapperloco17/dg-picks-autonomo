@@ -206,7 +206,7 @@ async def main():
 
     if not picks:
         mensaje = f"📅 MLB Picks – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n⚠️ No se detectaron picks ni partidos con valor hoy."
-        await enviar_mensaje(mensaje, os.getenv("CHAT_ID_RETO"))
+        await enviar_mensaje(mensaje, os.getenv("chat_id_reto"))
         await enviar_mensaje(mensaje, os.getenv("CHAT_ID_VIP"))
         await enviar_mensaje(mensaje, os.getenv("CHAT_ID_BOT"))
         return
@@ -219,7 +219,7 @@ async def main():
     if reto_pick:
         reto_raw = f"🔥 PICK RETO MLB – {FECHA_TEXTO} 🔥\n\n{reto_pick['msg']}\n\n✅ Valor y seguridad para avanzar en el reto."
         reto_mensaje = get_cached_openai_response(reto_raw)
-        await enviar_mensaje(reto_mensaje, os.getenv("CHAT_ID_RETO"))
+        await enviar_mensaje(reto_mensaje, os.getenv("chat_id_reto"))
 
     # 🎯 MENSAJE VIP (con intro y cierre)
     if vip_picks:
@@ -238,7 +238,7 @@ async def main():
     await enviar_mensaje(bot_mensaje, os.getenv("CHAT_ID_BOT"))
 
 if __name__ == "__main__":
-    if not os.getenv("ODDS_API_KEY") or not os.getenv("TELEGRAM_BOT_TOKEN") or not (os.getenv("CHAT_ID_RETO") and os.getenv("CHAT_ID_VIP") and os.getenv("CHAT_ID_BOT")):
-        logger.error("Faltan variables de entorno necesarias: ODDS_API_KEY, TELEGRAM_BOT_TOKEN, CHAT_ID_RETO, CHAT_ID_VIP o CHAT_ID_BOT")
+    if not os.getenv("ODDS_API_KEY") or not os.getenv("TELEGRAM_BOT_TOKEN") or not (os.getenv("chat_id_reto") and os.getenv("CHAT_ID_VIP") and os.getenv("CHAT_ID_BOT")):
+        logger.error("Faltan variables de entorno necesarias: ODDS_API_KEY, TELEGRAM_BOT_TOKEN, chat_id_reto, CHAT_ID_VIP o CHAT_ID_BOT")
     else:
         asyncio.run(main())
