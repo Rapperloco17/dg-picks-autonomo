@@ -115,9 +115,11 @@ def get_form(team_id: int) -> dict:
                     anotadas, recibidas = away["score"], home["score"]
                 juegos.append((anotadas, recibidas))
         if not juegos:
-            logger.warning(f"No hay historial suficiente para el equipo {team_id}, usando valores por defecto")
             return {"anotadas": 4.0, "recibidas": 4.0}
-        return {"anotadas": round(sum(j[0] for j in juegos) / len(juegos), 2), "recibidas": round(sum(j[1] for j in juegos) / len(juegos), 2)}
+        return {
+            "anotadas": round(sum(j[0] for j in juegos) / len(juegos), 2),
+            "recibidas": round(sum(j[1] for j in juegos) / len(juegos), 2)
+        }
     except Exception as e:
         logger.error(f"Error al obtener forma del equipo {team_id}: {e}")
         return {"anotadas": 4.0, "recibidas": 4.0}
@@ -165,8 +167,6 @@ def sugerir_picks() -> list:
 async def enviar_mensaje(mensaje: str, chat_id: str):
     try:
         bot = Bot(token=os.getenv("TELEGRAM_BOT_TOKEN"))
-        if not chat_id or not chat_id.isdigit():
-            raise ValueError(f"Chat ID inválido: {chat_id}")
         await bot.send_message(chat_id=chat_id, text=mensaje)
         logger.info(f"Mensaje enviado a Telegram al chat ID: {chat_id}")
     except Exception as e:
@@ -179,18 +179,22 @@ def get_cached_openai_response(prompt: str) -> str:
         with open(cache_file, "r") as f:
             cache = json.load(f)
         if prompt_hash in cache:
-            logger.info("Usando respuesta de OpenAI desde caché")
             return cache[prompt_hash]
     except FileNotFoundError:
         cache = {}
     try:
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": "Eres un experto en apuestas deportivas y Telegram. Redacta el siguiente texto con estilo atractivo, profesional y adaptado para un canal de MLB, destacando los picks con emojis y un tono premium."}, {"role": "user", "content": prompt}])
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "Eres un experto en apuestas deportivas y Telegram. Redacta el siguiente texto con estilo atractivo, profesional y adaptado para un canal de MLB, destacando los picks con emojis y un tono premium."},
+                {"role": "user", "content": prompt}
+            ]
+        )
         result = response.choices[0].message.content
         cache[prompt_hash] = result
         with open(cache_file, "w") as f:
             json.dump(cache, f)
-        logger.info("Respuesta de OpenAI almacenada en caché")
         return result
     except Exception as e:
         logger.error(f"Error con OpenAI: {e}")
@@ -199,34 +203,42 @@ def get_cached_openai_response(prompt: str) -> str:
 async def main():
     logger.info(f"📅 Iniciando pronósticos MLB – {HOY} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST")
     picks = sugerir_picks()
+
     if not picks:
         mensaje = f"📅 MLB Picks – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n⚠️ No se detectaron picks ni partidos con valor hoy."
-        await enviar_mensaje(mensaje, os.getenv("chat_id_reto"))
+        await enviar_mensaje(mensaje, os.getenv("CHAT_ID_RETO"))
         await enviar_mensaje(mensaje, os.getenv("CHAT_ID_VIP"))
         await enviar_mensaje(mensaje, os.getenv("CHAT_ID_BOT"))
         return
 
     picks.sort(key=lambda x: x["puntaje"], reverse=True)
-    reto_pick = picks[0] if picks else None
-    vip_picks = picks[:3] if len(picks) >= 3 else picks[:len(picks)]
+    reto_pick = picks[0]
+    vip_picks = picks[:3] if len(picks) >= 3 else picks
 
+    # 📦 MENSAJE PARA EL RETO ESCALERA
     if reto_pick:
-        reto_mensaje = f"🏆 MLB Reto – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n{reto_pick['msg']}"  # Línea 123
-        reto_mensaje = get_cached_openai_response(reto_mensaje)
-        await enviar_mensaje(reto_mensaje, os.getenv("chat_id_reto"))
+        reto_raw = f"🔥 PICK RETO MLB – {FECHA_TEXTO} 🔥\n\n{reto_pick['msg']}\n\n✅ Valor y seguridad para avanzar en el reto."
+        reto_mensaje = get_cached_openai_response(reto_raw)
+        await enviar_mensaje(reto_mensaje, os.getenv("CHAT_ID_RETO"))
 
+    # 🎯 MENSAJE VIP (con intro y cierre)
     if vip_picks:
-        vip_mensaje = f"🏅 MLB Picks VIP – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n" + "\n\n".join(p["msg"] for p in vip_picks)
-        vip_mensaje = get_cached_openai_response(vip_mensaje)
+        vip_raw = f"🎉 **Bienvenidos al mega listado de PICKS MLB para el {FECHA_TEXTO}** 🎉\n\n"
+        for pick in vip_picks:
+            vip_raw += f"{pick['msg']}\n\n"
+            vip_raw += "✨ ¡Confianza total en este encuentro! ✨\n\n"
+        vip_raw += "💼📊 ¡Éxito y que las bases estén siempre a favor de tus decisiones! 🏁"
+        vip_mensaje = get_cached_openai_response(vip_raw)
         await enviar_mensaje(vip_mensaje, os.getenv("CHAT_ID_VIP"))
 
-    if picks:
-        bot_mensaje = f"📅 MLB Picks Completo – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n" + "\n\n".join(p["msg"] for p in picks)
-        bot_mensaje = get_cached_openai_response(bot_mensaje)
-        await enviar_mensaje(bot_mensaje, os.getenv("CHAT_ID_BOT"))
+    # 🧠 MENSAJE COMPLETO PARA EL BOT PRIVADO (admin)
+    bot_raw = f"📅 MLB Picks Completo – {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST\n\n"
+    bot_raw += "\n\n".join(p["msg"] for p in picks)
+    bot_mensaje = get_cached_openai_response(bot_raw)
+    await enviar_mensaje(bot_mensaje, os.getenv("CHAT_ID_BOT"))
 
 if __name__ == "__main__":
-    if not os.getenv("ODDS_API_KEY") or not os.getenv("TELEGRAM_BOT_TOKEN") or not (os.getenv("chat_id_reto") or os.getenv("CHAT_ID_VIP") or os.getenv("CHAT_ID_BOT")):
-        logger.error("Faltan variables de entorno necesarias: ODDS_API_KEY, TELEGRAM_BOT_TOKEN, chat_id_reto, CHAT_ID_VIP o CHAT_ID_BOT")
+    if not os.getenv("ODDS_API_KEY") or not os.getenv("TELEGRAM_BOT_TOKEN") or not (os.getenv("CHAT_ID_RETO") and os.getenv("CHAT_ID_VIP") and os.getenv("CHAT_ID_BOT")):
+        logger.error("Faltan variables de entorno necesarias: ODDS_API_KEY, TELEGRAM_BOT_TOKEN, CHAT_ID_RETO, CHAT_ID_VIP o CHAT_ID_BOT")
     else:
         asyncio.run(main())
