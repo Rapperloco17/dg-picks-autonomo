@@ -61,7 +61,7 @@ def construir_mensaje(picks, cuota_total):
         equipo = extraer_equipo(pick["msg"])
         enfrentamiento = extraer_enfrentamiento(pick["msg"])
         linea = pick["msg"].split("\n")[-1]
-        cuerpo += f"{i}⃣ *{equipo}* – {linea}\n\_{enfrentamiento}_\n\n"
+        cuerpo += f"{i}⃣ *{equipo}* – {linea}\n{enfrentamiento}\n\n"
     cierre = f"💣 *Cuota total combinada:* @ {cuota_total}\n\nStake bajo. Pick con selecciones reales y fundamentos.\n"
     return encabezado + cuerpo + cierre
 
@@ -95,3 +95,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
