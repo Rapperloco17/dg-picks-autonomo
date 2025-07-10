@@ -17,7 +17,7 @@ FECHA_TEXTO = datetime.now(MX_TZ).strftime("%d de %B")
 CHAT_ID_FREE = os.getenv("CHAT_ID_FREE")
 
 # Parámetros
-MIN_PUNTAJE = 0.30
+MIN_PUNTAJE = 0.0  # ya no se exige mínimo de puntaje
 MIN_CUOTA = 1.50
 MAX_CUOTA = 3.50
 CUOTA_OBJETIVO = 10.0
@@ -74,9 +74,10 @@ async def main():
 
     for pick in sorted(picks_ml_all + picks_rl_all, key=lambda x: x["puntaje"], reverse=True):
         enfrentamiento = extraer_enfrentamiento(pick["msg"])
-        if (pick["puntaje"] >= MIN_PUNTAJE and
+        if (
             MIN_CUOTA <= float(pick["cuota"]) <= MAX_CUOTA and
-            enfrentamiento not in enfrentamientos_usados):
+            enfrentamiento not in enfrentamientos_usados
+        ):
             picks_filtrados.append(pick)
             enfrentamientos_usados.add(enfrentamiento)
         if len(picks_filtrados) >= 6:
@@ -88,11 +89,6 @@ async def main():
         return
 
     cuota_total = calcular_cuota_combinada(picks_filtrados)
-    if cuota_total < CUOTA_OBJETIVO:
-        logger.info("No se alcanzó la cuota mínima para Soñadora")
-        await enviar_mensaje("🚫 Hoy no se pudo construir una Soñadora con cuota suficiente.\nSeguimos firmes: solo jugamos cuando hay fundamentos. 🔍", CHAT_ID_FREE)
-        return
-
     mensaje = construir_mensaje(picks_filtrados, cuota_total)
     await enviar_mensaje(mensaje, CHAT_ID_FREE)
 
