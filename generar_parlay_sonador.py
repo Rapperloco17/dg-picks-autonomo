@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Bot
+from openai import OpenAI
 from dg_picks_mlb import sugerir_picks as picks_ml
 from dg_picks_mlb_2 import sugerir_picks as picks_rl
 
@@ -17,10 +18,9 @@ FECHA_TEXTO = datetime.now(MX_TZ).strftime("%d de %B")
 CHAT_ID_FREE = os.getenv("CHAT_ID_FREE")
 
 # Parámetros
-MIN_PUNTAJE = 0.0
+MIN_PUNTAJE = 0.25
 MIN_CUOTA = 1.50
 MAX_CUOTA = 3.50
-CUOTA_OBJETIVO = 10.0
 MIN_PICKS = 4
 
 async def enviar_mensaje(mensaje: str, chat_id: str):
@@ -54,15 +54,32 @@ def calcular_cuota_combinada(picks):
             pass
     return round(total, 2)
 
-def construir_mensaje(picks, cuota_total):
-    encabezado = f"\n🎯 *Parlay Soñador del Día – MLB* 🎯\n\n🔥 Hoy combinamos valor con fundamentos. Aquí va nuestra bomba:\n"
+async def get_openai_justificacion(pick):
+    try:
+        prompt = f"Redacta un mini análisis profesional, táctico y convincente para este pick de béisbol MLB, ideal para una combinada tipo Parlay Soñador. Sé claro, breve y convincente:\n\n{pick['msg']}"
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "Eres un experto en apuestas deportivas y redactor premium para un canal de picks."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        logger.error(f"Error al generar justificación OpenAI: {e}")
+        return "Análisis no disponible."
+
+async def construir_mensaje(picks, cuota_total):
+    encabezado = f"\n🍒 *Parlay Soñador del Día – MLB ({FECHA_TEXTO})* 🍒\n\n🔥 Hoy combinamos picks con fundamentos y valor real. Esta es nuestra bomba para hoy:\n"
     cuerpo = ""
     for i, pick in enumerate(picks, 1):
         equipo = extraer_equipo(pick["msg"])
         enfrentamiento = extraer_enfrentamiento(pick["msg"])
         linea = pick["msg"].split("\n")[-1]
-        cuerpo += f"{i}⃣ *{equipo}* – {linea}\n{enfrentamiento}\n\n"
-    cierre = f"💣 *Cuota total combinada:* @ {cuota_total}\n\nStake bajo. Pick con selecciones reales y fundamentos.\n"
+        justificacion = await get_openai_justificacion(pick)
+        cuerpo += f"{i}⃣ – 🍎 Pick: *{equipo}* {linea}\n🧠 {justificacion}\n\n"
+    cierre = f"💬 *Cuota total combinada real:* @ {cuota_total}\n\n🎯 Stake bajo. Parlay con selecciones reales, justificación táctica y fundamentos analizados por DG Picks + OpenAI."
     return encabezado + cuerpo + cierre
 
 async def main():
@@ -76,6 +93,7 @@ async def main():
         enfrentamiento = extraer_enfrentamiento(pick["msg"])
         if (
             "cuota" in pick and
+            pick["puntaje"] >= MIN_PUNTAJE and
             MIN_CUOTA <= float(pick["cuota"]) <= MAX_CUOTA and
             enfrentamiento not in enfrentamientos_usados
         ):
@@ -90,9 +108,8 @@ async def main():
         return
 
     cuota_total = calcular_cuota_combinada(picks_filtrados)
-    mensaje = construir_mensaje(picks_filtrados, cuota_total)
+    mensaje = await construir_mensaje(picks_filtrados, cuota_total)
     await enviar_mensaje(mensaje, CHAT_ID_FREE)
 
 if __name__ == "__main__":
     asyncio.run(main())
-
