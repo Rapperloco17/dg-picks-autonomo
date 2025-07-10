@@ -89,11 +89,14 @@ async def main():
     picks_filtrados = []
     enfrentamientos_usados = set()
 
-    for pick in sorted(picks_ml_all + picks_rl_all, key=lambda x: x.get("puntaje", 0), reverse=True):
+    todos_los_picks = sorted(picks_ml_all + picks_rl_all, key=lambda x: x.get("puntaje", 0), reverse=True)
+
+    for pick in todos_los_picks:
         enfrentamiento = extraer_enfrentamiento(pick["msg"])
         if (
             "cuota" in pick and
             pick["puntaje"] >= MIN_PUNTAJE and
+            "⚠️ Sin valor de apuesta" not in pick["msg"] and
             MIN_CUOTA <= float(pick["cuota"]) <= MAX_CUOTA and
             enfrentamiento not in enfrentamientos_usados
         ):
