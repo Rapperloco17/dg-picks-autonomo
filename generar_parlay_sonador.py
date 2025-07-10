@@ -5,7 +5,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Bot
 from dg_picks_mlb import sugerir_picks as picks_ml
-from dg_picks_mlb_2_0 import sugerir_picks as picks_rl
+from dg_picks_mlb_2.0. import sugerir_picks as picks_rl
 
 # Configuración
 load_dotenv()
@@ -25,7 +25,7 @@ CUOTA_OBJETIVO = 10.0
 async def enviar_mensaje(mensaje: str, chat_id: str):
     try:
         bot = Bot(token=os.getenv("TELEGRAM_BOT_TOKEN"))
-        await bot.send_message(chat_id=chat_id, text=mensaje)
+        await bot.send_message(chat_id=chat_id, text=mensaje, parse_mode="Markdown")
     except Exception as e:
         logger.error(f"Error al enviar mensaje: {e}")
 
@@ -60,7 +60,7 @@ def construir_mensaje(picks, cuota_total):
         equipo = extraer_equipo(pick["msg"])
         enfrentamiento = extraer_enfrentamiento(pick["msg"])
         linea = pick["msg"].split("\n")[-1]
-        cuerpo += f"{i}⃣ *{equipo}* – {linea}\n\__{enfrentamiento}_\_\n\n"
+        cuerpo += f"{i}⃣ *{equipo}* – {linea}\n\_{enfrentamiento}_\n\n"
     cierre = f"💣 *Cuota total combinada:* @ {cuota_total}\n\nStake bajo. Pick con selecciones reales y fundamentos.\n"
     return encabezado + cuerpo + cierre
 
@@ -84,6 +84,7 @@ async def main():
     cuota_total = calcular_cuota_combinada(picks_filtrados)
     if cuota_total < CUOTA_OBJETIVO or len(picks_filtrados) < 4:
         logger.info("No se cumplió el criterio para parlay soñador")
+        await enviar_mensaje("🚫 Hoy no se pudo construir una Soñadora con valor real.\nSeguimos firmes: solo jugamos cuando hay fundamentos. 🔍", CHAT_ID_FREE)
         return
 
     mensaje = construir_mensaje(picks_filtrados, cuota_total)
