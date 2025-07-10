@@ -5,7 +5,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Bot
 from dg_picks_mlb import sugerir_picks as picks_ml
-from dg_picks_mlb_2.0. import sugerir_picks as picks_rl
+from dg_picks_mlb_2 import sugerir_picks as picks_rl
 
 # Configuración
 load_dotenv()
@@ -21,6 +21,7 @@ MIN_PUNTAJE = 0.30
 MIN_CUOTA = 1.50
 MAX_CUOTA = 3.50
 CUOTA_OBJETIVO = 10.0
+MIN_PICKS = 4
 
 async def enviar_mensaje(mensaje: str, chat_id: str):
     try:
@@ -81,10 +82,15 @@ async def main():
         if len(picks_filtrados) >= 6:
             break
 
-    cuota_total = calcular_cuota_combinada(picks_filtrados)
-    if cuota_total < CUOTA_OBJETIVO or len(picks_filtrados) < 4:
-        logger.info("No se cumplió el criterio para parlay soñador")
+    if len(picks_filtrados) < MIN_PICKS:
+        logger.info("No hay suficientes picks para formar la Soñadora (min 4)")
         await enviar_mensaje("🚫 Hoy no se pudo construir una Soñadora con valor real.\nSeguimos firmes: solo jugamos cuando hay fundamentos. 🔍", CHAT_ID_FREE)
+        return
+
+    cuota_total = calcular_cuota_combinada(picks_filtrados)
+    if cuota_total < CUOTA_OBJETIVO:
+        logger.info("No se alcanzó la cuota mínima para Soñadora")
+        await enviar_mensaje("🚫 Hoy no se pudo construir una Soñadora con cuota suficiente.\nSeguimos firmes: solo jugamos cuando hay fundamentos. 🔍", CHAT_ID_FREE)
         return
 
     mensaje = construir_mensaje(picks_filtrados, cuota_total)
