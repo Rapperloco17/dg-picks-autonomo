@@ -17,7 +17,7 @@ FECHA_TEXTO = datetime.now(MX_TZ).strftime("%d de %B")
 CHAT_ID_FREE = os.getenv("CHAT_ID_FREE")
 
 # Parámetros
-MIN_PUNTAJE = 0.0  # ya no se exige mínimo de puntaje
+MIN_PUNTAJE = 0.0
 MIN_CUOTA = 1.50
 MAX_CUOTA = 3.50
 CUOTA_OBJETIVO = 10.0
@@ -72,9 +72,10 @@ async def main():
     picks_filtrados = []
     enfrentamientos_usados = set()
 
-    for pick in sorted(picks_ml_all + picks_rl_all, key=lambda x: x["puntaje"], reverse=True):
+    for pick in sorted(picks_ml_all + picks_rl_all, key=lambda x: x.get("puntaje", 0), reverse=True):
         enfrentamiento = extraer_enfrentamiento(pick["msg"])
         if (
+            "cuota" in pick and
             MIN_CUOTA <= float(pick["cuota"]) <= MAX_CUOTA and
             enfrentamiento not in enfrentamientos_usados
         ):
