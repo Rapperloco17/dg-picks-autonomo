@@ -18,11 +18,9 @@ MX_TZ = pytz.timezone("America/Mexico_City")
 FECHA_TEXTO = datetime.now(MX_TZ).strftime("%d de %B de %Y")
 CHAT_ID_FREE = os.getenv("CHAT_ID_FREE")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-CUOTA_OBJETIVO = 10.0
 MIN_PUNTAJE = 0.25
 MIN_CUOTA = 1.50
-MAX_CUOTA = 3.50
-MIN_PICKS = 4
+MIN_PICKS = 3
 MAX_PICKS = 8
 
 async def enviar_mensaje(mensaje: str, chat_id: str):
@@ -82,7 +80,7 @@ def generar_mini_analisis(equipo: str, enfrentamiento: str) -> str:
         return "Pick respaldado por fundamentos sólidos."
 
 def construir_mensaje(picks: list, cuota_total: float) -> str:
-    encabezado = f"🎯 *Parlay Soñador del Día – MLB 🔥 {FECHA_TEXTO}* 🎯\n\n💥 Hoy combinamos selecciones con *valor real* y respaldo estadístico para formar nuestra bomba soñadora. Aquí va:\n\n"
+    encabezado = f"🎯 *Parlay Soñador del Día – MLB 🔥 {FECHA_TEXTO}* 🎯\n\n💥 Hoy combinamos selecciones con *valor real* y respaldo estadístico para formar nuestra bomba soñadora sin límites. Aquí va:\n\n"
     cuerpo = ""
     for i, pick in enumerate(picks, 1):
         equipo = extraer_equipo(pick["msg"])
@@ -120,7 +118,7 @@ async def main():
             continue
         if (
             pick["puntaje"] >= MIN_PUNTAJE and
-            MIN_CUOTA <= cuota <= MAX_CUOTA and
+            cuota >= MIN_CUOTA and
             enfrentamiento not in enfrentamientos_usados and
             not contiene_sin_valor(pick["msg"])
         ):
@@ -135,11 +133,6 @@ async def main():
         return
 
     cuota_total = calcular_cuota_combinada(picks_filtrados)
-    if cuota_total < CUOTA_OBJETIVO:
-        logger.info(f"Cuota total {cuota_total} menor que objetivo {CUOTA_OBJETIVO}")
-        await enviar_mensaje("🚫 Hoy no se pudo construir una Soñadora con cuota suficiente.\nSeguimos firmes: solo jugamos cuando hay fundamentos. 🔍", CHAT_ID_FREE)
-        return
-
     mensaje = construir_mensaje(picks_filtrados, cuota_total)
     await enviar_mensaje(mensaje, CHAT_ID_FREE)
 
@@ -147,4 +140,4 @@ if __name__ == "__main__":
     if not all([os.getenv("TELEGRAM_BOT_TOKEN"), CHAT_ID_FREE, OPENAI_API_KEY]):
         logger.error("Faltan variables de entorno: TELEGRAM_BOT_TOKEN, CHAT_ID_FREE o OPENAI_API_KEY")
     else:
-        asyncio.run(main())
+        asyncio.run(main()
