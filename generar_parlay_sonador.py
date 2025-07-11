@@ -22,8 +22,8 @@ CUOTA_OBJETIVO = 10.0
 MIN_PUNTAJE = 0.25
 MIN_CUOTA = 1.50
 MAX_CUOTA = 3.50
-MIN_PICKS = 3
-MAX_PICKS = 5
+MIN_PICKS = 4
+MAX_PICKS = 8
 
 async def enviar_mensaje(mensaje: str, chat_id: str):
     try:
