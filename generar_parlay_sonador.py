@@ -18,9 +18,10 @@ MX_TZ = pytz.timezone("America/Mexico_City")
 FECHA_TEXTO = datetime.now(MX_TZ).strftime("%d de %B de %Y")
 CHAT_ID_FREE = os.getenv("CHAT_ID_FREE")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+CUOTA_OBJETIVOS = [10, 20, 30, 100]
 MIN_PUNTAJE = 0.25
 MIN_CUOTA = 1.50
-MIN_PICKS = 3
+MIN_PICKS = 4
 MAX_PICKS = 8
 
 async def enviar_mensaje(mensaje: str, chat_id: str):
@@ -79,8 +80,8 @@ def generar_mini_analisis(equipo: str, enfrentamiento: str) -> str:
         logger.error(f"Error con OpenAI: {e}")
         return "Pick respaldado por fundamentos sólidos."
 
-def construir_mensaje(picks: list, cuota_total: float) -> str:
-    encabezado = f"🎯 *Parlay Soñador del Día – MLB 🔥 {FECHA_TEXTO}* 🎯\n\n💥 Hoy combinamos selecciones con *valor real* y respaldo estadístico para formar nuestra bomba soñadora sin límites. Aquí va:\n\n"
+def construir_mensaje(picks: list, cuota_total: float, objetivo: float) -> str:
+    encabezado = f"🎯 *Parlay Soñador del Día – MLB 🔥 {FECHA_TEXTO}* 🎯\n\n💥 Soñadora apuntando a cuota ~{objetivo}. Selecciones con *valor real* y respaldo estadístico. Aquí va:\n\n"
     cuerpo = ""
     for i, pick in enumerate(picks, 1):
         equipo = extraer_equipo(pick["msg"])
@@ -88,11 +89,10 @@ def construir_mensaje(picks: list, cuota_total: float) -> str:
         linea = [l for l in pick["msg"].split("\n") if "@" in l][-1] if any("@" in l for l in pick["msg"].split("\n")) else "Pick sin cuota"
         mini = generar_mini_analisis(equipo, enfrentamiento)
         cuerpo += f"*{i}️⃣ {equipo}* {linea} (Puntaje: {pick['puntaje']:.2f})\n🧠 _{mini}_\n\n"
-    cierre = f"💣 *Cuota total combinada:* @ {cuota_total}\n📊 Stake bajo – combinada de picks reales, bien analizados.\n\n🔥 *Esto no es humo, es análisis. DG Picks siempre apuesta con cabeza, no con corazón.*\n💼📈 *¡Vamos por el verde, soñadores!*"
+    cierre = f"💣 *Cuota total combinada:* @ {cuota_total}\n📊 Stake bajo – combinada de picks reales, bien analizados.\n\n🔥 *Esto no es humo, es análisis. DG Picks siempre apuesta con cabeza.*\n💼📈 *¡Vamos por el verde, soñadores!*"
     return encabezado + cuerpo + cierre
 
-async def main():
-    logger.info(f"Iniciando Parlay Soñador para {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST")
+async def generar_parlays():
     picks_ml_all = picks_ml()
     picks_rl_all = picks_rl()
 
@@ -101,10 +101,9 @@ async def main():
         await enviar_mensaje("🚫 Hoy no se pudo construir una Soñadora con valor real.\nSeguimos firmes: solo jugamos cuando hay fundamentos. 🔍", CHAT_ID_FREE)
         return
 
+    todos = sorted(picks_ml_all + picks_rl_all, key=lambda x: x["puntaje"], reverse=True)
     picks_filtrados = []
     enfrentamientos_usados = set()
-
-    todos = sorted(picks_ml_all + picks_rl_all, key=lambda x: x["puntaje"], reverse=True)
 
     for pick in todos:
         if not isinstance(pick, dict) or "msg" not in pick or "puntaje" not in pick or "cuota" not in pick:
@@ -124,7 +123,7 @@ async def main():
         ):
             picks_filtrados.append(pick)
             enfrentamientos_usados.add(enfrentamiento)
-        if len(picks_filtrados) >= MAX_PICKS:
+        if len(picks_filtrados) >= MAX_PICKS * len(CUOTA_OBJETIVOS):  # Suficientes para todos los parlays
             break
 
     if len(picks_filtrados) < MIN_PICKS:
@@ -132,12 +131,36 @@ async def main():
         await enviar_mensaje("🚫 Hoy no se pudo construir una Soñadora con valor real.\nSeguimos firmes: solo jugamos cuando hay fundamentos. 🔍", CHAT_ID_FREE)
         return
 
-    cuota_total = calcular_cuota_combinada(picks_filtrados)
-    mensaje = construir_mensaje(picks_filtrados, cuota_total)
-    await enviar_mensaje(mensaje, CHAT_ID_FREE)
+    for objetivo in CUOTA_OBJETIVOS:
+        parlays = []
+        cuota_actual = 1.0
+        enfrentamientos_usados_parlay = set()
+
+        for pick in picks_filtrados:
+            enfrentamiento = extraer_enfrentamiento(pick["msg"])
+            if enfrentamiento not in enfrentamientos_usados_parlay and len(parlays) < MAX_PICKS:
+                cuota_nueva = calcular_cuota_combinada([pick] + parlays)
+                if cuota_nueva >= objetivo and len(parlays) >= MIN_PICKS - 1:  # Asegurar mínimo 3
+                    parlays.append(pick)
+                    break
+                elif cuota_nueva < objetivo and len(parlays) < MAX_PICKS - 1:
+                    parlays.append(pick)
+                    enfrentamientos_usados_parlay.add(enfrentamiento)
+                    cuota_actual = cuota_nueva
+
+        if len(parlays) >= MIN_PICKS:
+            cuota_total = calcular_cuota_combinada(parlays)
+            mensaje = construir_mensaje(parlays, cuota_total, objetivo)
+            await enviar_mensaje(mensaje, CHAT_ID_FREE)
+        else:
+            logger.info(f"No se pudo alcanzar cuota {objetivo} con {MIN_PICKS} picks")
+
+async def main():
+    logger.info(f"Iniciando Parlay Soñador para {FECHA_TEXTO} a las {datetime.now(MX_TZ).strftime('%H:%M')} CST")
+    await generar_parlays()
 
 if __name__ == "__main__":
     if not all([os.getenv("TELEGRAM_BOT_TOKEN"), CHAT_ID_FREE, OPENAI_API_KEY]):
         logger.error("Faltan variables de entorno: TELEGRAM_BOT_TOKEN, CHAT_ID_FREE o OPENAI_API_KEY")
     else:
-        asyncio.run(main()
+        asyncio.run(main())
