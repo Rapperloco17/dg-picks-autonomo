@@ -26,7 +26,7 @@ ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/baseball_mlb/odds"
 HEADERS = {"User-Agent": "DG Picks"}
 
 # Factores de ajuste por estadio
-VENUE_FACTOR = {
+VENUE_FACTORS = {
     "Coors Field": 1.2,
     "Fenway Park": 1.1,
     "Yankee Stadium": 1.05,
@@ -47,10 +47,13 @@ def get_today_games():
             for g in date_info.get("games", []):
                 try:
                     hora_utc = datetime.strptime(g["gameDate"], "%Y-%m-%dT%H:%M:%SZ")
+                    if "id" not in g["teams"]["home"]["team"] or "id" not in g["teams"]["away"]["team"]:
+                        logger.warning(f"Datos incompletos para juego: {g}")
+                        continue
                     games.append({
                         "home": g["teams"]["home"]["team"]["name"],
-                        "team_id": g["teams"]["home"]["team"]["id"],
                         "away": g["teams"]["away"]["team"]["name"],
+                        "home_id": g["teams"]["home"]["team"]["id"],
                         "away_id": g["teams"]["away"]["team"]["id"],
                         "pitcher_home": g["teams"]["home"].get("probablePitcher", {}).get("id"),
                         "pitcher_away": g["teams"]["away"].get("probablePitcher", {}).get("id"),
@@ -59,8 +62,9 @@ def get_today_games():
                         "hora_es": hora_utc.astimezone(ES_TZ).strftime("%H:%M")
                     })
                 except (KeyError, ValueError) as e:
-                    logger.warning(f"Error al procesar juego: {e}")
+                    logger.warning(f"Error al procesar juego: {e} | Datos: {g}")
                     continue
+        logger.info(f"Juegos encontrados hoy: {[g['home'] + ' vs ' + g['away'] for g in games]}")
         return games
     except requests.RequestException as e:
         logger.error(f"Error al obtener juegos: {e}")
@@ -165,7 +169,7 @@ def sugerir_totales(games):
             form_away = get_form(j["away_id"])
             p_home = get_pitcher(j["pitcher_home"])
             p_away = get_pitcher(j["pitcher_away"])
-            venue_factor = VENUE_FACTOR.get(j["venue"], 1.0)
+            venue_factor = VENUE_FACTORS.get(j["venue"], 1.0)
 
             total_est = round(((form_home["anotadas"] + form_away["recibidas"] + 
                                form_away["anotadas"] + form_home["recibidas"]) / 2) * venue_factor, 2)
@@ -199,7 +203,7 @@ def sugerir_totales(games):
                                 }
                             })
         except Exception as e:
-            logger.warning(f"Error al procesar sugerencia para {j['away']} vs {j['home']}: {e}")
+            logger.warning(f"Error al procesar sugerencia para {j['away']} vs {j['home']}: {e} | Datos: {j}")
             continue
     return sugerencias
 
@@ -241,7 +245,7 @@ if __name__ == "__main__":
                 print(r["msg"])
             export_to_csv(recomendaciones)
             if chat_id:
-                resumen = f"📊 *Over/Under MLB – {HOY}*\n\n" + "\n".join(f"🔹 {r['msg']}" for r in recomendaciones)
+                resumen = f"📊 *Over/Under MLB – {HOY}* | Juegos procesados: {len(juegos)}, Recomendaciones: {len(recomendaciones)}\n\n" + "\n".join(f"🔹 {r['msg']}" for r in recomendaciones)
                 asyncio.run(enviar_mensaje(resumen, chat_id))
         else:
             print("⚠️ No se detectaron partidos con valor para Over/Under hoy.")
